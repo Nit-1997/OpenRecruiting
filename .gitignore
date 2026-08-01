@@ -1,0 +1,47 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.secret
+secrets.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / Next / bun
+node_modules/
+.next/
+out/
+bun.lockb
+next-env.d.ts
+
+# Docker / local
+*.log
+.DS_Store
+
+# Neo4j local data
+neo4j-data/
+
+# Local build scratch
+/.build/
+
+# Next.js build output
+.next/
+
+# Captured interview data — never commit. These directories hold real
+# transcripts, candidate/interviewer names and hiring verdicts.
+workers/feedback-agent/evals/fixtures/
+workers/feedback-agent/evals/runs/
+
+# Local performance audit output
+lighthouse-*.json
