@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  api:
+    build: .
+    container_name: feedback-agent-api
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      - HF_HOME=/tmp/.cache/huggingface
+      - TRANSFORMERS_CACHE=/tmp/.cache/huggingface/transformers
+      - SENTENCE_TRANSFORMERS_HOME=/tmp/.cache/sentence-transformers
+    volumes:
+      - ./src:/app/src
+      - ./local:/app/local
+      - hf_cache:/tmp/.cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  streamlit:
+    build: .
+    container_name: feedback-agent-ui
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - API_URL=http://api:8001
+    volumes:
+      - ./src:/app/src
+      - ./local:/app/local
+    command: streamlit run local/ui/round_tester.py --server.port 8501 --server.address 0.0.0.0
+    depends_on:
+      - api
+
+volumes:
+  hf_cache:
+
+networks:
+  default:
+    name: feedback-agent-network

@@ -1,0 +1,36 @@
+# Production requirements for Lambda (no dev dependencies)
+
+# PyTorch, CPU-only (MUST be installed first, before sentence-transformers).
+#
+# Version floor is 2.6: the CPU index publishes no linux/arm64 "+cpu" wheel
+# below that, so an exact older pin (this was torch==2.2.0+cpu) cannot be
+# installed at all on an Apple Silicon machine. Kept as a range rather than an
+# exact pin so the image builds on both arm64 and x86_64.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.6,<3.0
+
+# Core ML
+numpy>=1.26,<3.0
+transformers>=4.47,<5.0
+sentence-transformers>=5.0,<6.0
+tiktoken>=0.7
+pysbd>=0.3.4
+
+# API (for potential HTTP endpoints)
+fastapi>=0.115.0
+pydantic-settings>=2.0.0
+
+# Async HTTP client
+httpx>=0.27.0
+
+# Date parsing
+python-dateutil>=2.8.0
+
+# Logging
+structlog>=24.0.0
+
+# AWS Lambda adapter
+mangum>=0.17.0
+
+# Env loading
+python-dotenv>=1.0.0

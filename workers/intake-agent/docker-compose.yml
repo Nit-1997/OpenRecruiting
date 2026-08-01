@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  api:
+    build: .
+    container_name: intake-agent-api
+    ports:
+      - "8002:8002"
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+      - ./local:/app/local
+      - ./production:/app/production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

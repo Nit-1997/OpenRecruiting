@@ -1,0 +1,16 @@
+-r requirements.txt
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.0.0
+
+# Linting and formatting
+ruff>=0.1.0
+mypy>=1.8.0
+
+# Type stubs
+types-requests>=2.31.0
+
+# Date parsing (for Supabase client)
+python-dateutil>=2.8.0
