@@ -1,0 +1,26 @@
+{
+    "companies": [
+        {"name": "Calendly", "size_signal": "scaleup", "domain_summary": "scheduling/productivity SaaS"}
+    ],
+    "markets": [
+        {"name": "B2B SaaS", "category": "business_model"},
+        {"name": "mobile/iOS+Android", "category": "domain"}
+    ],
+    "requisition_traits": [
+        {"name": "high ownership", "category": "execution", "priority": "must_have", "evidence": "HM: higher ownership, able to think beyond their roles"},
+        {"name": "collegial sparring culture", "category": "cultural", "priority": "implicit", "evidence": "focus on Impact is Calendly's core value"}
+    ],
+    "company_traits": [
+        {"company": "Calendly", "name": "PLG DNA", "category": "cultural", "evidence": "product-led growth company transitioning to enterprise"}
+    ],
+    "company_markets": [
+        {"company": "Calendly", "market": "B2B SaaS", "role": "primary"}
+    ],
+    "company_skills": [
+        {"company": "Calendly", "skill": "React Native"}
+    ],
+    "company_locations": [
+        {"company": "Calendly", "location": "Atlanta, GA"}
+    ],
+    "skills": []
+}

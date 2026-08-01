@@ -1,0 +1,142 @@
+"""Deep evaluation: Supabase vs Neo4j cross-checks after a full ingest."""
+import asyncio, os
+from supabase import create_async_client
+from src.config.database import neo4j_driver
+
+
+async def main():
+    sb = await create_async_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+    await neo4j_driver.connect(uri=os.environ['NEO4J_URI'], user=os.environ['NEO4J_USER'], password=os.environ['NEO4J_PASSWORD'])
+
+    print('=' * 70)
+    print('DEEP EVALUATION: Supabase ↔ Neo4j')
+    print('=' * 70)
+
+    # ----- 1. Supabase counts of expected sources -----
+    sb_counts = {}
+    sql_pairs = [
+        ('candidate_rounds_completed', "SELECT COUNT(*) AS c FROM candidate_rounds WHERE processing_status='completed'"),
+        ('transcripts_with_content', "SELECT COUNT(*) AS c FROM transcripts WHERE LENGTH(COALESCE(feedback_transcript,'')) > 50 OR jsonb_array_length(COALESCE(segments::jsonb,'[]'::jsonb)) > 0"),
+        ('requisitions_intake_done', "SELECT COUNT(*) AS c FROM requisitions WHERE intake_processing_status='completed'"),
+        ('candidates_with_verdict', "SELECT COUNT(*) AS c FROM candidates WHERE final_verdict IS NOT NULL"),
+        ('candidates_total', "SELECT COUNT(*) AS c FROM candidates"),
+        ('rounds_total', "SELECT COUNT(*) AS c FROM rounds"),
+        ('requisitions_total', "SELECT COUNT(*) AS c FROM requisitions"),
+        ('organizations_total', "SELECT COUNT(*) AS c FROM organizations WHERE deleted_at IS NULL"),
+    ]
+    for name, sql in sql_pairs:
+        rpc = await sb.rpc('execute_readonly_query', {'query_text': sql}).execute()
+        sb_counts[name] = rpc.data[0]['c'] if rpc.data else 0
+
+    # ----- 2. Cortex pipeline tracking -----
+    rpc = await sb.rpc('execute_readonly_query', {
+        'query': "SELECT event_type, COUNT(*) AS c FROM cortex_events GROUP BY event_type ORDER BY event_type"
+    }).execute()
+    events_by_type = {r['event_type']: r['c'] for r in (rpc.data or [])}
+
+    rpc = await sb.rpc('execute_readonly_query', {
+        'query': "SELECT event_type, COUNT(*) AS c, SUM(nodes_count) AS n, SUM(edges_count) AS e FROM cortex_ingestion_record GROUP BY event_type ORDER BY event_type"
+    }).execute()
+    ingested_by_type = {r['event_type']: r for r in (rpc.data or [])}
+
+    print('\n--- Supabase source counts ---')
+    for k, v in sb_counts.items():
+        print(f'  {k:<35} {v}')
+
+    print('\n--- cortex_events (queue ledger) ---')
+    print(f'  {"event_type":<35} {"queue_rows":>10} {"records":>10} {"sum_nodes":>10} {"sum_edges":>10}')
+    for et in sorted(set(events_by_type) | set(ingested_by_type)):
+        q = events_by_type.get(et, 0)
+        ir = ingested_by_type.get(et, {})
+        print(f'  {et:<35} {q:>10} {ir.get("c", 0):>10} {ir.get("n", 0) or 0:>10} {ir.get("e", 0) or 0:>10}')
+
+    # ----- 3. Neo4j inventory -----
+    print('\n--- Neo4j inventory ---')
+    n_total = (await neo4j_driver.execute_read('MATCH (n) RETURN COUNT(n) AS c'))[0]['c']
+    e_total = (await neo4j_driver.execute_read('MATCH ()-[r]->() RETURN COUNT(r) AS c'))[0]['c']
+    e_alive = (await neo4j_driver.execute_read('MATCH ()-[r]->() WHERE r.invalid_at IS NULL RETURN COUNT(r) AS c'))[0]['c']
+    e_tomb = (await neo4j_driver.execute_read('MATCH ()-[r]->() WHERE r.invalid_at IS NOT NULL RETURN COUNT(r) AS c'))[0]['c']
+    e_prov = (await neo4j_driver.execute_read('MATCH ()-[r]->() WHERE r._source_event_type IS NOT NULL RETURN COUNT(r) AS c'))[0]['c']
+    print(f'  total nodes: {n_total}')
+    print(f'  total edges: {e_total} (alive={e_alive}, tombstoned={e_tomb}, with_provenance={e_prov})')
+
+    # Node breakdown
+    print('\n--- Nodes by label ---')
+    rows = await neo4j_driver.execute_read(
+        'MATCH (n) UNWIND labels(n) AS lbl RETURN lbl, COUNT(*) AS c ORDER BY c DESC'
+    )
+    for r in rows:
+        print(f'  {r["lbl"]:<25} {r["c"]}')
+
+    # Edge breakdown by event_type and rel name
+    print('\n--- Edges by (event_type, relation) ---')
+    rows = await neo4j_driver.execute_read(
+        "MATCH ()-[r]->() WHERE r._source_event_type IS NOT NULL "
+        "RETURN r._source_event_type AS et, r.name AS rel_name, "
+        "       SUM(CASE WHEN r.invalid_at IS NULL THEN 1 ELSE 0 END) AS alive, "
+        "       SUM(CASE WHEN r.invalid_at IS NOT NULL THEN 1 ELSE 0 END) AS tomb "
+        "ORDER BY et, alive DESC"
+    )
+    cur = None
+    for r in rows:
+        if r['et'] != cur:
+            print(f'  [{r["et"]}]')
+            cur = r['et']
+        print(f'    {r["rel_name"]:<25} alive={r["alive"]} tomb={r["tomb"]}')
+
+    # ----- 4. Drift checks -----
+    print('\n--- DRIFT CHECKS ---')
+    # Candidates: ingested vs eligible
+    rpc = await sb.rpc('execute_readonly_query', {
+        'query': "SELECT id::text FROM candidates WHERE final_verdict IS NOT NULL"
+    }).execute()
+    cands_eligible = {r['id'] for r in (rpc.data or [])}
+    rows = await neo4j_driver.execute_read(
+        "MATCH (n:Candidate) WHERE n.candidate_ref IS NOT NULL RETURN DISTINCT n.candidate_ref AS id"
+    )
+    cands_in_graph = {r['id'] for r in rows if r.get('id')}
+    print(f'  Candidates with verdict in Supabase: {len(cands_eligible)}')
+    print(f'  Candidate nodes in Neo4j (with candidate_ref): {len(cands_in_graph)}')
+    only_supabase = cands_eligible - cands_in_graph
+    only_graph = cands_in_graph - cands_eligible
+    if only_supabase:
+        print(f'  ! Only in Supabase ({len(only_supabase)}): {list(only_supabase)[:5]}')
+    if only_graph:
+        print(f'  ! Only in Neo4j ({len(only_graph)} — likely from feedback/interview ingestion): {list(only_graph)[:5]}')
+
+    # Provenance coverage of edges
+    print('\n--- Edge provenance coverage ---')
+    rows = await neo4j_driver.execute_read(
+        "MATCH ()-[r]->() RETURN "
+        "  SUM(CASE WHEN r._source_event_type IS NOT NULL THEN 1 ELSE 0 END) AS with_prov, "
+        "  SUM(CASE WHEN r._source_event_type IS NULL THEN 1 ELSE 0 END) AS no_prov, "
+        "  SUM(CASE WHEN r._source_id IS NOT NULL THEN 1 ELSE 0 END) AS with_sid, "
+        "  SUM(CASE WHEN r._ingested_at IS NOT NULL THEN 1 ELSE 0 END) AS with_iat, "
+        "  SUM(CASE WHEN r._event_pk IS NOT NULL THEN 1 ELSE 0 END) AS with_epk"
+    )
+    print(f'  {rows[0]}')
+
+    # Episodic concept duplication check
+    print('\n--- Concept duplication check ---')
+    for label in ['Competency', 'Trait', 'Skill', 'Company', 'Market', 'Location']:
+        rows = await neo4j_driver.execute_read(
+            f"MATCH (n:{label}) WITH n.name AS name, COUNT(*) AS c WHERE c > 1 RETURN COUNT(*) AS dup_names, SUM(c) AS total_dup_nodes"
+        )
+        r = rows[0] if rows else {}
+        print(f'  {label:<15} duplicate_names={r.get("dup_names", 0)} total_dup_nodes={r.get("total_dup_nodes", 0) or 0}')
+
+    # Sample episodic content
+    print('\n--- Sample EXHIBITS edges (5 random) ---')
+    rows = await neo4j_driver.execute_read(
+        "MATCH (s)-[r]->(t) WHERE r.name='EXHIBITS' AND r.invalid_at IS NULL "
+        "RETURN s.name AS src, t.name AS tgt, r.fact AS fact LIMIT 5"
+    )
+    for r in rows:
+        fact_preview = r['fact'][:120] if r['fact'] else ''
+        print(f'  {r["src"]} -> {r["tgt"]}: {fact_preview}...')
+
+    await neo4j_driver.disconnect()
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

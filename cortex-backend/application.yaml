@@ -1,0 +1,35 @@
+app:
+  name: cortex
+  version: 0.1.0
+  description: OpenRecruiting Cortex Intelligence Engine
+
+server:
+  host: 0.0.0.0
+  port: 8010
+  workers: 2
+
+neo4j:
+  uri: bolt://localhost:7687
+  user: neo4j
+  password: cortex_dev_2026
+  max_connection_pool_size: 50
+  connection_acquisition_timeout: 60
+
+logging:
+  level: INFO
+  format: json
+  correlation_id: true
+
+cors:
+  allowed_origins:
+    - http://localhost:3000
+    - http://localhost:3004
+    - https://app.localhost:3000
+    - https://admin.localhost:3000
+  allowed_methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+  allowed_headers:
+    - "*"

@@ -1,0 +1,35 @@
+{
+  "candidate_round": {
+    "id": "cr-003",
+    "candidate_id": "cand-003",
+    "round_id": "round-003",
+    "requisition_id": "req-001",
+    "rating": "maybe",
+    "interviewer_email": null,
+    "organization_id": "org-001"
+  },
+  "round": {
+    "id": "round-003",
+    "name": "Behavioural Round",
+    "requisition_id": "req-001",
+    "category": "behavioural",
+    "duration_minutes": 30,
+    "skills": []
+  },
+  "requisition": {
+    "id": "req-001",
+    "role_title": "Senior Backend Engineer",
+    "organization_id": "org-001",
+    "status": "active"
+  },
+  "candidate": {
+    "id": "cand-003",
+    "name": "Carol Davis",
+    "organization_id": "org-001",
+    "status": "active"
+  },
+  "feedback_items": [
+    {"heading": "leadership", "question_id": "fq-006"},
+    {"heading": "Collaboration", "question_id": "fq-007"}
+  ]
+}

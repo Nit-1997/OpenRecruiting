@@ -1,0 +1,44 @@
+{
+  "requisition": {
+    "id": "req-001",
+    "role_title": "Senior Backend Engineer",
+    "organization_id": "org-001",
+    "organization_name": "Acme Corp",
+    "organization_domain": "acme.com",
+    "status": "planned",
+    "experience_min_years": 5,
+    "experience_max_years": 10,
+    "role_location": "Bangalore",
+    "must_have_skills": ["Python", "System Design"],
+    "nice_to_have_skills": ["Kubernetes"]
+  },
+  "rounds": [
+    {
+      "id": "round-001",
+      "name": "Phone Screen",
+      "category": "screen",
+      "duration_minutes": 30,
+      "skills": [],
+      "competency_headings": ["Communication", "Technical Background"],
+      "order": 0
+    },
+    {
+      "id": "round-002",
+      "name": "Coding Round",
+      "category": "coding",
+      "duration_minutes": 60,
+      "skills": ["Python", "algorithms"],
+      "competency_headings": ["Problem Solving", "Code Quality", "Testing"],
+      "order": 1
+    },
+    {
+      "id": "round-003",
+      "name": "System Design",
+      "category": "design",
+      "duration_minutes": 60,
+      "skills": ["system design", "distributed systems"],
+      "competency_headings": ["System Thinking", "API Design"],
+      "order": 2
+    }
+  ]
+}

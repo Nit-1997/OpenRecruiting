@@ -1,0 +1,14 @@
+{
+  "candidate": {
+    "id": "cand-004",
+    "name": "Dave Wilson",
+    "organization_id": "org-001",
+    "status": "withdrawn"
+  },
+  "requisition": {
+    "id": "req-001",
+    "role_title": "Senior Backend Engineer",
+    "organization_id": "org-001",
+    "status": "active"
+  }
+}

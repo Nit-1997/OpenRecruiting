@@ -1,0 +1,17 @@
+{
+    "candidate_traits": [
+        {"name": "culture mismatch signal", "category": "interpersonal", "polarity": "negative", "evidence": "didn't like his vibe, won't fit in", "confidence": "medium", "attributed_to": "candidate"}
+    ],
+    "interviewer_traits": [
+        {"name": "uncertain assessor", "category": "execution", "polarity": "contextual", "evidence": "I'm confused... maybe it should be a maybe only", "pattern_frequency": "one_time", "attributed_to": "interviewer"},
+        {"name": "defers to others", "category": "interpersonal", "polarity": "contextual", "evidence": "I'll let the other interviews take a decision", "pattern_frequency": "one_time", "attributed_to": "interviewer"}
+    ],
+    "gaps": [
+        {"domain": "enterprise B2B", "evidence": "solid B2C but couldn't translate to enterprise", "depth": "exposure"}
+    ],
+    "companies": [],
+    "markets": [],
+    "skills": [],
+    "career_history": [],
+    "locations": []
+}

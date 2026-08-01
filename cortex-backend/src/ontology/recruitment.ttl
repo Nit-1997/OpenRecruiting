@@ -1,0 +1,194 @@
+@prefix orec: <https://openrecruiting.example/ontology/recruitment#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# --- Classes (Phase 1 Entity Types) ---
+
+orec:Skill a owl:Class ;
+    rdfs:comment "A technical, behavioral, or domain skill" ;
+    rdfs:label "Skill" .
+
+orec:Requisition a owl:Class ;
+    rdfs:comment "A job opening being recruited for" ;
+    rdfs:label "Requisition" .
+
+orec:Round a owl:Class ;
+    rdfs:comment "An interview round within a requisition plan" ;
+    rdfs:label "Round" .
+
+orec:Competency a owl:Class ;
+    rdfs:comment "A specific evaluation dimension assessed in a round" ;
+    rdfs:label "Competency" .
+
+orec:Candidate a owl:Class ;
+    rdfs:comment "A candidate being evaluated" ;
+    rdfs:label "Candidate" .
+
+orec:Interviewer a owl:Class ;
+    rdfs:comment "A person who conducts interviews" ;
+    rdfs:label "Interviewer" .
+
+orec:Location a owl:Class ;
+    rdfs:comment "A geographic location associated with a requisition" ;
+    rdfs:label "Location" .
+
+orec:Company a owl:Class ;
+    rdfs:comment "A company or organization discovered in episodes" ;
+    rdfs:label "Company" .
+
+orec:Trait a owl:Class ;
+    rdfs:comment "A personal characteristic or behavior pattern" ;
+    rdfs:label "Trait" .
+
+orec:Market a owl:Class ;
+    rdfs:comment "A market segment, industry, or business domain" ;
+    rdfs:label "Market" .
+
+orec:Organization a owl:Class ;
+    rdfs:comment "The hiring organization (tenant) that owns the requisition" ;
+    rdfs:label "Organization" .
+
+# --- Object Properties (Phase 1 Edge Types) ---
+
+orec:INTERVIEWED_IN a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Round ;
+    rdfs:label "INTERVIEWED_IN" .
+
+orec:STRONG_IN a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Competency ;
+    rdfs:label "STRONG_IN" .
+
+orec:WEAK_IN a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Competency ;
+    rdfs:label "WEAK_IN" .
+
+orec:ASSESSED_ON a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Competency ;
+    rdfs:label "ASSESSED_ON" .
+
+orec:HIRED_BY a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Requisition ;
+    rdfs:label "HIRED_BY" .
+
+orec:REJECTED_BY a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Requisition ;
+    rdfs:label "REJECTED_BY" .
+
+orec:WITHDREW_FROM a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Requisition ;
+    rdfs:label "WITHDREW_FROM" .
+
+orec:APPLIED_TO a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Requisition ;
+    rdfs:label "APPLIED_TO" .
+
+orec:CONDUCTED a owl:ObjectProperty ;
+    rdfs:domain orec:Interviewer ;
+    rdfs:range orec:Round ;
+    rdfs:label "CONDUCTED" .
+
+orec:HAS_ROUND a owl:ObjectProperty ;
+    rdfs:domain orec:Requisition ;
+    rdfs:range orec:Round ;
+    rdfs:label "HAS_ROUND" .
+
+orec:ASSESSES a owl:ObjectProperty ;
+    rdfs:domain orec:Round ;
+    rdfs:range orec:Competency ;
+    rdfs:label "ASSESSES" .
+
+orec:LOCATED_IN a owl:ObjectProperty ;
+    rdfs:domain orec:Requisition ;
+    rdfs:range orec:Location ;
+    rdfs:label "LOCATED_IN" .
+
+orec:REQUIRES a owl:ObjectProperty ;
+    rdfs:domain orec:Requisition ;
+    rdfs:range orec:Skill ;
+    rdfs:label "REQUIRES" .
+
+orec:NICE_TO_HAVE a owl:ObjectProperty ;
+    rdfs:domain orec:Requisition ;
+    rdfs:range orec:Skill ;
+    rdfs:label "NICE_TO_HAVE" .
+
+# --- Object Properties (Episodic Edge Types) ---
+
+orec:WORKED_AT a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Company ;
+    rdfs:label "WORKED_AT" .
+
+orec:EXHIBITS a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Trait ;
+    rdfs:label "EXHIBITS" .
+
+orec:EXPERIENCED_IN a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Market ;
+    rdfs:label "EXPERIENCED_IN" .
+
+orec:VALUES a owl:ObjectProperty ;
+    rdfs:domain orec:Requisition ;
+    rdfs:range orec:Trait ;
+    rdfs:label "VALUES" .
+
+orec:DEMONSTRATES a owl:ObjectProperty ;
+    rdfs:domain orec:Interviewer ;
+    rdfs:range orec:Trait ;
+    rdfs:label "DEMONSTRATES" .
+
+orec:OPERATES_IN a owl:ObjectProperty ;
+    rdfs:domain orec:Company ;
+    rdfs:range orec:Market ;
+    rdfs:label "OPERATES_IN" .
+
+orec:HAS_CULTURE a owl:ObjectProperty ;
+    rdfs:domain orec:Company ;
+    rdfs:range orec:Trait ;
+    rdfs:label "HAS_CULTURE" .
+
+orec:TARGETS a owl:ObjectProperty ;
+    rdfs:domain orec:Requisition ;
+    rdfs:range orec:Market ;
+    rdfs:label "TARGETS" .
+
+orec:KNOWN_FOR a owl:ObjectProperty ;
+    rdfs:domain orec:Company ;
+    rdfs:range orec:Skill ;
+    rdfs:label "KNOWN_FOR" .
+
+orec:BASED_IN a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Location ;
+    rdfs:label "BASED_IN" .
+
+orec:CLAIMED a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Skill ;
+    rdfs:label "CLAIMED" .
+
+orec:DEMONSTRATED a owl:ObjectProperty ;
+    rdfs:domain orec:Candidate ;
+    rdfs:range orec:Skill ;
+    rdfs:label "DEMONSTRATED" .
+
+orec:EVALUATED a owl:ObjectProperty ;
+    rdfs:domain orec:Interviewer ;
+    rdfs:range orec:Candidate ;
+    rdfs:label "EVALUATED" .
+
+orec:HOSTS a owl:ObjectProperty ;
+    rdfs:domain orec:Organization ;
+    rdfs:range orec:Requisition ;
+    rdfs:label "HOSTS" .

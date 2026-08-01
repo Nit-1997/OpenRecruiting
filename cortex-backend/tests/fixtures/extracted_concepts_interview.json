@@ -1,0 +1,30 @@
+{
+    "career_history": [
+        {"company_name": "Sarti", "role_title": "Product Manager", "duration": "5 years", "what_they_built": "debt collection voice AI platform", "achievement": "$1M ARR", "seniority_signal": "led product team"}
+    ],
+    "companies": [
+        {"name": "Sarti", "size_signal": "startup", "domain_summary": "debt collection voice AI"}
+    ],
+    "company_markets": [
+        {"company": "Sarti", "market": "BFSI debt collection", "role": "primary"},
+        {"company": "Sarti", "market": "voice AI", "role": "primary"}
+    ],
+    "markets": [
+        {"name": "BFSI debt collection", "category": "industry", "depth": "deep", "geographic_scope": "India-only"},
+        {"name": "voice AI", "category": "domain", "depth": "deep"}
+    ],
+    "skills": [
+        {"name": "voice AI", "evidence": "built telephony platform with speech-to-text", "claim_type": "demonstrated"},
+        {"name": "data modeling", "evidence": "designed data pipeline", "claim_type": "claimed"}
+    ],
+    "candidate_traits": [
+        {"name": "verbose communicator", "category": "communication", "polarity": "negative", "evidence": "interviewer redirected", "confidence": "high", "attributed_to": "candidate"},
+        {"name": "systematic executor", "category": "execution", "polarity": "positive", "evidence": "broke down product into clear phases", "confidence": "medium", "attributed_to": "candidate"}
+    ],
+    "interviewer_traits": [
+        {"name": "structured assessor", "category": "execution", "polarity": "positive", "evidence": "explicit 3-part interview structure", "pattern_frequency": "consistent", "attributed_to": "interviewer"}
+    ],
+    "locations": [
+        {"name": "India", "location_type": "country"}
+    ]
+}

@@ -1,0 +1,35 @@
+{
+  "candidate_round": {
+    "id": "cr-002",
+    "candidate_id": "cand-002",
+    "round_id": "round-002",
+    "requisition_id": "req-001",
+    "rating": "no",
+    "interviewer_email": "senior-eng@example.com",
+    "organization_id": "org-001"
+  },
+  "round": {
+    "id": "round-002",
+    "name": "Coding Round",
+    "requisition_id": "req-001",
+    "category": "coding",
+    "duration_minutes": 45,
+    "skills": ["python", "algorithms"]
+  },
+  "requisition": {
+    "id": "req-001",
+    "role_title": "Senior Backend Engineer",
+    "organization_id": "org-001",
+    "status": "active"
+  },
+  "candidate": {
+    "id": "cand-002",
+    "name": "Bob Smith",
+    "organization_id": "org-001",
+    "status": "active"
+  },
+  "feedback_items": [
+    {"heading": "Code Quality", "question_id": "fq-004"},
+    {"heading": "problem solving", "question_id": "fq-005"}
+  ]
+}

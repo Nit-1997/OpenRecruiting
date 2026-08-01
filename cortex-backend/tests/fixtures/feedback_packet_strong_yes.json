@@ -1,0 +1,39 @@
+{
+  "candidate_round": {
+    "id": "cr-001",
+    "candidate_id": "cand-001",
+    "round_id": "round-001",
+    "requisition_id": "req-001",
+    "rating": "strong_yes",
+    "interviewer_email": "interviewer@example.com",
+    "organization_id": "org-001"
+  },
+  "round": {
+    "id": "round-001",
+    "name": "System Design",
+    "requisition_id": "req-001",
+    "category": "design",
+    "duration_minutes": 60,
+    "skills": ["system design", "distributed systems"]
+  },
+  "requisition": {
+    "id": "req-001",
+    "role_title": "Senior Backend Engineer",
+    "organization_id": "org-001",
+    "status": "active",
+    "experience_min_years": 5,
+    "experience_max_years": 10,
+    "role_location": "Remote"
+  },
+  "candidate": {
+    "id": "cand-001",
+    "name": "Alice Johnson",
+    "organization_id": "org-001",
+    "status": "active"
+  },
+  "feedback_items": [
+    {"heading": "Problem Decomposition", "question_id": "fq-001"},
+    {"heading": "System Thinking", "question_id": "fq-002"},
+    {"heading": "Communication", "question_id": "fq-003"}
+  ]
+}

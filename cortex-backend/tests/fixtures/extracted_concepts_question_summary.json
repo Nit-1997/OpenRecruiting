@@ -1,0 +1,18 @@
+{
+    "candidate_traits": [
+        {"name": "systematic problem solver", "category": "execution", "polarity": "positive", "evidence": "broke down system into clear components", "confidence": "high", "attributed_to": "candidate"},
+        {"name": "strong learning orientation", "category": "strategic", "polarity": "positive", "evidence": "showed adaptability", "confidence": "high", "attributed_to": "candidate"},
+        {"name": "verbose communicator", "category": "communication", "polarity": "negative", "evidence": "required interviewer redirection", "confidence": "high", "attributed_to": "candidate"}
+    ],
+    "skills": [
+        {"name": "voice AI", "evidence": "deep domain knowledge", "claim_type": "demonstrated"},
+        {"name": "telephony", "evidence": "deep domain knowledge", "claim_type": "demonstrated"}
+    ],
+    "markets": [
+        {"name": "voice AI", "category": "domain", "depth": "deep"}
+    ],
+    "companies": [],
+    "interviewer_traits": [],
+    "career_history": [],
+    "locations": []
+}

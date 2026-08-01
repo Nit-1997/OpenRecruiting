@@ -1,0 +1,24 @@
+{
+  "requisition": {
+    "id": "req-002",
+    "role_title": "Product Manager",
+    "organization_id": "org-001",
+    "status": "planned",
+    "experience_min_years": 3,
+    "experience_max_years": 7,
+    "role_location": "Remote",
+    "must_have_skills": [],
+    "nice_to_have_skills": []
+  },
+  "rounds": [
+    {
+      "id": "round-010",
+      "name": "Culture Fit",
+      "category": "culture",
+      "duration_minutes": 45,
+      "skills": [],
+      "competency_headings": ["Culture Fit", "Collaboration"],
+      "order": 0
+    }
+  ]
+}
