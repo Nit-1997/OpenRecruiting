@@ -1,0 +1,21 @@
+# Test image for the backend (tag: openrecruiting-backend-test).
+# Mirrors Dockerfile but also installs requirements-test.txt. Tests and live app
+# code come from a bind mount at run time, so a code edit does not need a rebuild:
+#
+#   docker build -f backend/Dockerfile.test -t openrecruiting-backend-test .
+#   docker run --rm -e ENV=test -v "$PWD/backend:/app" -w /app \
+#     openrecruiting-backend-test python -m pytest -q
+#
+# intake-core is baked into the image, so rebuild after ANY intake-core/ change
+# or backend imports will resolve to a stale copy.
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY backend/requirements.txt backend/requirements-test.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-test.txt
+
+COPY intake-core /tmp/intake-core
+RUN pip install --no-cache-dir /tmp/intake-core && rm -rf /tmp/intake-core
+
+COPY backend/ /app/

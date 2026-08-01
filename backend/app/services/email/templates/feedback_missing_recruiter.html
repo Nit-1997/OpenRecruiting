@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 id="feedback-missing-recruiter-heading" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin: 0 0 24px 0;">
+  Interview feedback needed
+</h1>
+
+<p id="feedback-missing-recruiter-greeting" style="font-size: 16px; color: #1a1a1a; margin: 0 0 16px 0;">
+  Hi{% if scheduler_name %} {{ scheduler_name }}{% endif %},
+</p>
+
+<p id="feedback-missing-recruiter-body" style="font-size: 16px; color: #333; margin: 0 0 24px 0;">
+  The interview for <strong>{{ candidate_name }}</strong> (<strong>{{ round_name }}</strong>) has ended, but feedback hasn't been completed yet.
+</p>
+
+{% if has_interviewer_email %}
+<p id="feedback-missing-recruiter-interviewer-notified" style="font-size: 14px; color: #666; margin: 0 0 24px 0;">
+  A reminder has been sent to the interviewer.
+</p>
+{% else %}
+<div id="feedback-missing-recruiter-warning" style="background-color: #fef3c7; color: #b45309; padding: 12px; border-radius: 6px; margin: 0 0 24px 0; font-size: 14px;">
+  No interviewer email was provided. Please share the link below manually.
+</div>
+{% endif %}
+
+<div id="feedback-missing-recruiter-shareable-section" style="background-color: #f5f5f5; padding: 16px; border-radius: 8px; margin: 0 0 24px 0;">
+  <p id="feedback-missing-recruiter-shareable-label" style="font-size: 14px; color: #666; margin: 0 0 8px 0;">
+    Shareable feedback link:
+  </p>
+  <a id="feedback-missing-recruiter-shareable-link" href="{{ shareable_link }}" style="font-size: 14px; color: #4f46e5; word-break: break-all;">
+    {{ shareable_link }}
+  </a>
+</div>
+
+<div style="text-align: center; margin: 0 0 24px 0;">
+  <a id="feedback-missing-recruiter-cta" href="{{ candidate_link }}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; font-weight: 500;">
+    View Candidate
+  </a>
+</div>
+{% endblock %}

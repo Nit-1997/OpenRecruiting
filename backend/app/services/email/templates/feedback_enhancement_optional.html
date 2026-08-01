@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if otp_code %}
+<div id="feedback-enhancement-otp-banner" style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px; text-align: center; margin: 0 0 24px 0;">
+  <p id="feedback-enhancement-otp-label" style="font-size: 14px; color: #b45309; margin: 0 0 8px 0; font-weight: 500;">
+    Your verification code:
+  </p>
+  <span id="feedback-enhancement-otp-code" style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #1a1a1a; font-family: 'Courier New', Courier, monospace;">
+    {{ otp_code }}
+  </span>
+  <p id="feedback-enhancement-otp-expiry" style="font-size: 14px; color: #b45309; margin: 12px 0 0 0;">
+    This code expires in {{ otp_validity }}.
+  </p>
+</div>
+{% endif %}
+
+<h1 id="feedback-enhancement-heading" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin: 0 0 24px 0;">
+  Interview processed
+</h1>
+
+<p id="feedback-enhancement-greeting" style="font-size: 16px; color: #1a1a1a; margin: 0 0 16px 0;">
+  Hi{% if interviewer_name %} {{ interviewer_name }}{% endif %},
+</p>
+
+<p id="feedback-enhancement-body" style="font-size: 16px; color: #333; margin: 0 0 16px 0;">
+  Your interview with <strong>{{ candidate_name }}</strong> for the <strong>{{ round_name }}</strong> position has been processed and feedback has been generated from the interview transcript.
+</p>
+
+<p id="feedback-enhancement-optional-note" style="font-size: 14px; color: #666; margin: 0 0 24px 0;">
+  Your live feedback wasn't captured during the interview. For richer, more detailed feedback, you can optionally add your input below.
+</p>
+
+<div style="text-align: center; margin: 0 0 24px 0;">
+  <a id="feedback-enhancement-cta" href="{{ feedback_link }}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; font-weight: 500;">
+    Add Your Feedback (Optional)
+  </a>
+</div>
+
+<p id="feedback-enhancement-help" style="font-size: 14px; color: #888; margin: 0;">
+  This is completely optional - the interview feedback has already been generated. Adding your input will enrich the final scorecard.
+</p>
+{% endblock %}

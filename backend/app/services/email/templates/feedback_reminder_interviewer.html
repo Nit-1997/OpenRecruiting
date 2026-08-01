@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if otp_code %}
+<div id="feedback-reminder-interviewer-otp-banner" style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px; text-align: center; margin: 0 0 24px 0;">
+  <p id="feedback-reminder-interviewer-otp-label" style="font-size: 14px; color: #b45309; margin: 0 0 8px 0; font-weight: 500;">
+    Your verification code:
+  </p>
+  <span id="feedback-reminder-interviewer-otp-code" style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #1a1a1a; font-family: 'Courier New', Courier, monospace;">
+    {{ otp_code }}
+  </span>
+  <p id="feedback-reminder-interviewer-otp-expiry" style="font-size: 14px; color: #b45309; margin: 12px 0 0 0;">
+    This code expires in {{ otp_validity }}.
+  </p>
+</div>
+{% endif %}
+
+<h1 id="feedback-reminder-interviewer-heading" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin: 0 0 24px 0;">
+  Feedback pending!
+</h1>
+
+<p id="feedback-reminder-interviewer-greeting" style="font-size: 16px; color: #1a1a1a; margin: 0 0 16px 0;">
+  Hi{% if interviewer_name %} {{ interviewer_name }}{% endif %},
+</p>
+
+<p id="feedback-reminder-interviewer-body" style="font-size: 16px; color: #333; margin: 0 0 16px 0;">
+  Your interview with <strong>{{ candidate_name }}</strong> for the <strong>{{ round_name }}</strong> position is pending. Please share your feedback to close the loop. 
+</p>
+
+<div style="text-align: center; margin: 0 0 24px 0;">
+  <a id="feedback-reminder-interviewer-cta" href="{{ feedback_link }}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; font-weight: 500;">
+    Add Feedback
+  </a>
+</div>
+
+<p id="feedback-reminder-interviewer-help" style="font-size: 14px; color: #888; margin: 0;">
+  This typically takes 2-3 minutes.
+</p>
+{% endblock %}

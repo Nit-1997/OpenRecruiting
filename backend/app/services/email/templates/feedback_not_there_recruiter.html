@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 id="interview-complete-recruiter-heading" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin: 0 0 24px 0;">
+  Feedback Pending!
+</h1>
+
+<p id="interview-complete-recruiter-greeting" style="font-size: 16px; color: #1a1a1a; margin: 0 0 16px 0;">
+  Hi{% if scheduler_name %} {{ scheduler_name }}{% endif %},
+</p>
+
+<p id="interview-complete-recruiter-body" style="font-size: 16px; color: #333; margin: 0 0 16px 0;">
+  The interview with <strong>{{ candidate_name }}</strong> for the <strong>{{ round_name }}</strong> role is done, but the interviewer hasn't shared their feedback yet.
+</p>
+
+{% if has_interviewer %}
+<p id="interview-complete-recruiter-awaiting" style="font-size: 14px; color: #666; margin: 0 0 24px 0;">
+  We've already nudged them over email! Once they submit, OpenRecruiting will magically generate the feedback and let you know right away.
+</p>
+{% else %}
+<p id="interview-complete-recruiter-no-interviewer" style="font-size: 14px; color: #666; margin: 0 0 24px 0;">
+  You can request the interviewer to share their feedback from the dashboard. 
+</p>
+{% endif %}
+
+<div id="interview-complete-recruiter-summary" style="background-color: #f3f4f6; border-radius: 8px; padding: 16px; margin: 0 0 24px 0;">
+  <p style="font-size: 14px; color: #374151; margin: 0 0 8px 0;">
+    <strong>Candidate:</strong> {{ candidate_name }}
+  </p>
+  <p style="font-size: 14px; color: #374151; margin: 0 0 8px 0;">
+    <strong>Round:</strong> {{ round_name }}
+  </p>
+  <p style="font-size: 14px; color: #374151; margin: 0;">
+    <strong>Status:</strong> Awaiting interviewer feedback
+  </p>
+</div>
+
+<p id="interview-complete-recruiter-help" style="font-size: 14px; color: #888; margin: 0;">
+  You can track this and manage all your candidates from your OpenRecruiting dashboard.
+</p>
+{% endblock %}

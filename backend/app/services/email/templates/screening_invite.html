@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+<p id="screening-invite-greeting" style="font-size: 16px; color: #1a1a1a; margin: 0 0 16px 0;">
+  Hi{% if candidate_name and candidate_name != 'there' %} {{ candidate_name }}{% endif %},
+</p>
+
+<p id="screening-invite-intro" style="font-size: 16px; color: #333; margin: 0 0 24px 0;">
+  You've been invited to complete a short screening interview for
+  <strong id="screening-invite-role">{{ role_title }}</strong>. It's a quick
+  conversation you can take whenever it suits you.
+</p>
+
+<div id="screening-invite-cta-wrap" style="text-align: center; margin: 0 0 24px 0;">
+  <a id="screening-invite-cta" href="{{ verify_link }}"
+     style="display: inline-block; background-color: #1a1a1a; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 28px; border-radius: 8px;">
+    Start screening interview
+  </a>
+</div>
+
+<p id="screening-invite-validity" style="font-size: 14px; color: #666; margin: 0 0 16px 0;">
+  This invitation is valid for <strong>{{ validity_window }}</strong>. After that
+  the link will expire and you'll need a new invite.
+</p>
+
+<p id="screening-invite-fallback" style="font-size: 13px; color: #888; margin: 0 0 16px 0; word-break: break-all;">
+  If the button doesn't work, copy and paste this link into your browser:<br>
+  <a id="screening-invite-fallback-link" href="{{ verify_link }}" style="color: #888;">{{ verify_link }}</a>
+</p>
+
+<p id="screening-invite-ignore" style="font-size: 14px; color: #888; margin: 0;">
+  If you weren't expecting this, you can safely ignore this email.
+</p>
+{% endblock %}

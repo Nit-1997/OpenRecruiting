@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="prep-reminder-banner" style="background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px; padding: 12px 16px; margin: 0 0 24px 0;">
+  <p style="font-size: 14px; color: #92400e; margin: 0; font-weight: 500;">
+    Remember to stay back for two minutes after the interview to share your feedback over voice with the Scout agent.
+  </p>
+</div>
+
+<h1 id="prep-reminder-heading" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin: 0 0 24px 0;">
+  Interview Prep — {{ round_name }}
+</h1>
+
+<p id="prep-reminder-greeting" style="font-size: 16px; color: #1a1a1a; margin: 0 0 16px 0;">
+  Hi{{ ' ' + interviewer_name if interviewer_name else '' }},
+</p>
+
+<p id="prep-reminder-body" style="font-size: 16px; color: #333; margin: 0 0 24px 0;">
+  Your interview is starting soon. Here are the details and guidelines from your team.
+</p>
+
+<table id="prep-reminder-details" style="width: 100%; border-collapse: collapse; margin: 0 0 24px 0;">
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666; width: 120px;">Candidate</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #1a1a1a; font-weight: 500;">{{ candidate_name }}{% if candidate_email %} ({{ candidate_email }}){% endif %}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666;">Round</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #1a1a1a; font-weight: 500;">{{ round_name }}</td>
+  </tr>
+  {% if scheduled_at %}
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666;">Scheduled</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #1a1a1a; font-weight: 500;">{{ scheduled_at }}</td>
+  </tr>
+  {% endif %}
+</table>
+
+{% if guidelines_html %}
+<div id="prep-reminder-guidelines" style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin: 0 0 24px 0;">
+  <h2 style="font-size: 18px; font-weight: 600; color: #1a1a1a; margin: 0 0 16px 0;">Guidelines</h2>
+  {{ guidelines_html | safe }}
+</div>
+{% endif %}
+{% endblock %}

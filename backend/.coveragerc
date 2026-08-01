@@ -1,0 +1,23 @@
+[run]
+branch = True
+source = app
+# Only genuinely-untestable glue is omitted: package __init__ files and the
+# test tree itself, PLUS the long-running calendar-intelligence background
+# worker (see omit comment below). Large low-coverage modules that contain
+# real business logic are NOT omitted — they are tested directly.
+omit =
+    app/__init__.py
+    app/**/__init__.py
+    tests/*
+    # excluded pending decompose-then-test (BE-S2-decomp); background-loop glue,
+    # resilience paths tested in test_calendar_intelligence_resilience.py
+    app/workers/calendar_intelligence_worker.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if TYPE_CHECKING:
+    if __name__ == .__main__.:
+show_missing = True
+skip_covered = False

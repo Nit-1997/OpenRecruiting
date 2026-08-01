@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 id="bot-not-admitted-heading" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin: 0 0 24px 0;">
+  Scout couldn't join interview
+</h1>
+
+<p id="bot-not-admitted-greeting" style="font-size: 16px; color: #1a1a1a; margin: 0 0 16px 0;">
+  Hi{{ ' ' + recruiter_name if recruiter_name else '' }},
+</p>
+
+<p id="bot-not-admitted-body" style="font-size: 16px; color: #333; margin: 0 0 8px 0;">
+  Quick heads up!
+</p>
+
+<p id="bot-not-admitted-detail" style="font-size: 16px; color: #333; margin: 0 0 24px 0;">
+  Scout tried to join the interview with <strong>{{ candidate_name }}</strong> for the <strong>{{ role_name }}</strong> role, but wasn't admitted from the lobby. This means we won't be able to generate interview feedback for this round.
+</p>
+
+<table id="bot-not-admitted-details" style="width: 100%; border-collapse: collapse; margin: 0 0 24px 0;">
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666; width: 120px;">Candidate</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #1a1a1a; font-weight: 500;">{{ candidate_name }}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666;">Round</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #1a1a1a; font-weight: 500;">{{ round_name }}</td>
+  </tr>
+  {% if interviewer_email %}
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666;">Interviewer</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #1a1a1a; font-weight: 500;">{{ interviewer_email }}</td>
+  </tr>
+  {% endif %}
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666;">Status</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #dc2626; font-weight: 500;">Scout was not admitted to meeting</td>
+  </tr>
+</table>
+
+<p id="bot-not-admitted-cta-text" style="font-size: 16px; color: #333; margin: 0 0 16px 0;">
+  You can track this and manage all your candidates from your OpenRecruiting dashboard.
+</p>
+
+<div style="text-align: center; margin: 0 0 24px 0;">
+  <a id="bot-not-admitted-cta" href="http://localhost:3005/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; font-weight: 500;">
+    Open Dashboard
+  </a>
+</div>
+{% endblock %}

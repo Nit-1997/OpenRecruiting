@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if otp_code %}
+<div id="feedback-ready-interviewer-otp-banner" style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px; text-align: center; margin: 0 0 24px 0;">
+  <p id="feedback-ready-interviewer-otp-label" style="font-size: 14px; color: #b45309; margin: 0 0 8px 0; font-weight: 500;">
+    Your verification code:
+  </p>
+  <span id="feedback-ready-interviewer-otp-code" style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #1a1a1a; font-family: 'Courier New', Courier, monospace;">
+    {{ otp_code }}
+  </span>
+  <p id="feedback-ready-interviewer-otp-expiry" style="font-size: 14px; color: #b45309; margin: 12px 0 0 0;">
+    This code expires in 10 minutes.
+  </p>
+</div>
+{% endif %}
+
+<h1 id="feedback-ready-interviewer-heading" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin: 0 0 24px 0;">
+  Interview feedback is generated!
+</h1>
+
+<p id="feedback-ready-interviewer-greeting" style="font-size: 16px; color: #1a1a1a; margin: 0 0 16px 0;">
+  Hi{% if interviewer_name %} {{ interviewer_name }}{% endif %},
+</p>
+
+<p id="feedback-ready-interviewer-body" style="font-size: 16px; color: #333; margin: 0 0 24px 0;">
+  OpenRecruiting has magically generated the feedback for <strong>{{ candidate_name }}'s</strong> <strong>{{ round_name }}</strong> interview. You can review it and make any changes you like.
+</p>
+
+<div style="text-align: center; margin: 0 0 24px 0;">
+  <a id="feedback-ready-interviewer-cta" href="{{ feedback_link }}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; font-weight: 500;">
+    Review Feedback
+  </a>
+</div>
+{% endblock %}

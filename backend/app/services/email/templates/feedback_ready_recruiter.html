@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 id="feedback-ready-recruiter-heading" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin: 0 0 24px 0;">
+  Interview feedback ready
+</h1>
+
+<p id="feedback-ready-recruiter-greeting" style="font-size: 16px; color: #1a1a1a; margin: 0 0 16px 0;">
+  Hi{% if scheduler_name %} {{ scheduler_name }}{% endif %},
+</p>
+
+<p id="feedback-ready-recruiter-body" style="font-size: 16px; color: #333; margin: 0 0 24px 0;">
+  OpenRecruiting has magically generated the feedback for <strong>{{ candidate_name }}'s</strong> <strong>{{ round_name }}</strong> interview, it's ready for you to review!
+</p>
+
+{% if not has_interviewer_email %}
+<div id="feedback-ready-recruiter-warning" style="background-color: #fef3c7; color: #b45309; padding: 12px; border-radius: 6px; margin: 0 0 24px 0; font-size: 14px;">
+  No interviewer email was provided. The interviewer has not been notified.
+</div>
+{% else %}
+<p id="feedback-ready-recruiter-interviewer-note" style="font-size: 14px; color: #666; margin: 0 0 24px 0;">
+  The interviewer has been notified too.
+</p>
+{% endif %}
+
+<div style="text-align: center; margin: 0 0 24px 0;">
+  <a id="feedback-ready-recruiter-cta" href="{{ candidate_link }}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; font-weight: 500;">
+    View Feedback
+  </a>
+</div>
+{% endblock %}

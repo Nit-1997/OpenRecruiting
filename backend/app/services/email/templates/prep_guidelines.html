@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 id="prep-guidelines-heading" style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin: 0 0 24px 0;">
+  Interview Prep — {{ round_name }}
+</h1>
+
+<p id="prep-guidelines-greeting" style="font-size: 16px; color: #1a1a1a; margin: 0 0 16px 0;">
+  Hi{{ ' ' + interviewer_name if interviewer_name else '' }},
+</p>
+
+<p id="prep-guidelines-body" style="font-size: 16px; color: #333; margin: 0 0 24px 0;">
+  You have an upcoming interview. Here are the details and guidelines from your team.
+</p>
+
+<table id="prep-guidelines-details" style="width: 100%; border-collapse: collapse; margin: 0 0 24px 0;">
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666; width: 120px;">Candidate</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #1a1a1a; font-weight: 500;">{{ candidate_name }}{% if candidate_email %} ({{ candidate_email }}){% endif %}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666;">Round</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #1a1a1a; font-weight: 500;">{{ round_name }}</td>
+  </tr>
+  {% if scheduled_at %}
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666;">Scheduled</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #1a1a1a; font-weight: 500;">{{ scheduled_at }}</td>
+  </tr>
+  {% endif %}
+  {% if event_title %}
+  <tr>
+    <td style="padding: 8px 12px; font-size: 14px; color: #666;">Meeting</td>
+    <td style="padding: 8px 12px; font-size: 14px; color: #1a1a1a; font-weight: 500;">{{ event_title }}</td>
+  </tr>
+  {% endif %}
+</table>
+
+{% if guidelines_html %}
+<div id="prep-guidelines-content" style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin: 0 0 24px 0;">
+  <h2 style="font-size: 18px; font-weight: 600; color: #1a1a1a; margin: 0 0 16px 0;">Guidelines</h2>
+  {{ guidelines_html | safe }}
+</div>
+{% endif %}
+{% endblock %}
