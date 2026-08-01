@@ -1,0 +1,61 @@
+name: gate
+
+# Two release gates that must stay green:
+#   1. no leftover references to the pre-open-source product name
+#   2. no secrets
+on:
+  push:
+  pull_request:
+
+jobs:
+  debrand:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No pre-open-source brand references
+        run: |
+          # Attribution in NOTICE and README is intentional and allowed, and
+          # this workflow necessarily contains the token it searches for.
+          # Everything else must be clean -- including FILENAMES, which a
+          # content grep never sees.
+          content=$(git ls-files -z \
+            | xargs -0 grep -Iil 'mazle' 2>/dev/null \
+            | grep -vE '^(NOTICE|README\.md|\.github/workflows/gate\.yml)$' || true)
+          names=$(git ls-files | grep -i 'mazle' || true)
+
+          if [ -n "$content" ] || [ -n "$names" ]; then
+            echo "::error::Found brand references that must be removed:"
+            [ -n "$content" ] && { echo "-- in file contents:"; echo "$content"; }
+            [ -n "$names" ]   && { echo "-- in filenames:";     echo "$names"; }
+            exit 1
+          fi
+          echo "clean"
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks scans history, not just the tip
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  no-captured-interviews:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No captured interview data
+        run: |
+          # These hold real transcripts and real people's names. They are
+          # git-ignored, but a --force add would slip past that.
+          found=$(git ls-files \
+            | grep -E '^workers/feedback-agent/evals/(fixtures|runs)/' || true)
+          if [ -n "$found" ]; then
+            echo "::error::Captured interview data must not be committed:"
+            echo "$found"
+            exit 1
+          fi
+          echo "clean"

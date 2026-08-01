@@ -1,0 +1,42 @@
+# gitleaks configuration.
+#
+# A gate that is permanently red gets ignored, so the known false positives are
+# allow-listed HERE, narrowly and with a reason. Anything not listed fails the
+# build. Do not widen these to silence a real finding.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(?:key|api|token|secret|client|passwd|password|auth|access)(?:[0-9a-z\-_\t .]{0,20})(?:[\s|']|[\s|"]){0,3}(?:=|>|:{1,3}=|\|\||:|<=|=>|:=|\?=|,)(?:'|\"|\s|=|\x60){0,5}([0-9a-z\-_.=]{10,150})(?:['|\"|\n|\r|\s|\x60|;|\\]|$)'''
+keywords = ["key", "api", "token", "secret", "client", "passwd", "password", "auth", "access"]
+
+  [rules.allowlist]
+  regexTarget = "match"
+  paths = [
+    # Test settings are deliberately fake; the file says so on every line.
+    '''backend/tests/conftest\.py''',
+    # Fixed UUIDs used as org/user identifiers in tests, not credentials.
+    '''cortex-mcp/tests/.*\.py''',
+  ]
+  regexes = [
+    # Character set for generating human-readable access codes -- an alphabet,
+    # not a secret.
+    '''ABCDEFGHJKLMNPQRSTUVWXYZ23456789''',
+    # Python keyword argument "stale_minutes=_STALE_MINUTES" reads as a
+    # key=value credential to the generic rule.
+    '''stale_minutes=_STALE_MINUTES''',
+    # Placeholder values shipped in .env.example so the file is self-documenting.
+    '''change-me-local-only''',
+    '''your-key-here''',
+  ]
+
+[allowlist]
+description = "Global allow-list"
+paths = [
+  # Lockfiles contain integrity hashes that look like high-entropy secrets.
+  '''.*bun\.lock''',
+  '''.*package-lock\.json''',
+]
