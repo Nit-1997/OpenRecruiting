@@ -1,0 +1,20 @@
+# Lefthook pre-commit hooks for openrecruiting
+# Runs on staged files for Biome (auto-fix), full project for typecheck/tests.
+# Docs: https://lefthook.dev
+
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: "*.{ts,tsx,js,jsx,json,css}"
+      run: bunx biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+    typecheck:
+      run: bun run typecheck
+    unit-test:
+      run: bun test --bail
+
+pre-push:
+  commands:
+    build:
+      run: bun run build

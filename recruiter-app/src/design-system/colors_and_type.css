@@ -1,0 +1,296 @@
+/* ==========================================================================
+   OpenRecruiting Design System — colors_and_type.css
+   Tokens extracted from landing + recruiter-app + DESIGN-SYSTEM.md
+   ========================================================================== */
+
+/* Fonts are loaded via next/font in src/app/layout.tsx — the @import url() line
+   from v3 was removed because it (a) breaks Next's CSS parser at dev runtime
+   and (b) would race with next/font. All --font-* variables below resolve via
+   the Next/font CSS vars (--font-instrument-serif, --font-dm-sans, etc.)
+   exposed in the root <html> className. */
+
+:root {
+  /* ─── Type families ───────────────────────────────────────────────── */
+  --font-display: "Instrument Serif", "Cormorant Garamond", Georgia, serif;
+  --font-display-alt: "Instrument Serif", "Cormorant Garamond", Georgia, serif;
+  --font-sans: "DM Sans", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "DM Mono", "JetBrains Mono", "SF Mono", monospace;
+  --font-brand: "Pacifico", cursive; /* logo wordmark only */
+
+  /* ─── Warm paper palette (landing page, primary surface) ──────────── */
+  --bg: #faf9f7;
+  --surface: #f2f0ed;
+  --surface-accent: #eceae6;
+  --border: #e5e3df;
+
+  --text-primary: #111111;
+  --text-secondary: #555555;
+  --text-muted: #888888;
+  --text-faint: #aaaaaa;
+
+  /* ─── App-UI surface aliases (consumed by ui/* components) ─────────────
+     These name the same warm palette under the vocabulary the ui/* kit uses
+     (charcoal/tile/canvas/border-strong) and the brand accent (openrecruiting). They
+     flip in dark mode alongside the surfaces above (see html.dark block in
+     globals.css). Bridged into Tailwind via @theme in globals.css.        */
+  --canvas: #faf9f7; /* page backdrop behind cards (== --bg) */
+  --tile: #ffffff; /* raised card / secondary surface (== --paper light) */
+  --charcoal: #111111; /* primary-CTA fill / strong ink text */
+  --border-strong: #d8d5cf; /* heavier hairline than --border for hover edges */
+  --accent-agent: #7a6bd9; /* brand accent (agent mark) — cortex-500 lavender */
+
+  --cta-bg: #111111;
+  --cta-text: #ffffff;
+
+  /* ─── Dark hero ───────────────────────────────────────────────────── */
+  --hero-bg: #0a0a0a;
+  --hero-text: #ffffff;
+  --hero-text-muted: rgba(255, 255, 255, 0.6);
+  --hero-text-faint: rgba(255, 255, 255, 0.35);
+  --hero-accent: #d4af37;
+
+  /* ─── Cortex agent accent (voice orb, "live" indicators, agent identity) ─── */
+  --cortex-50: #f1eefb;
+  --cortex-100: #e7e2ff;
+  --cortex-300: #b9b0e8;
+  --cortex-500: #7a6bd9;
+  --cortex-600: #5e4fae;
+  --cortex-900: #2e2350;
+  --cortex-orb: radial-gradient(
+    circle at 30% 30%,
+    #e7e2ff 0%,
+    #b9b0e8 40%,
+    #5e4fae 75%,
+    #2e2350 100%
+  );
+
+  /* ─── Periwinkle accent gradient (CTA & product showcase) ─────────── */
+  --grad-start: #c5d0f5;
+  --grad-mid: #dae2fa;
+  --grad-end: #f2f4fc;
+  --accent-gradient: linear-gradient(180deg, #c5d0f5 0%, #dae2fa 40%, #ebf0fc 70%, #f2f4fc 100%);
+
+  /* ─── App shell (OKLCH mirror of globals.css) ─────────────────────── */
+  --app-background: oklch(0.955 0.008 70); /* warm off-white */
+  --app-foreground: oklch(0.145 0 0); /* near-black */
+  --app-card: oklch(1 0 0);
+  --app-primary: oklch(0.4 0.04 55); /* warm espresso */
+  --app-primary-fg: oklch(0.98 0.005 70);
+  --app-secondary: oklch(0.93 0.008 70); /* warm putty */
+  --app-muted-fg: oklch(0.58 0.025 60);
+  --app-border: oklch(0.922 0 0);
+  --app-ring: oklch(0.708 0 0);
+  --glass: oklch(1 0 0 / 60%);
+  --glass-border: oklch(0.4 0.04 55 / 12%);
+
+  /* ─── Semantic status (extracted from dashboard usage) ────────────── */
+  --status-success-bg: #ecfdf5; /* emerald-50  */
+  --status-success-fg: #047857; /* emerald-700 */
+  --status-success-bd: #a7f3d0; /* emerald-200 */
+  --status-info-bg: #eff6ff; /* blue-50  */
+  --status-info-fg: #1d4ed8;
+  --status-warn-bg: #fffbeb; /* amber-50  */
+  --status-warn-fg: #b45309;
+  --status-warn-bd: #fde68a; /* amber-200 */
+  --status-danger-bg: #fef2f2;
+  --status-danger-fg: #dc2626;
+  --status-danger-bd: #fecaca; /* red-200 */
+
+  /* ─── Spacing (8px base) ──────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-28: 112px;
+
+  /* ─── Radius ──────────────────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-pill: 999px;
+
+  /* ─── Shadows (deliberately minimal) ──────────────────────────────── */
+  --shadow-none: none;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.06); /* floating UI */
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.08); /* header glass */
+  --shadow-hero: 0 8px 32px rgba(0, 0, 0, 0.4); /* header on dark */
+  --shadow-lg: 0 -4px 20px rgba(0, 0, 0, 0.05); /* hero notch */
+
+  /* ─── Layout rhythm ───────────────────────────────────────────────── */
+  --max-width: 960px;
+  --max-width-app: 1280px;
+  --section-spacing: 96px;
+  --page-padding: 24px;
+
+  /* ─── Motion ──────────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 500ms;
+  --dur-marquee: 30s;
+}
+
+/* ==========================================================================
+   Semantic type classes — apply directly or compose
+   ========================================================================== */
+
+.mz-hero-h1,
+h1.mz-hero {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(40px, 6vw, 72px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.mz-section-h2,
+h2.mz-section {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(32px, 4vw, 48px);
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+}
+
+.mz-card-h3,
+h3.mz-card {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.mz-eyebrow,
+.mz-section-label {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.mz-body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.mz-body-sm {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.mz-mono-counter {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--text-faint);
+  font-feature-settings: "tnum";
+}
+
+.mz-cta {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.mz-nav-link {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.mz-brand {
+  font-family: var(--font-brand);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* ==========================================================================
+   Primitives — tiny helpers used across preview cards
+   ========================================================================== */
+
+.mz-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  font: 500 12px / 1 var(--font-sans);
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.mz-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 22px;
+  border-radius: var(--radius-pill);
+  background: var(--cta-bg);
+  color: var(--cta-text);
+  border: none;
+  font: 500 15px / 1 var(--font-sans);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-in-out);
+}
+.mz-btn-primary:hover {
+  background: #222;
+}
+
+.mz-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 22px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  font: 500 15px / 1 var(--font-sans);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-in-out);
+}
+.mz-btn-secondary:hover {
+  background: var(--surface);
+}
+
+.mz-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.mz-glass-card {
+  background: var(--glass);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+}

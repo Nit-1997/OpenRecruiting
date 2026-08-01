@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+.next/
+out/
+build/
+dist/
+.turbo/
+tsconfig.tsbuildinfo
+
+# Testing
+coverage/
+*.lcov
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env-*
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+bun-debug.log*
+
+# Brainstorming session files (mockups, state)
+.superpowers/
+
+# Git worktrees (isolated feature branches)
+.worktrees/
+
+# Secrets / credentials
+*.pem
+*.key
+*-credentials.json
+
+# Playwright
+/playwright-report/
+/test-results/
+/blob-report/
+
+# Phase screenshots (ephemeral, not part of source)
+/phase*-*.png

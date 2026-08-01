@@ -1,0 +1,688 @@
+@import "tailwindcss";
+@import "../design-system/colors_and_type.css";
+
+/* Paper surface — a raised/card background that flips in dark mode.
+   Light mode: pure white (matches the old bg-white feel).
+   Dark mode:  slightly elevated over --bg (#0f1012) so cards read as
+               distinct without being blindingly bright.                */
+:root {
+  --paper: #ffffff;
+}
+
+@theme {
+  /* Tailwind @theme entries below are the ONLY bridge between Tailwind utility classes
+     and our v3 CSS variables. Do not add invented tokens here.                          */
+
+  /* Surfaces */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-accent: var(--surface-accent);
+  --color-border: var(--border);
+  --color-paper: var(--paper);
+
+  /* Text */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+
+  /* Cortex (agent identity) */
+  --color-cortex-50: var(--cortex-50);
+  --color-cortex-100: var(--cortex-100);
+  --color-cortex-300: var(--cortex-300);
+  --color-cortex-500: var(--cortex-500);
+  --color-cortex-600: var(--cortex-600);
+  --color-cortex-900: var(--cortex-900);
+
+  /* Status */
+  --color-status-success-bg: var(--status-success-bg);
+  --color-status-success-fg: var(--status-success-fg);
+  --color-status-warn-bg: var(--status-warn-bg);
+  --color-status-warn-fg: var(--status-warn-fg);
+  --color-status-danger-bg: var(--status-danger-bg);
+  --color-status-danger-fg: var(--status-danger-fg);
+
+  /* App-UI palette aliases (ui/* kit vocabulary) — bridge the raw
+     canvas/tile/charcoal/border-strong/openrecruiting vars defined in
+     colors_and_type.css (+ dark flips in the html.dark block). */
+  --color-canvas: var(--canvas);
+  --color-tile: var(--tile);
+  --color-charcoal: var(--charcoal);
+  --color-border-strong: var(--border-strong);
+  --color-accent-agent: var(--accent-agent);
+
+  /* shadcn-style semantic aliases — mapped onto the existing palette so the
+     ui/dialog, ui/popover, ui/tooltip, ui/textarea primitives resolve.
+     Each flips automatically because its target token flips in dark mode. */
+  --color-popover: var(--paper);
+  --color-popover-foreground: var(--text-primary);
+  --color-foreground: var(--text-primary);
+  --color-background: var(--bg);
+  --color-muted: var(--surface-accent);
+  --color-muted-foreground: var(--text-muted);
+  --color-input: var(--border);
+  --color-ring: var(--cortex-500);
+  --color-destructive: var(--status-danger-fg);
+
+  /* Fonts — point Tailwind at the Next/font variables loaded in root layout */
+  --font-display: var(--font-instrument-serif), Georgia, serif;
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+  --font-mono: var(--font-dm-mono), Menlo, monospace;
+  --font-brand: var(--font-pacifico), cursive;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-pill: 999px;
+  /* ui/* kit radii — input fields (== md) and large cards (== xl). */
+  --radius-input: 8px;
+  --radius-card-lg: 16px;
+
+  /* Shadow — the soft card lift used by ui/card. Mirrors --shadow-sm
+     from colors_and_type.css (floating-UI elevation). */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+@layer base {
+  html,
+  body {
+    background-color: var(--bg);
+    color: var(--text-primary);
+  }
+
+  body {
+    font-family: var(--font-dm-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  /* A11y P7: visible focus outline on every focusable element.
+     v3 omits focus styles but WCAG AA requires a perceivable focus state.
+     2px solid primary + 2px offset satisfies contrast on warm paper bg. */
+  *:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* Motion tokens — exposed as global animation references */
+@keyframes rise {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Skeleton shimmer — a diagonal highlight sweeping across a placeholder.
+   Looks more alive than animate-pulse (which just blinks opacity). The
+   sweep duration is ~1.4s, tuned to feel "working" rather than frantic. */
+@keyframes mz-shimmer {
+  0% {
+    background-position: -150% 0;
+  }
+  100% {
+    background-position: 150% 0;
+  }
+}
+
+@keyframes mz-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+/* Cortex analysis artifact mount — two quick pulses, then settle. */
+@keyframes cortex-blink-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  12% {
+    opacity: 0.7;
+  }
+  24% {
+    opacity: 0.1;
+  }
+  42% {
+    opacity: 0.9;
+  }
+  58% {
+    opacity: 0.2;
+  }
+  78% {
+    opacity: 1;
+    transform: scale(1.003);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.cortex-blink-in {
+  animation: cortex-blink-in 620ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Skeleton base. Use as: <div className="mz-skeleton h-4 w-40 rounded" />
+   In dark mode the tokens flip automatically because the gradient references
+   --surface / --surface-accent which both participate in the theme flip.  */
+.mz-skeleton {
+  position: relative;
+  background-color: var(--surface);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--surface-accent) 75%, transparent) 45%,
+    color-mix(in srgb, var(--surface-accent) 90%, transparent) 50%,
+    color-mix(in srgb, var(--surface-accent) 75%, transparent) 55%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  background-position: -150% 0;
+  animation: mz-shimmer 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  overflow: hidden;
+}
+
+/* Shimmer overlay — lay on top of existing content (e.g., a placeholder
+   round card that already has layout) without replacing the bg. */
+.mz-shimmer-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--text-primary) 6%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  background-position: -150% 0;
+  animation: mz-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  border-radius: inherit;
+}
+
+/* A11y P7: honor prefers-reduced-motion per spec Section 8.
+   Animations shrink to 100ms (opacity-only in practice because transform is
+   scaled at the same rate) so prose streaming stays functional but the
+   decorative flourishes (avatar pulse, voice orb, artifact rise) collapse. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 100ms;
+    animation-iteration-count: 1;
+    transition-duration: 100ms;
+    scroll-behavior: auto;
+  }
+}
+
+/* Dark-mode token flip. Keeps the design-system contract (same token names)
+   but swaps values so the Moon/Sun toggle inverts coherently.              */
+html.dark {
+  --bg: #0f1012;
+  --surface: #1a1c21;
+  --surface-accent: #23262d;
+  /* Cortex agent accent — flip the lavender ramp so the "Debrief agent" hero
+     and other cortex-themed cards read on the dark theme. Light values
+     (cortex-50/100) become opaque purple-tinted dark surfaces; deep values
+     (cortex-500/600/900) become brighter lavenders to act as foreground on
+     those dark surfaces.                                                   */
+  --cortex-50: color-mix(in srgb, #7a6bd9 22%, #2c2f36);
+  --cortex-100: color-mix(in srgb, #7a6bd9 38%, #2c2f36);
+  --cortex-300: #a89cea;
+  --cortex-500: #b9b0e8;
+  --cortex-600: #cfc5f4;
+  --cortex-900: #e7e2ff;
+  /* Borders need to read on both --bg and the lighter --paper, so they're
+     pushed brighter than the surface stack. Otherwise card edges disappear
+     against the sub-paper backgrounds.                                     */
+  --border: #383b42;
+  /* Paper sits at the top of the surface stack so cards feel raised:
+     bg (0f1012) < surface (1a1c21) < surface-accent (23262d) < paper.
+     Pushed brighter (~+8%L) than the original #22252b so cards visibly
+     lift instead of melting into bg in low-light viewing.                  */
+  --paper: #2c2f36;
+  --text-primary: #f2f1ef;
+  --text-secondary: #d4d2cf;
+  /* Bumped text-muted / text-faint up to hit WCAG-AA on both --bg and the
+     slightly-lighter --paper. Old #9a9a9d / #7f8085 read as faded labels
+     against dark surfaces and tanked contrast on inactive nav tabs.       */
+  --text-muted: #adabac;
+  --text-faint: #8f9094;
+  /* App-UI surface aliases flip alongside the surfaces above:
+     • canvas tracks --bg (page backdrop)
+     • tile tracks --paper (raised card surface)
+     • charcoal is the primary-CTA fill — flips light like the legacy
+       bg-text-primary CTA shim so it reads on the dark theme
+     • border-strong sits brighter than --border (the hover edge)
+     • openrecruiting brightens to the cortex-300 lavender so the agent mark
+       reads on dark surfaces                                            */
+  --canvas: #0f1012;
+  --tile: #2c2f36;
+  --charcoal: #e8e6e2;
+  --border-strong: #4a4d55;
+  --accent-agent: #b9b0e8;
+}
+
+/* Nav-like "brand" labels (the .ai suffix on the OpenRecruiting wordmark) lean on
+   --text-muted for a hint of hierarchy. In dark mode the bumped muted
+   token is bright enough to stay intentional without disappearing.       */
+
+/* Dark-mode compatibility shims.
+   Many components hardcode `bg-white` (card/panel surface) and
+   `bg-text-primary text-white` (primary CTA). In dark mode those turn into
+   white-on-white and near-white-on-near-white respectively — unreadable.
+   Rather than churn every call site, redirect the Tailwind utilities:
+
+   • `bg-white`   → paper token (elevated dark surface in dark mode)
+   • `text-white` on primary CTAs → flips to near-black so it reads on the
+     now-light CTA background. Specificity (0,2,1) beats `.text-white` (0,1,0). */
+html.dark .bg-white {
+  background-color: var(--paper);
+}
+html.dark .hover\:bg-white:hover,
+html.dark .group-hover\:bg-white:hover,
+html.dark .focus-within\:bg-white:focus-within {
+  background-color: var(--paper);
+}
+
+html.dark .bg-text-primary.text-white,
+html.dark .hover\:bg-text-primary.hover\:text-white:hover,
+html.dark .hover\:bg-text-primary:hover.text-white {
+  color: var(--bg);
+}
+
+/* Children with `text-white` nested inside a `bg-text-primary` container also
+   need to flip — the active workspace-tab pill wraps icon/label/close-button
+   spans that each carry their own `text-white`, and would otherwise render
+   pure white on a now-near-white background. Cover hover and aria-selected
+   variants too so tab state stays legible.                                  */
+html.dark .bg-text-primary .text-white,
+html.dark .hover\:bg-text-primary:hover .text-white,
+html.dark [aria-selected="true"].bg-text-primary .text-white {
+  color: var(--bg);
+}
+/* Same idea for the translucent white veils inside the active CTA — the
+   workspace-tab "default" badge uses bg-white/20 on a near-white parent.   */
+html.dark .bg-text-primary .bg-white\/20 {
+  background-color: color-mix(in srgb, var(--bg) 20%, transparent);
+}
+html.dark .bg-text-primary .bg-white\/15,
+html.dark .bg-text-primary .hover\:bg-white\/15:hover {
+  background-color: color-mix(in srgb, var(--bg) 15%, transparent);
+}
+html.dark .bg-text-primary .text-white\/90 {
+  color: color-mix(in srgb, var(--bg) 90%, transparent);
+}
+html.dark .bg-text-primary .text-white\/70 {
+  color: color-mix(in srgb, var(--bg) 75%, transparent);
+}
+
+/* Translucent white panels (artifact pill, agent-msg card). Translucent
+   dark-overlay variants like bg-white/10 are intentionally veil-style and
+   stay as-is — only the >50% variants get redirected.                    */
+html.dark .bg-white\/95 {
+  background-color: color-mix(in srgb, var(--paper) 95%, transparent);
+}
+html.dark .bg-white\/85,
+html.dark .hover\:bg-white\/85:hover {
+  background-color: color-mix(in srgb, var(--paper) 85%, transparent);
+}
+html.dark .bg-white\/75,
+html.dark .hover\:bg-white\/75:hover {
+  background-color: color-mix(in srgb, var(--paper) 75%, transparent);
+}
+html.dark .bg-white\/70 {
+  background-color: color-mix(in srgb, var(--paper) 70%, transparent);
+}
+
+/* Hardcoded v3 neutral hex codes that appear throughout the component tree.
+   Each one is a light-mode literal that the designers reached for before the
+   token system existed. In dark mode they turn into dark-on-dark / light-on-
+   light. Map each to the corresponding semantic token so the components flip
+   without needing to be touched.                                           */
+html.dark .text-\[\#111111\],
+html.dark .text-\[\#111\] {
+  color: var(--text-primary);
+}
+html.dark .text-\[\#111111\]\/60,
+html.dark .text-\[\#111\]\/60 {
+  color: color-mix(in srgb, var(--text-primary) 60%, transparent);
+}
+html.dark .text-\[\#555555\],
+html.dark .text-\[\#555\] {
+  color: var(--text-secondary);
+}
+html.dark .text-\[\#999999\],
+html.dark .text-\[\#999\] {
+  color: var(--text-muted);
+}
+html.dark .bg-\[\#F2F0ED\],
+html.dark .bg-\[\#f2f0ed\] {
+  background-color: var(--surface);
+}
+html.dark .bg-\[\#EEE8DD\],
+html.dark .bg-\[\#eee8dd\] {
+  background-color: var(--surface-accent);
+}
+html.dark .border-\[\#E5E3DF\],
+html.dark .border-\[\#e5e3df\] {
+  border-color: var(--border);
+}
+html.dark .bg-gray-50,
+html.dark .hover\:bg-gray-50:hover {
+  background-color: var(--surface);
+}
+
+/* Primary-CTA hover lands on #222 in light mode — slightly lighter than the
+   #111 base. In dark mode, the base flipped to near-white, so #222 would be
+   an ugly jump back to dark. Use a subtle darker shade of paper instead.  */
+html.dark .hover\:bg-\[\#222\]:hover,
+html.dark .hover\:bg-\[\#222222\]:hover {
+  background-color: #d8d6d2;
+}
+
+/* Status tint backgrounds — the app layers a family of pastel status bgs
+   (emerald-50, blue-50, amber-50, red-50, indigo-50, pink-50, purple-50)
+   that would otherwise stay blindingly bright in dark mode. Flip each to a
+   low-alpha tint of the matching deep color so the banner reads as a
+   subtle glow on the dark surface instead of a neon block.                */
+
+/* Emerald — success. Mix against --paper (not transparent) so the resulting
+   tint is OPAQUE — translucent fills let connector lines and other
+   underlying geometry bleed through stage icons. */
+html.dark .bg-\[\#ECFDF5\],
+html.dark .bg-\[\#ecfdf5\] {
+  background-color: color-mix(in srgb, #10b981 22%, var(--paper));
+}
+html.dark .border-\[\#047857\],
+html.dark .border-\[\#065F46\] {
+  border-color: #34d399;
+}
+html.dark .bg-\[\#ECFDF5\]\/70,
+html.dark .bg-\[\#ecfdf5\]\/70 {
+  background-color: color-mix(in srgb, #10b981 12%, transparent);
+}
+html.dark .bg-\[\#ECFDF5\]\/60 {
+  background-color: color-mix(in srgb, #10b981 10%, transparent);
+}
+html.dark .bg-\[\#ECFDF5\]\/40 {
+  background-color: color-mix(in srgb, #10b981 8%, transparent);
+}
+html.dark .bg-\[\#D1FAE5\] {
+  background-color: color-mix(in srgb, #10b981 18%, transparent);
+}
+html.dark .bg-\[\#D5E9DA\] {
+  background-color: color-mix(in srgb, #10b981 20%, transparent);
+}
+html.dark .border-\[\#A7F3D0\] {
+  border-color: color-mix(in srgb, #10b981 40%, transparent);
+}
+
+/* Blue — info */
+html.dark .bg-\[\#EFF6FF\],
+html.dark .bg-\[\#eff6ff\] {
+  background-color: color-mix(in srgb, #3b82f6 22%, var(--paper));
+}
+html.dark .border-\[\#1D4ED8\],
+html.dark .border-\[\#1E40AF\],
+html.dark .border-\[\#2563EB\],
+html.dark .border-\[\#3730A3\] {
+  border-color: #60a5fa;
+}
+html.dark .bg-\[\#EFF6FF\]\/30 {
+  background-color: color-mix(in srgb, #3b82f6 10%, transparent);
+}
+html.dark .bg-\[\#DBEAFE\] {
+  background-color: color-mix(in srgb, #3b82f6 18%, transparent);
+}
+html.dark .bg-\[\#E0E7FF\] {
+  background-color: color-mix(in srgb, #6366f1 18%, transparent);
+}
+html.dark .border-\[\#BFDBFE\] {
+  border-color: color-mix(in srgb, #3b82f6 40%, transparent);
+}
+
+/* Amber — warn */
+html.dark .bg-\[\#FFFBEB\],
+html.dark .bg-\[\#fffbeb\] {
+  background-color: color-mix(in srgb, #f59e0b 14%, transparent);
+}
+html.dark .bg-\[\#FFFBEB\]\/70,
+html.dark .bg-\[\#fffbeb\]\/70 {
+  background-color: color-mix(in srgb, #f59e0b 12%, transparent);
+}
+html.dark .bg-\[\#FFFBEB\]\/60 {
+  background-color: color-mix(in srgb, #f59e0b 10%, transparent);
+}
+html.dark .bg-\[\#FFFBEB\]\/40 {
+  background-color: color-mix(in srgb, #f59e0b 8%, transparent);
+}
+html.dark .bg-\[\#FEF3C7\] {
+  background-color: color-mix(in srgb, #f59e0b 18%, transparent);
+}
+html.dark .bg-\[\#EDE4D1\] {
+  background-color: color-mix(in srgb, #f59e0b 18%, transparent);
+}
+html.dark .border-\[\#FDE68A\] {
+  border-color: color-mix(in srgb, #f59e0b 40%, transparent);
+}
+
+/* Red — danger */
+html.dark .bg-\[\#FEF2F2\],
+html.dark .bg-\[\#fef2f2\] {
+  background-color: color-mix(in srgb, #ef4444 22%, var(--paper));
+}
+html.dark .border-\[\#B91C1C\],
+html.dark .border-\[\#991B1B\],
+html.dark .border-\[\#DC2626\] {
+  border-color: #f87171;
+}
+html.dark .bg-\[\#FEE2E2\] {
+  background-color: color-mix(in srgb, #ef4444 18%, transparent);
+}
+html.dark .bg-\[\#F2D9D0\] {
+  background-color: color-mix(in srgb, #ef4444 18%, transparent);
+}
+html.dark .border-\[\#FECACA\] {
+  border-color: color-mix(in srgb, #ef4444 40%, transparent);
+}
+
+/* Pink / purple — debrief statuses */
+html.dark .bg-\[\#FDF2F8\] {
+  background-color: color-mix(in srgb, #ec4899 14%, transparent);
+}
+html.dark .bg-\[\#FCE7F3\] {
+  background-color: color-mix(in srgb, #ec4899 18%, transparent);
+}
+html.dark .border-\[\#FBCFE8\] {
+  border-color: color-mix(in srgb, #ec4899 40%, transparent);
+}
+html.dark .bg-\[\#F5F3FF\] {
+  background-color: color-mix(in srgb, #8b5cf6 14%, transparent);
+}
+html.dark .bg-\[\#F3E8FF\] {
+  background-color: color-mix(in srgb, #8b5cf6 18%, transparent);
+}
+html.dark .border-\[\#DDD6FE\] {
+  border-color: color-mix(in srgb, #8b5cf6 40%, transparent);
+}
+
+/* Colored status text. Now that the light tint backgrounds flip to dark
+   tints in dark mode (above), the dark-brand text that used to read on
+   light bgs is unreadable on the dark version. Bright-flip it regardless
+   of sibling bg classes — the new dark-tint bg pairs cleanly with these
+   lighter foregrounds.                                                    */
+html.dark .text-\[\#B91C1C\],
+html.dark .text-\[\#b91c1c\] {
+  color: #fca5a5;
+}
+html.dark .text-\[\#DC2626\],
+html.dark .text-\[\#dc2626\] {
+  color: #fca5a5;
+}
+html.dark .text-\[\#047857\],
+html.dark .text-\[\#065F46\],
+html.dark .text-\[\#047857\]\/60 {
+  color: #6ee7b7;
+}
+html.dark .text-\[\#1D4ED8\],
+html.dark .text-\[\#1d4ed8\],
+html.dark .text-\[\#1E40AF\],
+html.dark .text-\[\#1e40af\],
+html.dark .text-\[\#3730A3\],
+html.dark .text-\[\#3730a3\] {
+  color: #93c5fd;
+}
+html.dark .text-\[\#B45309\],
+html.dark .text-\[\#b45309\],
+html.dark .text-\[\#92400E\],
+html.dark .text-\[\#92400e\],
+html.dark .text-\[\#7A4A0A\],
+html.dark .text-\[\#7a4a0a\] {
+  color: #fcd34d;
+}
+html.dark .text-\[\#9D174D\],
+html.dark .text-\[\#9d174d\] {
+  color: #f9a8d4;
+}
+html.dark .text-\[\#6D28D9\],
+html.dark .text-\[\#6d28d9\] {
+  color: #c4b5fd;
+}
+
+/* Neutral grays — gray-100/200/300 family used for the inert/"archived" chip
+   variants on role-detail pages. Without overrides these pale-gray bgs and
+   slate-700 text combos read as washed-out gray boxes on the dark theme. */
+html.dark .bg-\[\#F3F4F6\],
+html.dark .bg-\[\#f3f4f6\],
+html.dark .bg-\[\#E5E7EB\],
+html.dark .bg-\[\#e5e7eb\] {
+  background-color: var(--surface-accent);
+}
+html.dark .border-\[\#D1D5DB\],
+html.dark .border-\[\#d1d5db\],
+html.dark .border-\[\#E5E7EB\],
+html.dark .border-\[\#e5e7eb\] {
+  border-color: var(--border);
+}
+html.dark .text-\[\#374151\],
+html.dark .text-\[\#374\],
+html.dark .text-\[\#4B5563\],
+html.dark .text-\[\#4b5563\] {
+  color: var(--text-secondary);
+}
+html.dark .text-\[\#991B1B\],
+html.dark .text-\[\#991b1b\] {
+  color: #fca5a5;
+}
+
+/* Marker (list bullet) colors — low-risk override since markers are always
+   on surface/paper bg, never inside a chip.                               */
+html.dark .marker\:text-\[\#10B981\] ::marker,
+html.dark .marker\:text-\[\#10b981\] ::marker {
+  color: #34d399;
+}
+html.dark .marker\:text-\[\#B45309\] ::marker,
+html.dark .marker\:text-\[\#b45309\] ::marker {
+  color: #fbbf24;
+}
+
+.scrollable {
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge legacy */
+}
+.scrollable::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+@media print {
+  /* Print pattern: app code mounts a `.print-portal` element directly under
+     <body> via React.createPortal containing only the printable content.
+     Everything else is hidden so window.print() captures just the portal. */
+  body > *:not(.print-portal) {
+    display: none !important;
+  }
+  .print-portal {
+    display: block !important;
+  }
+  /* Preserve background colors of chips/badges. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Force the printed packet to a LIGHT theme even when the app is in dark
+     mode. Without this, `html.dark` keeps --bg/--paper/--surface at their dark
+     values AND `print-color-adjust: exact` (above) renders those dark surfaces
+     solid black → a black PDF. We reset the theme custom properties to their
+     light values *scoped to the portal*, so:
+       • `bg-text-primary text-white` / `bg-surface` / `text-text-*` resolve light
+       • the `html.dark .bg-white → var(--paper)` redirect resolves to white
+     The explicit semantic accents (emerald/amber/red score bars, verdict chips)
+     are hardcoded hex utilities, not these tokens, so they survive untouched. */
+  .print-portal {
+    --bg: #ffffff;
+    --paper: #ffffff;
+    --surface: #fafafa;
+    --surface-accent: #f2f0ed;
+    --border: #e5e3df;
+    --border-strong: #d8d5cf;
+    --text-primary: #111111;
+    --text-secondary: #555555;
+    --text-muted: #888888;
+    --text-faint: #aaaaaa;
+    --canvas: #ffffff;
+    --tile: #ffffff;
+    --charcoal: #111111;
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+  /* The dark-mode shim redirects `bg-white` → var(--paper); inside the portal
+     --paper is now #fff, so this collapses dark card surfaces back to white. */
+  .print-portal .bg-white,
+  .print-portal .bg-white\/95,
+  .print-portal .bg-white\/85,
+  .print-portal .bg-white\/75,
+  .print-portal .bg-white\/70 {
+    background-color: #ffffff !important;
+  }
+
+  /* Sensible page margins. */
+  @page {
+    margin: 14mm;
+  }
+}

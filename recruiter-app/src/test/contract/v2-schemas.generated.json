@@ -1,0 +1,609 @@
+{
+  "AddQuestionRequest": {
+    "properties": {
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "heading": {
+        "title": "Heading",
+        "type": "string"
+      },
+      "question_number": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Question Number"
+      }
+    },
+    "required": [
+      "heading"
+    ],
+    "title": "AddQuestionRequest",
+    "type": "object"
+  },
+  "AddRoundRequest": {
+    "$defs": {
+      "FeedbackQuestionInput": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "question_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Question Number"
+          }
+        },
+        "required": [
+          "heading"
+        ],
+        "title": "FeedbackQuestionInput",
+        "type": "object"
+      }
+    },
+    "properties": {
+      "category": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Category"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "duration_minutes": {
+        "default": 45,
+        "title": "Duration Minutes",
+        "type": "integer"
+      },
+      "feedback_questions": {
+        "anyOf": [
+          {
+            "items": {
+              "$ref": "#/$defs/FeedbackQuestionInput"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feedback Questions"
+      },
+      "guidelines": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Guidelines"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      },
+      "position": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Position"
+      },
+      "skills": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Skills"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "AddRoundRequest",
+    "type": "object"
+  },
+  "ReorderRoundItem": {
+    "properties": {
+      "round_id": {
+        "format": "uuid",
+        "title": "Round Id",
+        "type": "string"
+      },
+      "round_number": {
+        "title": "Round Number",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "round_id",
+      "round_number"
+    ],
+    "title": "ReorderRoundItem",
+    "type": "object"
+  },
+  "ReprocessRequest": {
+    "properties": {
+      "force": {
+        "default": false,
+        "title": "Force",
+        "type": "boolean"
+      }
+    },
+    "title": "ReprocessRequest",
+    "type": "object"
+  },
+  "RequestFeedbackRequest": {
+    "properties": {
+      "channel": {
+        "default": "email",
+        "enum": [
+          "email",
+          "slack",
+          "both"
+        ],
+        "title": "Channel",
+        "type": "string"
+      },
+      "interviewer_email": {
+        "format": "email",
+        "title": "Interviewer Email",
+        "type": "string"
+      },
+      "interviewer_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Interviewer Name"
+      }
+    },
+    "required": [
+      "interviewer_email"
+    ],
+    "title": "RequestFeedbackRequest",
+    "type": "object"
+  },
+  "RescheduleInterviewRequest": {
+    "description": "PUT reschedule body. All fields optional. To explicitly remove a\npreviously-set meeting_url, send `clear_meeting_url=true`.",
+    "properties": {
+      "clear_meeting_url": {
+        "default": false,
+        "title": "Clear Meeting Url",
+        "type": "boolean"
+      },
+      "interviewer_email": {
+        "anyOf": [
+          {
+            "format": "email",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Interviewer Email"
+      },
+      "interviewer_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Interviewer Name"
+      },
+      "meeting_url": {
+        "anyOf": [
+          {
+            "format": "uri",
+            "maxLength": 2083,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meeting Url"
+      },
+      "scheduled_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Scheduled At"
+      },
+      "scheduling_timezone": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Scheduling Timezone"
+      }
+    },
+    "title": "RescheduleInterviewRequest",
+    "type": "object"
+  },
+  "ScheduleInterviewRequest": {
+    "description": "POST schedule body.\n\nField rules \u2014 mirrors the v1 contract so recruiters get the same UX:\n  * `interviewer_email` is optional. Recruiters often don't have it at\n    schedule-time; we'd rather store the round than block on missing\n    contact info. When provided we still validate the format.\n  * `interviewer_name` is optional. Persisted to\n    `candidate_rounds.interviewer_name` (migration 89) so external\n    interviewers display correctly in the drawer.\n  * `meeting_url` is enforced by the FE for interview-type rounds (the\n    bot needs it). We keep it optional at the schema layer because\n    assessment-type rounds don't carry a URL \u2014 the FE encodes which\n    is which.\n  * `scheduling_timezone` is the IANA TZ name the recruiter picked\n    (e.g. `America/New_York`). Persisted on candidate_rounds so the\n    drawer's reschedule view can render the saved value back in the\n    recruiter's chosen zone.\n\n`duration_minutes` was removed: the field was never persisted (no column\non candidate_rounds, never passed to Recall bot scheduling). The round\nitself owns the canonical duration via `rounds.duration_minutes`.",
+    "properties": {
+      "interviewer_email": {
+        "anyOf": [
+          {
+            "format": "email",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Interviewer Email"
+      },
+      "interviewer_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Interviewer Name"
+      },
+      "meeting_url": {
+        "anyOf": [
+          {
+            "format": "uri",
+            "maxLength": 2083,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meeting Url"
+      },
+      "scheduled_at": {
+        "format": "date-time",
+        "title": "Scheduled At",
+        "type": "string"
+      },
+      "scheduling_timezone": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Scheduling Timezone"
+      }
+    },
+    "required": [
+      "scheduled_at"
+    ],
+    "title": "ScheduleInterviewRequest",
+    "type": "object"
+  },
+  "SubmitFeedbackRequest": {
+    "$defs": {
+      "FeedbackEntry": {
+        "properties": {
+          "evidence": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Evidence"
+          },
+          "evidence_status": {
+            "enum": [
+              "supported",
+              "verified",
+              "contradicted",
+              "partial",
+              "none"
+            ],
+            "title": "Evidence Status",
+            "type": "string"
+          },
+          "feedback_question_id": {
+            "format": "uuid",
+            "title": "Feedback Question Id",
+            "type": "string"
+          },
+          "feedback_text": {
+            "title": "Feedback Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feedback_question_id",
+          "feedback_text",
+          "evidence_status"
+        ],
+        "title": "FeedbackEntry",
+        "type": "object"
+      }
+    },
+    "properties": {
+      "entries": {
+        "items": {
+          "$ref": "#/$defs/FeedbackEntry"
+        },
+        "title": "Entries",
+        "type": "array"
+      },
+      "rating": {
+        "enum": [
+          "strong_yes",
+          "yes",
+          "maybe",
+          "no",
+          "strong_no"
+        ],
+        "title": "Rating",
+        "type": "string"
+      },
+      "scorecard": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Scorecard"
+      },
+      "summary": {
+        "title": "Summary",
+        "type": "string"
+      }
+    },
+    "required": [
+      "entries",
+      "rating",
+      "summary"
+    ],
+    "title": "SubmitFeedbackRequest",
+    "type": "object"
+  },
+  "UpdateQuestionRequest": {
+    "properties": {
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "heading": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Heading"
+      },
+      "question_number": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Question Number"
+      }
+    },
+    "title": "UpdateQuestionRequest",
+    "type": "object"
+  },
+  "UpdateRoundRequest": {
+    "properties": {
+      "category": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Category"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "duration_minutes": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Duration Minutes"
+      },
+      "guidelines": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Guidelines"
+      },
+      "name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Name"
+      },
+      "skills": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Skills"
+      }
+    },
+    "title": "UpdateRoundRequest",
+    "type": "object"
+  }
+}

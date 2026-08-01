@@ -1,0 +1,24 @@
+[test]
+preload = ["./src/test-setup.ts"]
+coverageSkipTestFiles = true
+# Note: `coveragePathIgnorePatterns` is honoured for test-file detection
+# but bun (as of 1.3) still counts ignored source files in the coverage
+# table. The patterns below are aspirational — they document INTENT and
+# will start filtering when bun fixes the upstream issue. For now,
+# fixtures + test scaffolding still show up in the report; production
+# files like src/components/artifacts/* drive heavy visualisations and
+# are dogfooded via Playwright E2E rather than unit tests.
+coveragePathIgnorePatterns = [
+  "src/fixtures/",
+  "src/test/",
+  "src/test-setup.ts",
+]
+
+# FE-T1 coverage floor (no-regression ratchet). Documents the enforced minimum:
+# line >= 0.84, function >= 0.80 (measured baseline 84.36% lines / 80.49% funcs).
+# NOTE: bun 1.3.10 only PRINTS against this threshold — it does NOT fail the run
+# when coverage is below it (verified: 37% lines vs 0.90 still exits 0). The real
+# gate is `scripts/coverage-gate.ts` (`bun run test:coverage:gate`), wired into
+# CI. Keep these two values in sync; when a future bun enforces this threshold,
+# the script can be retired.
+coverageThreshold = { line = 0.84, function = 0.80 }
