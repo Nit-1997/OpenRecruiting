@@ -1,0 +1,16 @@
+# Verification-only override: drops published host ports so the stack can be
+# brought up and health-checked on a machine that already has something bound to
+# those ports. Health checks run inside the container network.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.verify.yml up -d
+services:
+  backend:
+    ports: !reset []
+  cortex-backend:
+    ports: !reset []
+  cortex-mcp:
+    ports: !reset []
+  voice-agent:
+    ports: !reset []
+  voice-frontend:
+    ports: !reset []

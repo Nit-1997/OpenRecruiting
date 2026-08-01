@@ -1,0 +1,173 @@
+name: openrecruiting
+
+services:
+  # WebRTC voice agent (intake / screening / feedback calls).
+  #
+  # Upstream ran this with network_mode: host, which does not work on Docker
+  # Desktop for macOS or Windows. Explicit port mappings are used instead: the
+  # signalling port plus a bounded UDP range for WebRTC media. On Linux you can
+  # restore host networking (lower media latency, no range to maintain) with:
+  #   docker compose -f docker-compose.yml -f docker-compose.linux.yml up -d
+  voice-agent:
+    build:
+      context: .
+      dockerfile: voice-agent/Dockerfile
+    ports:
+      - "8011:8011"
+      - "40000-40010:40000-40010/udp"
+    env_file: [.env]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8011/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  # The page the meeting bot opens as its camera feed.
+  voice-frontend:
+    build:
+      context: ./voice-frontend
+    ports: ["3003:3000"]
+    env_file: [.env]
+    restart: unless-stopped
+
+  # Recruiting knowledge graph.
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/openrecruiting}
+    ports: ["7474:7474", "7687:7687"]
+    volumes: ["neo4j-data:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u $${NEO4J_USERNAME:-neo4j} -p $${NEO4J_PASSWORD:-openrecruiting} 'RETURN 1' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  cortex-backend:
+    build:
+      context: ./cortex-backend
+    ports: ["8010:8010"]
+    env_file: [.env]
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8010/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  # MCP resource server. Validates tokens against the backend's JWKS.
+  cortex-mcp:
+    build:
+      context: ./cortex-mcp
+    ports: ["8020:8020"]
+    env_file: [.env]
+    depends_on: [cortex-backend]
+    restart: unless-stopped
+
+  # Login lives here; it sets the shared cookie the recruiter app reads.
+  landing:
+    build:
+      context: ./landing
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8004}
+        NEXT_PUBLIC_API_V2_URL: ${NEXT_PUBLIC_API_V2_URL:-http://localhost:8004}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3005}
+        NEXT_PUBLIC_COOKIE_DOMAIN: ${NEXT_PUBLIC_COOKIE_DOMAIN:-}
+    ports: ["3000:3000"]
+    env_file: [.env]
+    restart: unless-stopped
+
+  recruiter-app:
+    build:
+      context: ./recruiter-app
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_API_V2_URL: ${NEXT_PUBLIC_API_V2_URL:-http://localhost:8004}
+        NEXT_PUBLIC_LANDING_URL: ${NEXT_PUBLIC_LANDING_URL:-http://localhost:3000}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3005}
+        NEXT_PUBLIC_COOKIE_DOMAIN: ${NEXT_PUBLIC_COOKIE_DOMAIN:-}
+    ports: ["3005:3000"]
+    env_file: [.env]
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports: ["8004:8004"]
+    env_file: [.env]
+    # Lets the container reach services running on the host (e.g. a tunnel).
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on: [feedback-agent, intake-agent, intake-context-builder]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8004/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  # The three workers below were AWS Lambdas. The backend reaches them over HTTP
+  # when JOB_INVOKER=http; they are not published to the host.
+  feedback-agent:
+    build:
+      context: .
+      dockerfile: workers/feedback-agent/Dockerfile
+    expose: ["9001"]
+    env_file: [.env]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:9001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  intake-agent:
+    build:
+      context: .
+      dockerfile: workers/intake-agent/Dockerfile
+    expose: ["9002"]
+    env_file: [.env]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:9002/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  intake-context-builder:
+    build:
+      context: .
+      dockerfile: workers/intake-context-builder/Dockerfile
+    expose: ["9003"]
+    env_file: [.env]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:9003/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+networks:
+  default:
+    name: openrecruiting
+
+volumes:
+  neo4j-data:

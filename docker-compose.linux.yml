@@ -1,0 +1,13 @@
+# Linux-only override: give the voice agent host networking.
+#
+# WebRTC media works better without the userland proxy and NAT hop that Docker's
+# bridge network adds, and host networking removes the need to maintain a UDP
+# port range at all. Docker Desktop on macOS and Windows runs containers inside a
+# VM, so host networking there does not reach your machine's network stack --
+# which is why this is a separate file rather than the default.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.linux.yml up -d
+services:
+  voice-agent:
+    network_mode: host
+    ports: !reset []
