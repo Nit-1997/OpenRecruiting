@@ -1,0 +1,52 @@
+{
+  "requisitions": [
+    {
+      "id": "req-1",
+      "organization_id": "org-1",
+      "role_title": "Senior Frontend Engineer",
+      "role_location": "San Francisco, CA",
+      "experience_min_years": 5,
+      "experience_max_years": 10,
+      "experience_display": "5-10 years",
+      "status": "planned",
+      "intake_notes": "Looking for React/Next.js expertise",
+      "job_description": "Build and maintain frontend applications",
+      "must_have_skills": ["React", "TypeScript"],
+      "good_to_have_skills": ["Next.js", "Tailwind"],
+      "created_at": "2024-06-15T00:00:00Z",
+      "updated_at": "2024-06-20T00:00:00Z"
+    },
+    {
+      "id": "req-2",
+      "organization_id": "org-1",
+      "role_title": "Backend Engineer",
+      "role_location": "Remote",
+      "experience_min_years": 3,
+      "experience_max_years": null,
+      "experience_display": "3+ years",
+      "status": "intake_pending",
+      "intake_notes": null,
+      "job_description": null,
+      "must_have_skills": [],
+      "good_to_have_skills": [],
+      "created_at": "2024-07-01T00:00:00Z",
+      "updated_at": "2024-07-01T00:00:00Z"
+    },
+    {
+      "id": "req-3",
+      "organization_id": "org-1",
+      "role_title": "Product Manager",
+      "role_location": "New York, NY",
+      "experience_min_years": 4,
+      "experience_max_years": 8,
+      "experience_display": "4-8 years",
+      "status": "planned",
+      "intake_notes": "Focus on B2B SaaS",
+      "job_description": "Lead product strategy",
+      "must_have_skills": ["Product Strategy", "Agile"],
+      "good_to_have_skills": ["SQL", "Analytics"],
+      "created_at": "2024-07-10T00:00:00Z",
+      "updated_at": "2024-07-15T00:00:00Z"
+    }
+  ]
+}

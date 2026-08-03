@@ -20,6 +20,8 @@ Then, in order:
 1. **[`docs/setup/supabase.md`](docs/setup/supabase.md)** — create a free
    project, run [`schema.sql`](schema.sql) in the SQL editor, paste three keys
    into `.env`. Ten minutes, and the only required step.
+1. *(optional)* **[`staff_user.sql`](staff_user.sql)** — edit the CONFIG block
+   and run it to provision a staff account for the admin portal on :3001.
 2. *(optional)* **[`docs/setup/recall.md`](docs/setup/recall.md)** — an API key
    and a tunnel, if you want real meeting capture.
 
@@ -33,12 +35,13 @@ make verify
 
 ## What runs where
 
-Eleven containers:
+Twelve containers:
 
 | | |
 |---|---|
 | `landing` :3000 | login; sets the shared auth cookie |
 | `recruiter-app` :3005 | the dashboard |
+| `admin-app` :3001 | staff portal: customers, subscriptions, promotions, blog |
 | `backend` :8004 | FastAPI, everything under `/api/v2/*` |
 | `feedback-agent`, `intake-agent`, `intake-context-builder` | background workers (internal-only) |
 | `cortex-backend` :8010, `cortex-mcp` :8020, `neo4j` :7474 | the knowledge graph |

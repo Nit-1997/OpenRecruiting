@@ -1,6 +1,6 @@
 # Architecture
 
-Eleven containers, one `.env`, and three cloud services you bring yourself.
+Twelve containers, one `.env`, and three cloud services you bring yourself.
 
 ## The stack
 
@@ -13,6 +13,7 @@ flowchart TB
     subgraph compose ["docker compose"]
         L[landing :3000<br/>login]
         A[recruiter-app :3005<br/>dashboard]
+        AD[admin-app :3001<br/>staff portal]
         B[backend :8004<br/>FastAPI /api/v2/*]
         FW[feedback-agent :9001]
         IW[intake-agent :9002]
@@ -141,6 +142,7 @@ feature rather than breaking the stack:
 | Port | Service |
 |---|---|
 | 3000 | landing |
+| 3001 | admin-app (staff only) |
 | 3003 | voice-frontend |
 | 3005 | recruiter-app |
 | 7474 / 7687 | neo4j browser / bolt |

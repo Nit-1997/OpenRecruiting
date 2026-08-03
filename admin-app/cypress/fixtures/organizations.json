@@ -1,0 +1,31 @@
+{
+  "organizations": [
+    {
+      "id": "org-1",
+      "name": "Acme Corp",
+      "domain": "acme.com",
+      "description": "Technology company",
+      "created_at": "2024-06-01T00:00:00Z",
+      "updated_at": "2024-06-15T00:00:00Z",
+      "deleted_at": null
+    },
+    {
+      "id": "org-2",
+      "name": "Globex Inc",
+      "domain": "globex.io",
+      "description": "Consulting firm",
+      "created_at": "2024-07-01T00:00:00Z",
+      "updated_at": "2024-07-10T00:00:00Z",
+      "deleted_at": null
+    },
+    {
+      "id": "org-3",
+      "name": "Initech",
+      "domain": "initech.co",
+      "description": null,
+      "created_at": "2024-08-01T00:00:00Z",
+      "updated_at": "2024-08-01T00:00:00Z",
+      "deleted_at": null
+    }
+  ]
+}

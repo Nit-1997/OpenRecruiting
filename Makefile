@@ -20,6 +20,7 @@ verify:        ## Health-check every service and print the URL map
 	@curl -fsS --max-time 5 http://localhost:8004/health        >/dev/null 2>&1 && echo "  ok    backend         http://localhost:8004"        || echo "  DOWN  backend         http://localhost:8004"
 	@curl -fsS --max-time 5 http://localhost:3000               >/dev/null 2>&1 && echo "  ok    landing         http://localhost:3000"        || echo "  DOWN  landing         http://localhost:3000  (needs NEXT_PUBLIC_SUPABASE_* set)"
 	@curl -fsS --max-time 5 http://localhost:3005               >/dev/null 2>&1 && echo "  ok    recruiter-app   http://localhost:3005"        || echo "  DOWN  recruiter-app   http://localhost:3005"
+	@curl -fsS --max-time 5 http://localhost:3001               >/dev/null 2>&1 && echo "  ok    admin-app       http://localhost:3001  (staff only)" || echo "  DOWN  admin-app       http://localhost:3001"
 	@curl -fsS --max-time 5 http://localhost:8010/api/v1/health >/dev/null 2>&1 && echo "  ok    cortex-backend  http://localhost:8010"        || echo "  DOWN  cortex-backend  http://localhost:8010"
 	@curl -fsS --max-time 5 http://localhost:8020/health        >/dev/null 2>&1 && echo "  ok    cortex-mcp      http://localhost:8020"        || echo "  DOWN  cortex-mcp      http://localhost:8020"
 	@curl -fsS --max-time 5 http://localhost:7474               >/dev/null 2>&1 && echo "  ok    neo4j           http://localhost:7474"        || echo "  DOWN  neo4j           http://localhost:7474"

@@ -1,0 +1,79 @@
+{
+  "candidates": [
+    {
+      "id": "cand-1",
+      "requisition_id": "req-1",
+      "name": "Jane Doe",
+      "email": "jane@example.com",
+      "phone": "+1-555-0101",
+      "status": "active",
+      "final_verdict": null,
+      "created_at": "2024-07-01T00:00:00Z",
+      "updated_at": "2024-07-15T00:00:00Z",
+      "rounds": [
+        {
+          "id": "round-1",
+          "round_name": "Technical Screen",
+          "round_number": 1,
+          "status": "completed",
+          "scheduled_at": "2024-07-05T14:00:00Z",
+          "completed_at": "2024-07-05T15:00:00Z",
+          "outcome": "advance"
+        },
+        {
+          "id": "round-2",
+          "round_name": "System Design",
+          "round_number": 2,
+          "status": "scheduled",
+          "scheduled_at": "2024-07-20T14:00:00Z",
+          "completed_at": null,
+          "outcome": null
+        }
+      ]
+    },
+    {
+      "id": "cand-2",
+      "requisition_id": "req-1",
+      "name": "John Roe",
+      "email": "john@example.com",
+      "phone": null,
+      "status": "active",
+      "final_verdict": null,
+      "created_at": "2024-07-03T00:00:00Z",
+      "updated_at": "2024-07-10T00:00:00Z",
+      "rounds": [
+        {
+          "id": "round-3",
+          "round_name": "Technical Screen",
+          "round_number": 1,
+          "status": "pending",
+          "scheduled_at": null,
+          "completed_at": null,
+          "outcome": null
+        }
+      ]
+    },
+    {
+      "id": "cand-3",
+      "requisition_id": "req-1",
+      "name": "Eva Green",
+      "email": "eva@example.com",
+      "phone": "+1-555-0303",
+      "status": "rejected",
+      "final_verdict": "no_hire",
+      "created_at": "2024-07-02T00:00:00Z",
+      "updated_at": "2024-07-12T00:00:00Z",
+      "rounds": [
+        {
+          "id": "round-4",
+          "round_name": "Technical Screen",
+          "round_number": 1,
+          "status": "completed",
+          "scheduled_at": "2024-07-06T10:00:00Z",
+          "completed_at": "2024-07-06T11:00:00Z",
+          "outcome": "reject"
+        }
+      ]
+    }
+  ]
+}
