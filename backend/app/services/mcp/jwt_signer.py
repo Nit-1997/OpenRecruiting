@@ -47,7 +47,11 @@ def _int_to_b64url(n: int) -> str:
 @lru_cache(maxsize=1)
 def _load_private_key() -> RSAPrivateKey:
     settings = get_settings()
-    pem = (settings.MCP_JWT_PRIVATE_KEY_PEM or "").encode("utf-8")
+    # `.env` carries the PEM on a single line with \n escapes, because compose's
+    # env_file cannot express a multi-line value -- so decode them back before
+    # parsing. A PEM that already has real newlines contains no literal "\n"
+    # sequence, which makes this a no-op for that form.
+    pem = (settings.MCP_JWT_PRIVATE_KEY_PEM or "").replace("\\n", "\n").encode("utf-8")
     if not pem.strip():
         raise RuntimeError(
             "MCP_JWT_PRIVATE_KEY_PEM is not configured. Generate an RSA "
