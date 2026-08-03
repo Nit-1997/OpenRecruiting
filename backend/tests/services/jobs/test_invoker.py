@@ -5,17 +5,30 @@ so the workers run as local containers instead and the invoker chooses the
 transport: `http` posts to a container, `lambda` keeps the original boto3 path.
 """
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from app.services.jobs.invoker import (
+    _IN_FLIGHT,
     HttpInvoker,
     LambdaInvoker,
     UnknownJobTargetError,
     get_invoker,
 )
+
+
+async def _drain() -> None:
+    """Wait for dispatches HttpInvoker left running in the background.
+
+    `invoke` returns as soon as the POST is queued, so a test that asserts on
+    the request has to wait for it; production code never needs this.
+    """
+    while _IN_FLIGHT:
+        await asyncio.gather(*list(_IN_FLIGHT), return_exceptions=True)
 
 
 def _settings(**kw):
@@ -44,6 +57,7 @@ async def test_http_invoker_posts_payload_to_worker(respx_mock):
     await HttpInvoker({"feedback": "http://feedback-agent:9001"}).invoke(
         "feedback", {"candidate_round_id": "cr-1"}
     )
+    await _drain()
 
     assert route.called
     assert route.calls[0].request.content == b'{"candidate_round_id": "cr-1"}'
@@ -56,6 +70,7 @@ async def test_http_invoker_strips_trailing_slash_on_base_url(respx_mock):
     await HttpInvoker({"feedback": "http://feedback-agent:9001/"}).invoke(
         "feedback", {"candidate_round_id": "cr-1"}
     )
+    await _drain()
 
     assert route.called
 
@@ -65,15 +80,43 @@ async def test_http_invoker_rejects_unknown_target():
         await HttpInvoker({}).invoke("nope", {})
 
 
-async def test_http_invoker_raises_on_worker_error(respx_mock):
-    """A worker that 500s must surface, not be swallowed -- the caller marks the
-    round failed on an exception."""
+async def test_http_invoker_returns_before_the_worker_finishes(respx_mock):
+    """The regression this guards.
+
+    `POST /invoke` is a synchronous handler that answers only once the job is
+    done -- 30-50s for the LLM pipelines. Awaiting it made every dispatch time
+    out and report a failure for work that then succeeded, so `invoke` must
+    return while the worker is still going.
+    """
+    finish = asyncio.Event()
+
+    async def still_working(request):
+        await finish.wait()
+        return httpx.Response(200)
+
+    respx_mock.post("http://feedback-agent:9001/invoke").mock(side_effect=still_working)
+
+    await asyncio.wait_for(
+        HttpInvoker({"feedback": "http://feedback-agent:9001"}).invoke(
+            "feedback", {"candidate_round_id": "cr-1"}
+        ),
+        timeout=1.0,
+    )
+
+    finish.set()
+    await _drain()
+
+
+async def test_http_invoker_does_not_raise_when_the_worker_errors(respx_mock):
+    """Only dispatch failures reach the caller. The worker owns the job's
+    terminal state, so it reports its own failure to the database -- raising
+    here would make the caller overwrite that with a second, wrong verdict."""
     respx_mock.post("http://feedback-agent:9001/invoke").respond(500)
 
-    with pytest.raises(Exception):
-        await HttpInvoker({"feedback": "http://feedback-agent:9001"}).invoke(
-            "feedback", {"candidate_round_id": "cr-1"}
-        )
+    await HttpInvoker({"feedback": "http://feedback-agent:9001"}).invoke(
+        "feedback", {"candidate_round_id": "cr-1"}
+    )
+    await _drain()
 
 
 # --------------------------- LambdaInvoker ---------------------------

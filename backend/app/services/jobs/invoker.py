@@ -46,7 +46,15 @@ INTAKE = "intake"
 CONTEXT_BUILDER = "context_builder"
 INTAKE_TRANSCRIPT = "intake_transcript"
 
-_HTTP_TIMEOUT_SECONDS = 15.0
+# Ceiling on a single dispatch, not on the job. The POST is awaited on a
+# background task purely so a failure gets logged, so this only bounds how long
+# a stuck socket is held: it must exceed the slowest worker (feedback runs ~50s
+# against the LLM) or the log line will claim a failure that did not happen.
+_HTTP_TIMEOUT_SECONDS = 600.0
+
+# create_task keeps only a weak reference, so a dispatch still in flight can be
+# garbage-collected mid-request. Hold a strong reference until it finishes.
+_IN_FLIGHT: set[asyncio.Task] = set()
 
 
 class UnknownJobTargetError(ValueError):
@@ -62,6 +70,19 @@ class HttpInvoker:
 
     The workers accept exactly the event dict the Lambda handler expects, so
     the payload is identical on both transports.
+
+    The worker's `POST /invoke` is a synchronous handler: it answers only once
+    the whole job is done, which for the LLM pipelines is 30-50s. Awaiting that
+    would make every dispatch look like a failure to the caller, so the POST
+    goes onto a background task and `invoke` returns as soon as it is queued --
+    matching `LambdaInvoker`'s InvocationType="Event" and the fire-and-forget
+    contract in this module's docstring. The worker owns the job's terminal
+    state either way, so nothing is lost by not waiting.
+
+    Consequence worth knowing: only *configuration* failures (an unroutable
+    target) still raise. A worker that is merely unreachable now surfaces as an
+    error in the log rather than an exception at the call site, and the job's
+    row keeps whatever pending state the caller wrote before dispatching.
     """
 
     def __init__(self, routes: dict[str, str]):
@@ -75,10 +96,27 @@ class HttpInvoker:
                 f"Set the matching *_WORKER_URL environment variable."
             )
         url = f"{base.rstrip('/')}/invoke"
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_SECONDS) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
+        task = asyncio.create_task(self._deliver(url, target, payload))
+        _IN_FLIGHT.add(task)
+        task.add_done_callback(_IN_FLIGHT.discard)
         logger.info("job_dispatched", extra={"target": target, "transport": "http"})
+
+    @staticmethod
+    async def _deliver(url: str, target: str, payload: dict) -> None:
+        """Run the POST to completion so the outcome is logged. Never raises:
+        this runs detached, and an escaping exception would only be reported by
+        asyncio as a task that was never retrieved."""
+        try:
+            async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_SECONDS) as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+        except Exception as e:
+            logger.error(
+                "job_delivery_failed",
+                extra={"target": target, "transport": "http", "error": str(e)},
+            )
+        else:
+            logger.info("job_completed", extra={"target": target, "transport": "http"})
 
 
 class LambdaInvoker:
