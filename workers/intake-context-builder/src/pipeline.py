@@ -74,18 +74,24 @@ async def run_pipeline(session_id: str, include_turns: bool) -> dict[str, Any]:
             cortex_data=cortex_out,
         )
         # Write prefilled_answers; also initialize current_answers if not yet set
+        # process_error must be cleared here: it is only ever written on failure,
+        # so without this a session that failed once keeps the stale message
+        # after a successful re-run and the UI goes on reporting "We couldn't
+        # prefill from your context" over perfectly good answers.
         if not include_turns:
             sb.table("intake_sessions").update({
                 "prefilled_answers": answers,
                 "current_answers": answers,
                 "status": "ready",
                 "process_status": "idle",
+                "process_error": None,
             }).eq("id", session_id).execute()
         else:
             # Re-prefill: only update prefilled_answers, leave current_answers alone
             sb.table("intake_sessions").update({
                 "prefilled_answers": answers,
                 "process_status": "idle",
+                "process_error": None,
             }).eq("id", session_id).execute()
 
         update_process_stage(sb, session_id, stage_name="synthesize", status="completed")
