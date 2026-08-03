@@ -74,6 +74,32 @@ To make yourself a staff user, run this in the SQL editor after signing up:
 UPDATE public.profiles SET is_staff = true WHERE email = 'you@example.com';
 ```
 
+## 6. Staff access to the admin portal
+
+`admin-app` on <http://localhost:3001> is the staff console — customers,
+subscriptions, promotions, blog and assessments. It is gated entirely on
+`profiles.is_staff`, which is effectively superuser across every organization in
+the instance. Do not set it on ordinary recruiter accounts.
+
+To create a staff account in one step, edit the CONFIG block at the top of
+[`staff_user.sql`](../../staff_user.sql) and run it in the SQL editor. It
+provisions the Supabase Auth user, the confirmed email identity and the staff
+profile together, and is safe to re-run (it resets the password rather than
+creating a duplicate).
+
+That script also carries one grant your database may be missing:
+
+```sql
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
+```
+
+`is_admin()` is not an RPC — 39 row-level-security policies across 15 tables
+call it, and a policy predicate runs with the *caller's* privileges. Without the
+grant, every authenticated client-side read of those tables fails with
+`permission denied for function is_admin` and the admin portal cannot confirm
+you are staff. `schema.sql` now includes it; databases created before that fix
+need `staff_user.sql` (or the statement above) once.
+
 ## Troubleshooting
 
 **"relation does not exist" when the app loads.** `schema.sql` did not finish. Re-run it
