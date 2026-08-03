@@ -62,7 +62,7 @@ _STATUS_TO_INTERACTION_STEP = {
 
 def _add_role_url() -> str:
     settings = get_settings()
-    base = (settings.RECRUITER_PORTAL_URL or settings.APP_URL or "").strip()
+    base = (settings.APP_URL or "").strip()
     if not base:
         base = "http://localhost:3005"
     return f"{base.rstrip('/')}/dashboard"

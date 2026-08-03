@@ -8,7 +8,6 @@ os.environ.update({
     "RECALL_API_KEY": "test-recall-key",
     "RECALL_WEBHOOK_SECRET": "test-webhook-secret",
     "WEBHOOK_BASE_URL": "http://localhost:8004",
-    "RECRUITER_PORTAL_URL": "http://localhost:3000",
     "ASSESSMENT_UI_URL": "http://localhost:3002",
     "OPENAI_API_KEY": "test-openai-key",
     "ANTHROPIC_API_KEY": "test-anthropic-key",

@@ -1,7 +1,7 @@
 """No-login candidate screening portal.
 
 Mirrors `public_feedback.py`: a candidate receives an emailed link
-`{RECRUITER_PORTAL_URL}/screening/{token}/verify`, verifies a 6-digit OTP to mint a
+`{APP_URL}/screening/{token}/verify`, verifies a 6-digit OTP to mint a
 session JWT, then starts the voice screening call. All endpoints are keyed by the
 opaque `screening_invites.token`.
 

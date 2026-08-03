@@ -97,7 +97,7 @@ async def create_user_with_magic_link(
             detail="User with this email already exists"
         )
 
-    redirect_url = f"{settings.RECRUITER_PORTAL_URL}/set-password"
+    redirect_url = f"{settings.APP_URL}/set-password"
 
     try:
         auth_result = await supabase.invite_user_by_email(
@@ -167,7 +167,7 @@ async def resend_magic_link(
             detail="User not found"
         )
 
-    redirect_url = f"{settings.RECRUITER_PORTAL_URL}/set-password"
+    redirect_url = f"{settings.APP_URL}/set-password"
 
     try:
         await supabase.invite_user_by_email(
@@ -207,7 +207,7 @@ async def reset_invite(
     email = saved_profile["email"]
     full_name = saved_profile.get("full_name", "")
 
-    redirect_url = f"{settings.RECRUITER_PORTAL_URL}/set-password"
+    redirect_url = f"{settings.APP_URL}/set-password"
 
     # Safe ordering: this flow spans the Supabase Auth API (delete + invite) and
     # a profiles DB write, so a pure DB transaction cannot cover it. We therefore

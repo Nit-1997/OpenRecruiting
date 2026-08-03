@@ -130,7 +130,7 @@ class ScreeningInviteService:
             # below still lets the recruiter copy-share the link manually.
             pass
 
-        verify_url = f"{self.settings.RECRUITER_PORTAL_URL}/screening/{token}/verify"
+        verify_url = f"{self.settings.APP_URL}/screening/{token}/verify"
         return {
             "token": token,
             "expires_at": expires_at.isoformat(),
@@ -151,7 +151,7 @@ class ScreeningInviteService:
         candidate_name: str | None,
         validity_days: int,
     ) -> None:
-        verify_link = f"{self.settings.RECRUITER_PORTAL_URL}/screening/{token}/verify"
+        verify_link = f"{self.settings.APP_URL}/screening/{token}/verify"
         validity_window = (
             "1 day" if validity_days == 1 else f"{validity_days} days"
         )

@@ -137,7 +137,7 @@ class FeedbackNotificationService:
         candidate_round_id = cr_context.get("candidate_round_id")
 
         requisition_id = cr_context.get("requisition_id")
-        view_link = f"{self.settings.RECRUITER_PORTAL_URL}/view/roles/{requisition_id}?candidate={candidate_id}"
+        view_link = f"{self.settings.APP_URL}/view/roles/{requisition_id}?candidate={candidate_id}"
 
         context = self._build_base_email_context(cr_context)
         context.update({
@@ -179,14 +179,14 @@ class FeedbackNotificationService:
         token = await self._ensure_feedback_token(candidate_round_id, interviewer_email, is_registered_user=is_registered_user)
 
         if is_registered_user:
-            feedback_link = f"{self.settings.RECRUITER_PORTAL_URL}/feedback/{token}/verify?platform_auth=pending&redirect=feedback"
+            feedback_link = f"{self.settings.APP_URL}/feedback/{token}/verify?platform_auth=pending&redirect=feedback"
             context["feedback_link"] = feedback_link
             context["is_registered_user"] = True
         else:
             otp_code = self.otp_service.generate_otp()
             await self._store_otp_for_token(candidate_round_id, otp_code)
 
-            feedback_link = f"{self.settings.RECRUITER_PORTAL_URL}/feedback/{token}/verify?otp={otp_code}&redirect=feedback"
+            feedback_link = f"{self.settings.APP_URL}/feedback/{token}/verify?otp={otp_code}&redirect=feedback"
             context["feedback_link"] = feedback_link
             context["otp_code"] = otp_code
             context["otp_validity"] = "12 hours"
@@ -230,14 +230,14 @@ class FeedbackNotificationService:
         token = await self._ensure_feedback_token(candidate_round_id, interviewer_email, is_registered_user=is_registered_user)
 
         if is_registered_user:
-            feedback_link = f"{self.settings.RECRUITER_PORTAL_URL}/feedback/{token}/verify?platform_auth=pending&redirect=feedback"
+            feedback_link = f"{self.settings.APP_URL}/feedback/{token}/verify?platform_auth=pending&redirect=feedback"
             context["feedback_link"] = feedback_link
             context["is_registered_user"] = True
         else:
             otp_code = self.otp_service.generate_otp()
             await self._store_otp_for_token(candidate_round_id, otp_code)
 
-            feedback_link = f"{self.settings.RECRUITER_PORTAL_URL}/feedback/{token}/verify?otp={otp_code}&redirect=feedback"
+            feedback_link = f"{self.settings.APP_URL}/feedback/{token}/verify?otp={otp_code}&redirect=feedback"
             context["feedback_link"] = feedback_link
             context["otp_code"] = otp_code
             context["otp_validity"] = "12 hours"
@@ -360,13 +360,13 @@ class FeedbackNotificationService:
         })
 
         if is_registered_user:
-            feedback_link = f"{self.settings.RECRUITER_PORTAL_URL}/feedback/{token}/verify?platform_auth=pending&redirect=feedback"
+            feedback_link = f"{self.settings.APP_URL}/feedback/{token}/verify?platform_auth=pending&redirect=feedback"
             context["feedback_link"] = feedback_link
             context["is_registered_user"] = True
         else:
             otp_code = self.otp_service.generate_otp()
             await self._store_otp_for_token(candidate_round_id, otp_code)
-            feedback_link = f"{self.settings.RECRUITER_PORTAL_URL}/feedback/{token}/verify?otp={otp_code}&redirect=feedback"
+            feedback_link = f"{self.settings.APP_URL}/feedback/{token}/verify?otp={otp_code}&redirect=feedback"
             context["feedback_link"] = feedback_link
             context["otp_code"] = otp_code
             context["otp_validity"] = "12 hours"
@@ -418,13 +418,13 @@ class FeedbackNotificationService:
             })
 
             if is_registered_user:
-                feedback_link = f"{self.settings.RECRUITER_PORTAL_URL}/feedback/{token}/verify?platform_auth=pending&redirect=feedback"
+                feedback_link = f"{self.settings.APP_URL}/feedback/{token}/verify?platform_auth=pending&redirect=feedback"
                 context["feedback_link"] = feedback_link
                 context["is_registered_user"] = True
             else:
                 otp_code = self.otp_service.generate_otp()
                 await self._store_otp_for_token(candidate_round_id, otp_code)
-                feedback_link = f"{self.settings.RECRUITER_PORTAL_URL}/feedback/{token}/verify?otp={otp_code}&redirect=feedback"
+                feedback_link = f"{self.settings.APP_URL}/feedback/{token}/verify?otp={otp_code}&redirect=feedback"
                 context["feedback_link"] = feedback_link
                 context["otp_code"] = otp_code
                 context["otp_validity"] = "12 hours"
@@ -499,7 +499,7 @@ class FeedbackNotificationService:
 
         interviewer_email = cr_context.get("interviewer_email")
         token = await self._ensure_feedback_token(candidate_round_id, interviewer_email)
-        shareable_link = f"{self.settings.RECRUITER_PORTAL_URL}/feedback/{token}/verify"
+        shareable_link = f"{self.settings.APP_URL}/feedback/{token}/verify"
 
         scheduler = await self.email_service.get_scheduler_email(candidate_round_id)
         interviewer = await self.email_service.get_interviewer_email(candidate_round_id)
@@ -533,7 +533,7 @@ class FeedbackNotificationService:
 
         requisition_id = cr_context.get("requisition_id")
         candidate_id = cr_context.get("candidate_id")
-        candidate_link = f"{self.settings.RECRUITER_PORTAL_URL}/view/roles/{requisition_id}?candidate={candidate_id}"
+        candidate_link = f"{self.settings.APP_URL}/view/roles/{requisition_id}?candidate={candidate_id}"
 
         context = self._build_base_email_context(cr_context)
         context.update({

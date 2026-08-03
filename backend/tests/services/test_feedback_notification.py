@@ -121,7 +121,7 @@ class _FakeOtp:
 
 @dataclass
 class _FakeSettings:
-    RECRUITER_PORTAL_URL: str = "https://app.test"
+    APP_URL: str = "https://app.test"
 
 
 def _make_service(fake_sb, monkeypatch, *, scheduler=None, interviewer=None, is_registered=False):

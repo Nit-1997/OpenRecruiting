@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from app.services.cal_intel import blocks as b
 
 
-def _settings(portal="http://localhost:3005", appurl=""):
-    return SimpleNamespace(RECRUITER_PORTAL_URL=portal, APP_URL=appurl)
+def _settings(appurl="http://localhost:3005"):
+    return SimpleNamespace(APP_URL=appurl)
 
 
 # ----------------------- _coalesce_text -----------------------
@@ -62,13 +62,13 @@ def test_status_to_interaction_step_unknown_defaults():
 
 # ----------------------- _add_role_url -----------------------
 
-def test_add_role_url_uses_portal():
-    with patch.object(b, "get_settings", lambda: _settings(portal="http://localhost:3005/")):
+def test_add_role_url_uses_app_url():
+    with patch.object(b, "get_settings", lambda: _settings("http://localhost:3005/")):
         assert b._add_role_url() == "http://localhost:3005/dashboard"
 
 
 def test_add_role_url_fallback_when_unset():
-    with patch.object(b, "get_settings", lambda: _settings(portal="", appurl="")):
+    with patch.object(b, "get_settings", lambda: _settings("")):
         assert b._add_role_url() == "http://localhost:3005/dashboard"
 
 

@@ -29,10 +29,13 @@ class Settings(BaseSettings):
     SUPABASE_JWT_SECRET: str
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:3005"
     DEBUG: bool = False
-    RECRUITER_PORTAL_URL: str = ""
     ASSESSMENT_UI_URL: str = ""
-    # Recruiter app base URL. (Was two settings with identical defaults, one per
-    # app generation; the older app is retired, so they are now one.)
+    # Recruiter app base URL: every link the backend builds for a browser --
+    # invite redirects, feedback and screening portals, billing. (Was three
+    # settings for the same host, one per app generation. RECRUITER_PORTAL_URL
+    # was the last straggler; unlike this one it had no default, so leaving it
+    # unset silently produced relative URLs like "/set-password" that Supabase
+    # rejects as redirect targets.)
     APP_URL: str = "http://localhost:3005"
 
     # When True, only pre-provisioned invitees may complete signup. Off by

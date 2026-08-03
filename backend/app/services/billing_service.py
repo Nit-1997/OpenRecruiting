@@ -21,7 +21,7 @@ class BillingService:
             bearer_token=settings.DODO_PAYMENTS_API_KEY,
             environment=settings.DODO_ENVIRONMENT,
         )
-        self.frontend_url = settings.RECRUITER_PORTAL_URL
+        self.frontend_url = settings.APP_URL
 
     async def get_plan_by_name(self, plan_name: str) -> dict:
         supabase = get_supabase_admin_client()
