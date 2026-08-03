@@ -4729,7 +4729,7 @@ CREATE TABLE public.organizations (
     blocked_domains text[] DEFAULT '{}'::text[],
     slack_features jsonb DEFAULT '{"assistant_read": false, "assistant_write": false, "calendar_notifications": true}'::jsonb,
     auto_join_untracked boolean DEFAULT false,
-    intake_v2_features jsonb DEFAULT '{"intake_v2_enabled": false}'::jsonb,
+    intake_v2_features jsonb DEFAULT '{"intake_v2_enabled": true}'::jsonb,
     CONSTRAINT organizations_org_type_check CHECK (((org_type)::text = ANY ((ARRAY['personal'::character varying, 'team'::character varying, 'enterprise'::character varying])::text[])))
 );
 
@@ -4745,7 +4745,7 @@ COMMENT ON COLUMN public.organizations.auto_join_untracked IS 'When true, interv
 -- Name: COLUMN organizations.intake_v2_features; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.organizations.intake_v2_features IS 'Per-org feature flags for v2 intake. Keys: intake_v2_enabled (bool).';
+COMMENT ON COLUMN public.organizations.intake_v2_features IS 'Per-org feature flags for v2 intake. Keys: intake_v2_enabled (bool). Defaults true: upstream this gated a staged rollout driven by internal tooling, and nothing in this repo ever writes the flag, so defaulting it false left AI intake unreachable on a fresh install with no supported way to turn it on. Set it false per-org to opt out.';
 
 
 --
@@ -9898,6 +9898,14 @@ REVOKE ALL ON FUNCTION public.intake_sessions_set_stage(p_session_id uuid, p_sta
 GRANT EXECUTE ON FUNCTION public.intake_sessions_set_stage(p_session_id uuid, p_stage_name text, p_status text, p_output jsonb, p_error text) TO service_role;
 REVOKE ALL ON FUNCTION public.is_admin() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.is_admin() TO service_role;
+-- ...but `authenticated` must keep EXECUTE on this one. is_admin() is not an
+-- RPC: 39 RLS policies across 15 tables call it, and a policy predicate runs
+-- with the CALLER's privileges. Without this grant every authenticated read of
+-- those tables fails with "permission denied for function is_admin" -- the RLS
+-- policy itself errors before it can return a row. Safe to grant: it takes no
+-- arguments and reads only the caller's own row (p.id = auth.uid()), so it
+-- discloses nothing a user cannot already infer about themselves.
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
 REVOKE ALL ON FUNCTION public.release_stale_intake_modality_locks(p_stale_minutes integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.release_stale_intake_modality_locks(p_stale_minutes integer) TO service_role;
 REVOKE ALL ON FUNCTION public.reorder_requisition_rounds(p_requisition_id uuid, p_ordered_round_ids uuid[]) FROM PUBLIC, anon, authenticated;
