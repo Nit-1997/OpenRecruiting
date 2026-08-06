@@ -5,10 +5,21 @@
 #
 #   docker build -f cortex-backend/Dockerfile.test -t openrecruiting-cortex-backend-test cortex-backend
 #   docker run --rm -e ENV=test -v "$PWD/cortex-backend:/app" -w /app \
-#     openrecruiting-cortex-backend-test python -m pytest -q tests/unit
+#     openrecruiting-cortex-backend-test python -m pytest -q -m "not live_infra" \
+#     tests/unit tests/integration
 #
-# tests/integration and tests/e2e need Neo4j and Supabase, so they only pass
-# from inside the compose network.
+# tests/unit and tests/integration are both hermetic: integration mocks SQS,
+# Supabase and Graphiti and never enters the app lifespan, so no service is
+# contacted. Mark anything that does need a real Neo4j/Supabase `live_infra`
+# and it drops out of that run while still living in tests/integration.
+#
+# Two groups are left out, neither for infrastructure reasons:
+#   tests/e2e           - passes alone, fails in a full-tree run. Its fixture
+#                         sets INTERNAL_SECRET in os.environ, but get_settings()
+#                         is @lru_cache'd, so an earlier test that already built
+#                         the settings object pins the old value (401 -> 500).
+#   tests/test_health.py - always fails: @pytest.fixture on an async generator,
+#                         which pytest-asyncio strict mode does not run.
 FROM python:3.11-slim
 
 WORKDIR /app

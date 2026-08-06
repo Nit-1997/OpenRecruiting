@@ -36,7 +36,10 @@ test:          ## Run the backend suite (Python 3.11 in Docker)
 	docker build -f backend/Dockerfile.test -t openrecruiting-backend-test .
 	docker run --rm -e ENV=test -v "$(PWD)/backend:/app" -w /app openrecruiting-backend-test python -m pytest -q
 
-# tests/integration and tests/e2e need Neo4j and Supabase, so they are out of scope here.
-test-cortex:   ## Run the cortex-backend unit suite (Python 3.11 in Docker)
+# tests/integration is hermetic (it mocks SQS/Supabase/Graphiti), so it runs here too;
+# tests marked live_infra want a real Neo4j/Supabase and drop out. Excluded: tests/e2e is
+# order-fragile via the @lru_cache'd get_settings(), and tests/test_health.py has an async
+# fixture that pytest-asyncio strict mode cannot run. See cortex-backend/Dockerfile.test.
+test-cortex:   ## Run the cortex-backend unit + integration suite (Python 3.11 in Docker)
 	docker build -f cortex-backend/Dockerfile.test -t openrecruiting-cortex-backend-test cortex-backend
-	docker run --rm -e ENV=test -v "$(PWD)/cortex-backend:/app" -w /app openrecruiting-cortex-backend-test python -m pytest -q tests/unit
+	docker run --rm -e ENV=test -v "$(PWD)/cortex-backend:/app" -w /app openrecruiting-cortex-backend-test python -m pytest -q -m "not live_infra" tests/unit tests/integration
