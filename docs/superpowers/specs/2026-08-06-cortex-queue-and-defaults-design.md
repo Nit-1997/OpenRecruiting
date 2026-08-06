@@ -93,8 +93,29 @@ cortex_events → EventQueue.claim_batch()   (SELECT … FOR UPDATE SKIP LOCKED)
 | long polling | fixed-interval poll | n/a |
 
 `published_at` changes meaning from "handed to SQS" to "claimed at". A row is
-eligible when it is past the 48h settledness window **and** (`published_at IS
-NULL` or the lease has expired). **No schema migration is required.**
+eligible when it is past the 48h settledness window **and** unclaimed, or its
+claim lease has expired.
+
+### Schema change
+
+Corrected during planning; the first draft of this spec claimed no migration was
+needed. Two things are required, both small:
+
+1. **One new column** — `cortex_events.completed_at timestamptz NULL`.
+   Completion is currently recorded only in `cortex_ingestion_record`, a
+   different table, so `cortex_events` alone cannot distinguish "claimed and
+   finished" from "claimed and then crashed". The existing predicate
+   (`published_at IS NULL OR last_touch_at > published_at`) makes a crashed
+   claim look permanently done, leaving the **weekly** reconcile as the only
+   recovery. With `completed_at`, an expired lease recovers it in minutes.
+2. **One new RPC** — `cortex_events_claim_batch(...)`. cortex-backend talks to
+   Postgres only through the Supabase REST client (there is no asyncpg or
+   psycopg dependency), so `FOR UPDATE SKIP LOCKED` cannot be expressed from
+   Python. It goes in a `SECURITY DEFINER` function, following the existing
+   `cortex_events_settled` and `cortex_events_for_org_unpublished` precedent.
+
+No columns are dropped and no data is rewritten, so the change is additive and
+safe to apply to a live database.
 
 ## Components
 
