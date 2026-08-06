@@ -5,7 +5,7 @@ to a consumer in the same process. This is the whole queue: claim a leased
 batch, mark done, mark failed. Nothing here knows what an event means.
 """
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 import structlog
@@ -61,13 +61,17 @@ class EventQueue:
             for r in (resp.data or [])
         ]
 
-    async def mark_done(self, event_id: str) -> None:
+    async def mark_done(self, event_id: str, completed_through: datetime) -> None:
+        """`completed_through` is the claimed row's own last_touch_at, not the
+        wall clock: an edit landing mid-processing would otherwise predate a
+        now() stamp and never re-queue. Equal timestamps keep the row
+        ineligible; a real edit makes last_touch_at strictly greater."""
         # publish_count resets so a later re-edit starts with a full retry
         # budget; without this a long-lived row eventually parks itself.
         await (
             self._sb.table("cortex_events")
             .update({
-                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "completed_at": completed_through.isoformat(),
                 "last_error": None,
                 "publish_count": 0,
             })
