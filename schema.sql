@@ -1775,6 +1775,10 @@ $$;
 -- cap, and either never claimed or holding an expired lease. Claiming stamps
 -- published_at as the lease start and clears last_error so a retry does not
 -- inherit the previous failure's message.
+--
+-- p_limit is COALESCEd because LIMIT NULL means "no limit" in Postgres: unlike
+-- the other parameters, which fail closed by making the predicate NULL, an
+-- unset p_limit would lease the entire eligible table in one call.
 
 CREATE FUNCTION public.cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, event_type text, source_id uuid, org_id uuid, last_touch_at timestamp with time zone, publish_count integer)
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1796,7 +1800,7 @@ BEGIN
           AND (c.published_at IS NULL
                OR c.published_at < now() - make_interval(secs => p_lease_seconds))
         ORDER BY c.last_touch_at ASC
-        LIMIT p_limit
+        LIMIT COALESCE(p_limit, 100)
         FOR UPDATE SKIP LOCKED
    )
   RETURNING e.id, e.event_type, e.source_id, e.org_id, e.last_touch_at, e.publish_count;
@@ -4268,7 +4272,7 @@ CREATE TABLE public.cortex_events (
 -- Name: TABLE cortex_events; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.cortex_events IS 'Cortex notification table. Per-source-table triggers UPSERT here on (event_type, source_id). Drained nightly to SQS by the cortex-backend brain_sync_cron.';
+COMMENT ON TABLE public.cortex_events IS 'Cortex notification table. Per-source-table triggers UPSERT here on (event_type, source_id). Drained by the cortex-backend brain_sync_cron, which leases rows via cortex_events_claim_batch() and records completion in completed_at; published_at doubles as the lease start, so an expired lease means the worker died and the row is reclaimable.';
 
 
 --
@@ -6393,13 +6397,6 @@ CREATE INDEX idx_cortex_events_re_edit ON public.cortex_events USING btree (last
 --
 
 CREATE INDEX idx_cortex_events_unpublished ON public.cortex_events USING btree (last_touch_at) WHERE (published_at IS NULL);
-
-
---
--- Name: cortex_events_pending_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX cortex_events_pending_idx ON public.cortex_events USING btree (last_touch_at) WHERE (completed_at IS NULL);
 
 
 --
@@ -9071,8 +9068,8 @@ GRANT ALL ON FUNCTION public.cortex_events_settled(cutoff timestamp with time zo
 -- Name: FUNCTION cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid) TO service_role;
 
 
 --
@@ -9932,6 +9929,8 @@ REVOKE ALL ON FUNCTION public.cortex_emit_round_event() FROM PUBLIC, anon, authe
 GRANT EXECUTE ON FUNCTION public.cortex_emit_round_event() TO service_role;
 REVOKE ALL ON FUNCTION public.cortex_emit_transcript_event() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.cortex_emit_transcript_event() TO service_role;
+REVOKE ALL ON FUNCTION public.cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid) TO service_role;
 REVOKE ALL ON FUNCTION public.debrief_commit_draft(p_packet_id uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.debrief_commit_draft(p_packet_id uuid) TO service_role;
 REVOKE ALL ON FUNCTION public.debrief_conversation_append_turn(p_packet_id uuid, p_turn jsonb) FROM PUBLIC, anon, authenticated;
