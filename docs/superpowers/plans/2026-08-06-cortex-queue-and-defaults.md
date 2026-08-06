@@ -692,7 +692,10 @@ Replace `_publish_event_row` and the body of `publish_settled_events` with:
             )
             await self._queue.mark_failed(event.id, str(e))
             return False
-        await self._queue.mark_done(event.id)
+        # Stamp the claimed row's own last_touch_at, never an app-clock now():
+        # an edit landing between claim and completion would otherwise be older
+        # than the stamp, fail `last_touch_at > completed_at`, and never re-queue.
+        await self._queue.mark_done(event.id, event.last_touch_at)
         return True
 
     async def process_settled_events(self) -> int:
