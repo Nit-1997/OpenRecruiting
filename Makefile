@@ -1,4 +1,4 @@
-.PHONY: up down logs ps verify build test
+.PHONY: up down logs ps verify build test test-cortex
 
 up:            ## Start the whole stack
 	docker compose up -d --build
@@ -35,3 +35,8 @@ verify:        ## Health-check every service and print the URL map
 test:          ## Run the backend suite (Python 3.11 in Docker)
 	docker build -f backend/Dockerfile.test -t openrecruiting-backend-test .
 	docker run --rm -e ENV=test -v "$(PWD)/backend:/app" -w /app openrecruiting-backend-test python -m pytest -q
+
+# tests/integration and tests/e2e need Neo4j and Supabase, so they are out of scope here.
+test-cortex:   ## Run the cortex-backend unit suite (Python 3.11 in Docker)
+	docker build -f cortex-backend/Dockerfile.test -t openrecruiting-cortex-backend-test cortex-backend
+	docker run --rm -e ENV=test -v "$(PWD)/cortex-backend:/app" -w /app openrecruiting-cortex-backend-test python -m pytest -q tests/unit

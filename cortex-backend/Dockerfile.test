@@ -1,0 +1,20 @@
+# Test image for cortex-backend (tag: openrecruiting-cortex-backend-test).
+# Mirrors Dockerfile; pytest already ships in requirements.txt, so there is no
+# separate test requirements file. Tests and live app code come from a bind
+# mount at run time, so a code edit does not need a rebuild:
+#
+#   docker build -f cortex-backend/Dockerfile.test -t openrecruiting-cortex-backend-test cortex-backend
+#   docker run --rm -e ENV=test -v "$PWD/cortex-backend:/app" -w /app \
+#     openrecruiting-cortex-backend-test python -m pytest -q tests/unit
+#
+# tests/integration and tests/e2e need Neo4j and Supabase, so they only pass
+# from inside the compose network.
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY application.yaml .
+COPY src/ src/
