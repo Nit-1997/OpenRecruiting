@@ -17,11 +17,13 @@ jobs:
         run: |
           # Attribution in NOTICE and README is intentional and allowed, and
           # this workflow necessarily contains the token it searches for.
-          # Everything else must be clean -- including FILENAMES, which a
-          # content grep never sees.
+          # Specs and plans are exempt for the same reason: they record why the
+          # fork happened and what was renamed, so the old name is the subject
+          # matter, not a leftover. Everything else must be clean -- including
+          # FILENAMES, which a content grep never sees.
           content=$(git ls-files -z \
             | xargs -0 grep -Iil 'mazle' 2>/dev/null \
-            | grep -vE '^(NOTICE|README\.md|\.github/workflows/gate\.yml)$' || true)
+            | grep -vE '^(NOTICE|README\.md|\.github/workflows/gate\.yml|docs/superpowers/(specs|plans)/.+)$' || true)
           names=$(git ls-files | grep -i 'mazle' || true)
 
           if [ -n "$content" ] || [ -n "$names" ]; then
