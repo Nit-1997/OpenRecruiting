@@ -1765,6 +1765,46 @@ $$;
 
 
 --
+-- Name: cortex_events_claim_batch(timestamp with time zone, integer, integer, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+-- Atomically leases a batch of pending events. FOR UPDATE SKIP LOCKED is the
+-- only reason this is a function: cortex-backend reaches Postgres through the
+-- Supabase REST client and cannot express row locking from Python.
+--
+-- Eligible rows are unfinished (or edited since finishing), under the attempt
+-- cap, and either never claimed or holding an expired lease. Claiming stamps
+-- published_at as the lease start and clears last_error so a retry does not
+-- inherit the previous failure's message.
+
+CREATE FUNCTION public.cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, event_type text, source_id uuid, org_id uuid, last_touch_at timestamp with time zone, publish_count integer)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  RETURN QUERY
+  UPDATE public.cortex_events e
+     SET published_at  = now(),
+         publish_count = e.publish_count + 1,
+         last_error    = NULL
+   WHERE e.id IN (
+       SELECT c.id
+         FROM public.cortex_events c
+        WHERE (p_org_id IS NULL OR c.org_id = p_org_id)
+          AND (p_cutoff IS NULL OR c.last_touch_at < p_cutoff)
+          AND c.publish_count < p_max_attempts
+          AND (c.completed_at IS NULL OR c.last_touch_at > c.completed_at)
+          AND (c.published_at IS NULL
+               OR c.published_at < now() - make_interval(secs => p_lease_seconds))
+        ORDER BY c.last_touch_at ASC
+        LIMIT p_limit
+        FOR UPDATE SKIP LOCKED
+   )
+  RETURNING e.id, e.event_type, e.source_id, e.org_id, e.last_touch_at, e.publish_count;
+END;
+$$;
+
+
+--
 -- Name: debrief_commit_draft(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4219,7 +4259,8 @@ CREATE TABLE public.cortex_events (
     last_touch_at timestamp with time zone DEFAULT now() NOT NULL,
     published_at timestamp with time zone,
     publish_count integer DEFAULT 0 NOT NULL,
-    last_error text
+    last_error text,
+    completed_at timestamp with time zone
 );
 
 
@@ -6352,6 +6393,13 @@ CREATE INDEX idx_cortex_events_re_edit ON public.cortex_events USING btree (last
 --
 
 CREATE INDEX idx_cortex_events_unpublished ON public.cortex_events USING btree (last_touch_at) WHERE (published_at IS NULL);
+
+
+--
+-- Name: cortex_events_pending_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cortex_events_pending_idx ON public.cortex_events USING btree (last_touch_at) WHERE (completed_at IS NULL);
 
 
 --
@@ -9017,6 +9065,14 @@ GRANT ALL ON FUNCTION public.cortex_events_for_org_unpublished(p_org_id uuid, p_
 GRANT ALL ON FUNCTION public.cortex_events_settled(cutoff timestamp with time zone, "limit" integer) TO anon;
 GRANT ALL ON FUNCTION public.cortex_events_settled(cutoff timestamp with time zone, "limit" integer) TO authenticated;
 GRANT ALL ON FUNCTION public.cortex_events_settled(cutoff timestamp with time zone, "limit" integer) TO service_role;
+
+
+--
+-- Name: FUNCTION cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.cortex_events_claim_batch(p_cutoff timestamp with time zone, p_lease_seconds integer, p_max_attempts integer, p_limit integer, p_org_id uuid) TO service_role;
 
 
 --
