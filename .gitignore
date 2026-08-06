@@ -45,3 +45,9 @@ workers/feedback-agent/evals/runs/
 
 # Local performance audit output
 lighthouse-*.json
+
+docs/
+
+
+# Subagent-driven-development scratch (ledgers, briefs, review packages)
+.superpowers/
