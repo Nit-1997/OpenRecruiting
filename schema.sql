@@ -8010,6 +8010,12 @@ ALTER TABLE public.ats_interviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ats_stage_round_map ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: agent_memories; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.agent_memories ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: ats_webhook_events; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -8183,10 +8189,22 @@ CREATE POLICY candidates_update_policy ON public.candidates FOR UPDATE TO authen
 
 
 --
+-- Name: cortex_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cortex_events ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: cortex_force_publish_jobs; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.cortex_force_publish_jobs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cortex_ingestion_record; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cortex_ingestion_record ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: cortex_org_ingest_jobs; Type: ROW SECURITY; Schema: public; Owner: -
