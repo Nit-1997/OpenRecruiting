@@ -14,19 +14,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const API_V2_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8004";
 const CACHE_DURATION = 3 * 60 * 1000; // 3 minutes
-const CACHE_VERSION = 4;
-
-interface SlackFeatures {
-  assistant_read: boolean;
-  assistant_write: boolean;
-}
+const CACHE_VERSION = 5;
 
 interface Organization {
   id: string;
   name: string;
   domain: string | null;
   description: string | null;
-  slack_features: SlackFeatures | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,7 +58,6 @@ interface CacheData {
   deletedUsers: Profile[];
   requisitions: Requisition[];
   deletedRequisitions: Requisition[];
-  slackFeatures: SlackFeatures;
   timestamp: number;
   version?: number;
 }
@@ -158,15 +151,6 @@ export default function OrganizationDetailPage() {
   const [actionReqId, setActionReqId] = useState<string | null>(null);
   const [deleteReqConfirmId, setDeleteReqConfirmId] = useState<string | null>(null);
 
-  const [slackFeatures, setSlackFeatures] = useState<SlackFeatures>({
-    assistant_read: false,
-    assistant_write: false,
-  });
-  const [savingSlackFeatures, setSavingSlackFeatures] = useState(false);
-
-  const [userFeatures, setUserFeatures] = useState<Record<string, SlackFeatures | null>>({});
-  const [savingUserFeatureId, setSavingUserFeatureId] = useState<string | null>(null);
-
   const getCacheKey = useCallback(() => `openrecruiting_org_${orgId}_cache`, [orgId]);
 
   const loadCachedData = useCallback(() => {
@@ -184,9 +168,6 @@ export default function OrganizationDetailPage() {
         setDeletedUsers(data.deletedUsers);
         setRequisitions(data.requisitions);
         setDeletedRequisitions(data.deletedRequisitions);
-        if (data.slackFeatures) {
-          setSlackFeatures(data.slackFeatures);
-        }
         setIsLoading(false);
         return !isExpired;
       }
@@ -242,11 +223,6 @@ export default function OrganizationDetailPage() {
 
       const orgData = await orgResponse.json();
       setOrganization(orgData);
-      const features = orgData.slack_features || {
-        assistant_read: false,
-        assistant_write: false,
-      };
-      setSlackFeatures(features);
 
       let usersData: Profile[] = [];
       let deletedUsersData: Profile[] = [];
@@ -257,18 +233,6 @@ export default function OrganizationDetailPage() {
         const data = await usersResponse.json();
         usersData = data.users || [];
         setUsers(usersData);
-
-        const connResponse = await fetch(`${API_V2_URL}/api/v2/admin/organizations/${orgId}/slack-connections`, {
-          headers: { "Authorization": `Bearer ${session.access_token}` }
-        });
-        if (connResponse.ok) {
-          const conns = await connResponse.json();
-          const featuresMap: Record<string, SlackFeatures | null> = {};
-          for (const conn of conns) {
-            featuresMap[conn.profile_id] = conn.user_slack_features || null;
-          }
-          setUserFeatures(featuresMap);
-        }
       }
 
       if (deletedUsersResponse.ok) {
@@ -295,7 +259,6 @@ export default function OrganizationDetailPage() {
         deletedUsers: deletedUsersData,
         requisitions: reqsData,
         deletedRequisitions: deletedReqsData,
-        slackFeatures: features,
       });
 
     } catch (err) {
@@ -368,7 +331,6 @@ export default function OrganizationDetailPage() {
           deletedUsers,
           requisitions,
           deletedRequisitions,
-          slackFeatures,
         });
       }
 
@@ -421,7 +383,6 @@ export default function OrganizationDetailPage() {
           deletedUsers,
           requisitions,
           deletedRequisitions,
-          slackFeatures,
         });
       }
     } catch (err) {
@@ -465,7 +426,6 @@ export default function OrganizationDetailPage() {
           deletedUsers: newDeleted,
           requisitions,
           deletedRequisitions,
-          slackFeatures,
         });
       }
 
@@ -512,7 +472,6 @@ export default function OrganizationDetailPage() {
           deletedUsers: newDeleted,
           requisitions,
           deletedRequisitions,
-          slackFeatures,
         });
       }
 
@@ -610,7 +569,6 @@ export default function OrganizationDetailPage() {
           deletedUsers,
           requisitions: newReqs,
           deletedRequisitions: newDeleted,
-          slackFeatures,
         });
       }
 
@@ -657,7 +615,6 @@ export default function OrganizationDetailPage() {
           deletedUsers,
           requisitions: newReqs,
           deletedRequisitions: newDeleted,
-          slackFeatures,
         });
       }
 
@@ -666,81 +623,6 @@ export default function OrganizationDetailPage() {
     } finally {
       setActionReqId(null);
     }
-  };
-
-  const handleSlackFeatureToggle = async (feature: string, value: boolean) => {
-    setSavingSlackFeatures(true);
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
-
-      const response = await fetch(`${API_V2_URL}/api/v2/admin/organizations/${orgId}/slack-features`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ [feature]: value }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || "Failed to update Slack features");
-      }
-
-      const updated = await response.json();
-      if (updated.slack_features) {
-        setSlackFeatures(updated.slack_features);
-      } else {
-        setSlackFeatures(prev => ({ ...prev, [feature]: value }));
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update");
-    } finally {
-      setSavingSlackFeatures(false);
-    }
-  };
-
-  const handleUserFeatureToggle = async (userId: string, feature: string, value: boolean) => {
-    setSavingUserFeatureId(userId);
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
-
-      const response = await fetch(`${API_V2_URL}/api/v2/admin/organizations/${orgId}/users/${userId}/slack-features`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ [feature]: value }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || "Failed to update user features");
-      }
-
-      const updated = await response.json();
-      setUserFeatures(prev => ({
-        ...prev,
-        [userId]: updated.user_slack_features || null,
-      }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update user features");
-    } finally {
-      setSavingUserFeatureId(null);
-    }
-  };
-
-  const getEffectiveFeature = (userId: string, feature: keyof SlackFeatures): { value: boolean; isOverride: boolean } => {
-    const userOverride = userFeatures[userId];
-    if (userOverride && feature in userOverride) {
-      return { value: userOverride[feature], isOverride: true };
-    }
-    return { value: slackFeatures[feature], isOverride: false };
   };
 
   if (isLoading) {
@@ -866,42 +748,6 @@ export default function OrganizationDetailPage() {
                 <p className="font-medium">{new Date(organization.created_at).toLocaleDateString()}</p>
               </div>
             </div>
-
-            <div id="org-slack-features" className="mt-6 pt-6 border-t border-border">
-              <h3 className="font-semibold mb-1 flex items-center gap-2">
-                Slack Features
-                {savingSlackFeatures && <Loader2 className="w-3 h-3 animate-spin" />}
-              </h3>
-              <p className="text-xs text-muted-foreground mb-3">Org defaults — can be overridden per user in the Users tab</p>
-              <div className="space-y-3">
-                <label id="toggle-assistant-read" className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <p className="text-sm font-medium">Assistant (Read)</p>
-                    <p className="text-xs text-muted-foreground">Query roles, candidates, schedules</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={slackFeatures.assistant_read}
-                    onChange={(e) => handleSlackFeatureToggle("assistant_read", e.target.checked)}
-                    disabled={savingSlackFeatures}
-                    className="rounded border-border h-4 w-4"
-                  />
-                </label>
-                <label id="toggle-assistant-write" className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <p className="text-sm font-medium">Assistant (Write)</p>
-                    <p className="text-xs text-muted-foreground">Schedule, create, update via Slack</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={slackFeatures.assistant_write}
-                    onChange={(e) => handleSlackFeatureToggle("assistant_write", e.target.checked)}
-                    disabled={savingSlackFeatures}
-                    className="rounded border-border h-4 w-4"
-                  />
-                </label>
-              </div>
-            </div>
           </div>
 
           <div id="org-detail-main" className="lg:col-span-3 space-y-6">
@@ -1013,7 +859,6 @@ export default function OrganizationDetailPage() {
                           <tr>
                             <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Name</th>
                             <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Email</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Slack Access</th>
                             <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Added</th>
                             <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Actions</th>
                           </tr>
@@ -1036,41 +881,6 @@ export default function OrganizationDetailPage() {
                                   <Mail className="w-4 h-4" />
                                   {user.email}
                                 </div>
-                              </td>
-                              <td id={`user-slack-access-${user.id}`} className="px-4 py-3">
-                                {Object.keys(userFeatures).length > 0 ? (
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-center gap-3">
-                                      {(["assistant_read", "assistant_write"] as const).map(feat => {
-                                        const { value, isOverride } = getEffectiveFeature(user.id, feat);
-                                        const label = feat === "assistant_read" ? "Read" : "Write";
-                                        return (
-                                          <label key={feat} className="flex items-center gap-1.5 cursor-pointer">
-                                            <input
-                                              id={`user-toggle-${feat}-${user.id}`}
-                                              type="checkbox"
-                                              checked={value}
-                                              onChange={(e) => handleUserFeatureToggle(user.id, feat, e.target.checked)}
-                                              disabled={savingUserFeatureId === user.id}
-                                              className="rounded border-border h-3.5 w-3.5"
-                                            />
-                                            <span className={`text-xs ${isOverride ? "font-semibold text-primary" : "text-muted-foreground"}`}>
-                                              {label}
-                                            </span>
-                                          </label>
-                                        );
-                                      })}
-                                      {savingUserFeatureId === user.id && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
-                                    </div>
-                                    {userFeatures[user.id] ? (
-                                      <span className="text-[10px] text-primary font-medium">Override active</span>
-                                    ) : (
-                                      <span className="text-[10px] text-muted-foreground">Org default</span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">No Slack</span>
-                                )}
                               </td>
                               <td className="px-4 py-3 text-muted-foreground text-sm">
                                 {new Date(user.created_at).toLocaleDateString()}

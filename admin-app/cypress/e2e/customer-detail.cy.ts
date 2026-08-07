@@ -20,8 +20,6 @@ describe('Customer Detail Page', () => {
       cy.interceptAdminAPI('GET', `organizations/${orgId}/users/deleted`, { users: deleted })
     })
 
-    cy.interceptAdminAPI('GET', `organizations/${orgId}/slack-connections`, [])
-
     cy.fixture('requisitions.json').then((data) => {
       cy.interceptAdminAPI('GET', `requisitions/organizations/${orgId}`, data)
       cy.interceptAdminAPI('GET', `requisitions/organizations/${orgId}/deleted`, { requisitions: [] })
