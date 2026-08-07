@@ -105,14 +105,6 @@ Every method below that has no real endpoint now throws
 | `reprocess` | REAL (v2) | `POST .../reprocess` |
 | `getRecording` | REAL (v2) | composes recording-url + transcript |
 
-### `untracked.ts`
-| Method | Source | Notes |
-|---|---|---|
-| `list` | REAL (v2) | `GET /api/v2/untracked-interviews` |
-| `getPacket` | REAL (v2) | `GET /api/v2/untracked-interviews/{id}/packet` |
-| `linkToExistingRole` | REAL (v2) | `POST .../link-to-existing` |
-| `markNotInterview` | **NOT-AVAILABLE-IN-V2** | No v2 dismiss endpoint. Throws `notImplementedInV2` (FE-F5). |
-
 ### `debrief.ts`
 | Method | Source | Notes |
 |---|---|---|
@@ -156,14 +148,14 @@ Infrastructure, not data services:
 ## Summary
 
 - **REAL (v2):** billing (1), team (5), most of requisitions/candidates/
-  interviews/feedback/untracked, public-feedback. Includes 3 methods promoted
+  interviews/feedback, public-feedback. Includes 3 methods promoted
   to real in FE-F5 (`candidates.get`, `candidates.getRound`,
   `feedback.getRoundFeedback`) by deriving from existing pipeline/packet RPCs.
 - **NOT-AVAILABLE-IN-V2 (throws, no fabrication):** `requisitions.create`,
   `requisitions.updateIntake`, `requisitions.attachScreeningAgent`,
   `requisitions.saveSourcingStrategy`, `requisitions.listSourcingStrategies`,
   `candidates.update`, `candidates.remove`, `candidates.setStatus`,
-  `interviews.sendReminder`, `untracked.markNotInterview`, all of `debrief.*`,
+  `interviews.sendReminder`, all of `debrief.*`,
   all of `activity.*`, all of `profile.*`, all of `integrations.*`.
 - **MOCK-ONLY-TEST-PATH (not gated, no production caller):**
   `requisitions.update`, `requisitions.detachScreeningAgent`,
