@@ -160,8 +160,10 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: str = ""
     POSTMARK_SERVER_TOKEN: str = ""
 
-    # Voice Agent Configuration
-    VOICE_ENABLED: bool = False
+    # Voice Agent Configuration. On by default: the API keys below already
+    # decide whether voice can work, so a second switch only hides a shipped
+    # feature on a correctly configured instance.
+    VOICE_ENABLED: bool = True
     VOICE_AGENT_URL: str = ""
     # v2 intake voice agent (port 8011). Uses host.docker.internal because voice-agent
     # runs with network_mode:host while backend-v2 is on the default bridge network —
@@ -205,7 +207,10 @@ class Settings(BaseSettings):
     # HMAC secret per Knit's signing contract (X-Knit-Signature).
     KNIT_API_KEY: str = ""
     KNIT_API_BASE_URL: str = "https://api.getknit.dev/v1.0"
-    ATS_INTEGRATIONS_ENABLED: bool = False
+    # On by default: ATS credentials live per-organization in ats_connections,
+    # not in env, so there is no credential to gate on. With no connection rows
+    # the sync loops idle.
+    ATS_INTEGRATIONS_ENABLED: bool = True
     # Sync-event drainer (phase 2): poll cadence, batch size, and the retry
     # budget after which an event parks (processed with error retained).
     ATS_SYNC_DRAIN_INTERVAL_S: int = 15

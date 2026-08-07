@@ -105,9 +105,12 @@ Supabase Postgres with row-level security is the system of record.
 `schema.sql` is the whole thing squashed into one idempotent file.
 
 Neo4j holds the recruiting knowledge graph: candidates, requisitions, rounds,
-skills and the relationships between them, written by `cortex-backend` and read
-by `cortex-mcp` (which lets an MCP client ask questions in Cypher, validated and
-tenant-scoped).
+skills and the relationships between them. It is filled from Postgres: triggers
+on the source tables append to `cortex_events`, a work ledger that
+`cortex-backend` polls, claims in leased batches, and ingests into Neo4j,
+recording the result of each event in `cortex_ingestion_record`. The graph is
+read by `cortex-mcp` (which lets an MCP client ask questions in Cypher,
+validated and tenant-scoped).
 
 ## Meeting capture
 
@@ -131,7 +134,7 @@ feature rather than breaking the stack:
 
 | Missing | Effect |
 |---|---|
-| `OPENAI_API_KEY` | Graph ingestion off; cortex-backend still serves and reports healthy |
+| `OPENAI_API_KEY` | Embeddings unavailable, so graph ingestion degrades; cortex-backend still serves and reports healthy |
 | `RECALL_API_KEY` | Meeting capture off; `recall_enabled` is false |
 | `WEBHOOK_BASE_URL` | Bots record but callbacks never arrive |
 | `DEEPGRAM_API_KEY` | Voice agent starts but cannot transcribe |
