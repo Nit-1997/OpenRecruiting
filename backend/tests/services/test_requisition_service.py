@@ -525,41 +525,6 @@ async def test_update_status_rejects_disallowed():
     assert ei.value.status_code == 400
 
 
-@_pytest.mark.asyncio
-async def test_update_status_planned_publishes_event(monkeypatch):
-    fake = _FakeSb()
-    fake.selects["requisitions"] = [{"id": "req-1", "organization_id": "org-1"}]
-    fake.writes_return["requisitions"] = [{"id": "req-1", "organization_id": "org-1", "status": "planned"}]
-    published = []
-
-    async def _pub(event, payload):
-        published.append((event, payload))
-
-    import app.services.sqs_publisher as sqs
-    monkeypatch.setattr(sqs, "publish_event", _pub)
-    svc = RequisitionService(fake)
-    out = await svc.update_status("req-1", "planned")
-    assert out["status"] == "planned"
-    assert published[0][0] == "intake_complete"
-    assert published[0][1]["requisition_id"] == "req-1"
-
-
-@_pytest.mark.asyncio
-async def test_update_status_planned_swallows_publish_error(monkeypatch):
-    fake = _FakeSb()
-    fake.selects["requisitions"] = [{"id": "req-1", "organization_id": "org-1"}]
-    fake.writes_return["requisitions"] = [{"id": "req-1", "organization_id": "org-1", "status": "planned"}]
-
-    async def _boom(*a, **k):
-        raise RuntimeError("sqs down")
-
-    import app.services.sqs_publisher as sqs
-    monkeypatch.setattr(sqs, "publish_event", _boom)
-    svc = RequisitionService(fake)
-    out = await svc.update_status("req-1", "planned")  # must not raise
-    assert out["status"] == "planned"
-
-
 # --- get_intake_status -----------------------------------------------------
 @_pytest.mark.asyncio
 async def test_get_intake_status_shapes_response():

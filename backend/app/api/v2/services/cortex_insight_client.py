@@ -4,7 +4,7 @@ insight to cortex-backend's synchronous direct-ingest path.
 POSTs an `IngestDirectRequest`-shaped body to
 `{CORTEX_BACKEND_INTERNAL_URL}/ingest/direct` with the dedicated outbound
 `X-Internal-Secret` (`CORTEX_INTERNAL_SECRET`, which must equal cortex-backend's
-`INTERNAL_SECRET` — NOT the inbound slack-shared `INTERNAL_API_SECRET`). The
+`INTERNAL_SECRET` — NOT the inbound `INTERNAL_API_SECRET`). The
 `recruiter_insight` event-type is routed to `RecruiterInsightHandler.handle_direct`.
 
 The cortex `IngestDirectRequest` model requires `event_type`, `org_id`,

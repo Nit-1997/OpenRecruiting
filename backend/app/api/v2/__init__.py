@@ -32,12 +32,9 @@ from app.api.v2.routers import (
     intake_switch,
     intake_text_messages,
     integrations_ats,
-    integrations_slack,
     internal_cortex_token,
     internal_feedback,
     internal_screening,
-    internal_slack_agent,
-    internal_slack_integrations,
     journey,
     mcp_oauth,
     packet,
@@ -58,7 +55,6 @@ from app.api.v2.routers import (
     webhooks,
     webhooks_feedback,
     webhooks_knit,
-    webhooks_slack,
 )
 
 
@@ -70,7 +66,6 @@ v2_router.include_router(billing.router)
 v2_router.include_router(debrief.router)
 v2_router.include_router(debrief_chat.router)
 v2_router.include_router(integrations_ats.router)
-v2_router.include_router(integrations_slack.router)
 v2_router.include_router(internal_cortex_token.router)
 v2_router.include_router(mcp_oauth.router)
 v2_router.include_router(roles.router)
@@ -106,10 +101,7 @@ v2_router.include_router(recordings.router)
 v2_router.include_router(team.router)
 v2_router.include_router(untracked.router)
 v2_router.include_router(webhooks.router)
-v2_router.include_router(internal_slack_agent.router)
-v2_router.include_router(internal_slack_integrations.router)
 v2_router.include_router(webhooks_knit.router)
-v2_router.include_router(webhooks_slack.router)
 
 
 __all__ = ["v2_router"]

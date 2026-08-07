@@ -4,8 +4,6 @@ from pydantic import BaseModel
 from app.config import get_settings
 from app.logging_config import get_logger, correlation_id_var
 from app.services.feedback_notification_service import get_feedback_notification_service
-from app.services.sqs_publisher import publish_event
-from app.services.supabase import get_supabase_admin_client
 
 router = APIRouter(prefix="/webhooks/feedback-complete", tags=["webhooks"])
 logger = get_logger(__name__)
@@ -38,20 +36,6 @@ async def handle_feedback_complete(
     try:
         result = await notification_service.send_happy_path_emails(request.candidate_round_id)
         logger.info(f"Happy path emails sent for {request.candidate_round_id}: {result}")
-
-        supabase = get_supabase_admin_client()
-        cr_result = await supabase.table("candidate_rounds") \
-            .select("id, candidates!inner(requisition_id, requisitions!inner(organization_id))") \
-            .eq("id", request.candidate_round_id) \
-            .single() \
-            .execute_async()
-        if cr_result.data:
-            org_id = cr_result.data.get("candidates", {}).get("requisitions", {}).get("organization_id")
-            if org_id:
-                await publish_event("feedback_complete", {
-                    "candidate_round_id": request.candidate_round_id,
-                    "organization_id": str(org_id),
-                })
 
         return {
             "success": True,

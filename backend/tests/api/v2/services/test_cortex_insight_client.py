@@ -277,12 +277,12 @@ def test_parse_retry_after_edge_cases():
 @pytest.mark.asyncio
 async def test_default_secret_comes_from_cortex_internal_secret_setting(monkeypatch):
     """The OUTBOUND secret to cortex-backend is the DEDICATED CORTEX_INTERNAL_SECRET,
-    NOT the inbound INTERNAL_API_SECRET (shared with the slack agent)."""
+    NOT the inbound INTERNAL_API_SECRET used for inbound internal callers."""
     rec = _patch_client(monkeypatch, [_resp(200, {"status": "ingested"})])
 
     settings = mod.get_settings()
     monkeypatch.setattr(settings, "CORTEX_INTERNAL_SECRET", "cortex-outbound-secret")
-    monkeypatch.setattr(settings, "INTERNAL_API_SECRET", "inbound-slack-secret")
+    monkeypatch.setattr(settings, "INTERNAL_API_SECRET", "inbound-secret")
 
     client = CortexInsightClient(base_url="http://cortex")
     await client.ingest(
@@ -295,4 +295,4 @@ async def test_default_secret_comes_from_cortex_internal_secret_setting(monkeypa
 
     sent = rec["calls"][0]["headers"]["X-Internal-Secret"]
     assert sent == "cortex-outbound-secret"
-    assert sent != "inbound-slack-secret"
+    assert sent != "inbound-secret"

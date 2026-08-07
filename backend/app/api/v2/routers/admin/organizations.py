@@ -13,9 +13,6 @@ from app.models.organization import (
 from app.services.supabase import get_supabase_admin_client
 from app.api.v2.core.rpc import call_rpc
 
-
-from typing import Optional
-
 logger = get_logger(__name__)
 
 
@@ -23,10 +20,6 @@ class DeleteOrganizationResponse(BaseModel):
     message: str
     organization_id: UUID
 
-
-class OrgSlackFeaturesSettings(BaseModel):
-    assistant_read: Optional[bool] = None
-    assistant_write: Optional[bool] = None
 
 router = APIRouter(prefix="/organizations", tags=["Organizations"])
 
@@ -213,96 +206,3 @@ async def restore_organization(
         message="Organization restored successfully",
         organization_id=org_id
     )
-
-
-@router.patch("/{org_id}/slack-features")
-async def update_org_slack_features(
-    org_id: UUID,
-    body: OrgSlackFeaturesSettings,
-    current_user: CurrentUser = Depends(require_staff),
-):
-    supabase = get_supabase_admin_client()
-    current = await supabase.table("organizations") \
-        .select("slack_features") \
-        .eq("id", str(org_id)) \
-        .execute_async()
-    if not current.data:
-        raise HTTPException(status_code=404, detail="Organization not found")
-
-    features = current.data[0].get("slack_features") or {
-        "assistant_read": False,
-        "assistant_write": False,
-    }
-    if body.assistant_read is not None:
-        features["assistant_read"] = body.assistant_read
-    if body.assistant_write is not None:
-        features["assistant_write"] = body.assistant_write
-
-    result = await supabase.table("organizations") \
-        .update({"slack_features": features}) \
-        .eq("id", str(org_id)) \
-        .execute_async()
-    return result.data[0] if isinstance(result.data, list) else result.data
-
-
-@router.get("/{org_id}/slack-connections")
-async def list_org_slack_connections(
-    org_id: UUID,
-    current_user: CurrentUser = Depends(require_staff),
-):
-    supabase = get_supabase_admin_client()
-    result = await supabase.table("slack_connections") \
-        .select("id, profile_id, slack_user_id, is_active, user_slack_features") \
-        .eq("organization_id", str(org_id)) \
-        .eq("is_active", True) \
-        .execute_async()
-    return result.data or []
-
-
-@router.patch("/{org_id}/users/{user_id}/slack-features")
-async def update_user_slack_features(
-    org_id: UUID,
-    user_id: UUID,
-    body: OrgSlackFeaturesSettings,
-    current_user: CurrentUser = Depends(require_staff),
-):
-    supabase = get_supabase_admin_client()
-    conn = await supabase.table("slack_connections") \
-        .select("id, user_slack_features") \
-        .eq("profile_id", str(user_id)) \
-        .eq("organization_id", str(org_id)) \
-        .eq("is_active", True) \
-        .limit(1) \
-        .execute_async()
-    if not conn.data:
-        raise HTTPException(status_code=404, detail="No active Slack connection for this user")
-
-    current_features = conn.data[0].get("user_slack_features") or {}
-    if body.assistant_read is not None:
-        current_features["assistant_read"] = body.assistant_read
-    if body.assistant_write is not None:
-        current_features["assistant_write"] = body.assistant_write
-
-    result = await supabase.table("slack_connections") \
-        .update({"user_slack_features": current_features if current_features else None}) \
-        .eq("id", conn.data[0]["id"]) \
-        .execute_async()
-    return result.data[0] if isinstance(result.data, list) else result.data
-
-
-@router.delete("/{org_id}/users/{user_id}/slack-features")
-async def reset_user_slack_features(
-    org_id: UUID,
-    user_id: UUID,
-    current_user: CurrentUser = Depends(require_staff),
-):
-    supabase = get_supabase_admin_client()
-    result = await supabase.table("slack_connections") \
-        .update({"user_slack_features": None}) \
-        .eq("profile_id", str(user_id)) \
-        .eq("organization_id", str(org_id)) \
-        .eq("is_active", True) \
-        .execute_async()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="No active Slack connection for this user")
-    return {"message": "User Slack features reset to org defaults"}

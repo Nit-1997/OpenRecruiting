@@ -1,15 +1,13 @@
 """
 Team service for v2.
 
-Single source of truth for teammate invites. Both entrypoints call
-`invite_teammate`:
-  - POST /api/v2/team/invite          (recruiter, authed)
-  - POST /api/v2/internal/team/invite (slack-agent, internal secret)
+Single source of truth for teammate invites. `POST /api/v2/team/invite`
+(recruiter, authed) calls `invite_teammate`.
 
 Keeping one implementation here means duplicate handling, seat enforcement,
 the 7-day expiry, the Supabase invite-email + phantom-profile creation, and the
-invite-row insert stay identical across both callers. The router layer maps the
-returned invite row to its own response shape and maps the raised domain errors
+invite-row insert stay in one place. The router layer maps the returned invite
+row to its own response shape and maps the raised domain errors
 (ConflictError/ForbiddenError) to HTTP via the app-wide v2 error handlers.
 """
 

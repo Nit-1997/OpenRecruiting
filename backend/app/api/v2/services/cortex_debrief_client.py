@@ -3,7 +3,7 @@
 POSTs `{org_id, requisition_id, candidate_ids}` to
 `{CORTEX_BACKEND_INTERNAL_URL}/api/v1/debrief` with the dedicated outbound
 `X-Internal-Secret` (`CORTEX_INTERNAL_SECRET`, which must equal cortex-backend's
-`INTERNAL_SECRET` — NOT the inbound slack-shared `INTERNAL_API_SECRET`) and
+`INTERNAL_SECRET` — NOT the inbound `INTERNAL_API_SECRET`) and
 returns the parsed DebriefPacket dict.
 
 Backend invariants honored:
@@ -47,7 +47,7 @@ class CortexDebriefClient:
         settings = get_settings()
         self._base_url = (base_url or settings.CORTEX_BACKEND_INTERNAL_URL).rstrip("/")
         # The OUTBOUND secret to cortex-backend is the DEDICATED CORTEX_INTERNAL_SECRET
-        # (must equal cortex-backend's INTERNAL_SECRET) — NOT the inbound, slack-shared
+        # (must equal cortex-backend's INTERNAL_SECRET) — NOT the inbound
         # INTERNAL_API_SECRET. The constructor override stays a test seam.
         self._secret = (
             internal_secret

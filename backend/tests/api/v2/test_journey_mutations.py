@@ -769,22 +769,6 @@ def test_request_feedback_200_via_email(recruiter_client, respx_mock, monkeypatc
     assert body["channel"] == "email"
 
 
-def test_request_feedback_501_when_slack_channel(recruiter_client, respx_mock):
-    """Slack channel is not wired yet — surface 501 explicitly."""
-    respx_mock.get(rest_url("candidate_rounds")).mock(
-        return_value=httpx.Response(200, json=[_make_cr_with_round(status_val="scheduled")])
-    )
-    respx_mock.patch(rest_url("candidate_rounds")).mock(
-        return_value=httpx.Response(200, json=[])
-    )
-
-    resp = recruiter_client.post(
-        f"{V2_ROOT}/candidate-rounds/{CANDIDATE_ROUND_ID}/request-feedback",
-        json={"interviewer_email": "i@example.com", "channel": "slack"},
-    )
-    assert resp.status_code == 501
-
-
 def test_request_feedback_404_when_cr_not_found(recruiter_client, respx_mock):
     respx_mock.get(rest_url("candidate_rounds")).mock(
         return_value=httpx.Response(200, json=[])

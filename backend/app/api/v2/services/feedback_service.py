@@ -14,7 +14,6 @@ from uuid import UUID
 
 from app.api.v2.core.exceptions import (
     ConflictError,
-    NotImplementedFeatureError,
     UpstreamServiceError,
     ValidationError,
 )
@@ -83,9 +82,8 @@ async def request_feedback(
 ) -> dict:
     """Notification path — does NOT trigger the AI Lambda.
 
-    Today only `channel='email'` is wired through
+    `channel='email'` is wired through
     FeedbackNotificationService.send_capture_request_to_interviewer.
-    Slack/both surface 501 for the slack portion.
     """
     await load_cr_with_round_for_org(supabase, cr_id, org_id)
 
@@ -105,11 +103,6 @@ async def request_feedback(
         .eq("id", str(cr_id))
         .execute_async()
     )
-
-    if body.channel == "slack":
-        raise NotImplementedFeatureError(
-            "Slack channel for /request-feedback is not implemented yet"
-        )
 
     from app.services.feedback_notification_service import (
         get_feedback_notification_service,

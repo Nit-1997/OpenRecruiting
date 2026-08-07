@@ -14,7 +14,6 @@ import pytest
     "path",
     [
         "/api/v2/internal/feedback/voice-complete",
-        "/api/v2/internal/slack-integrations/backfill-auth-state",
     ],
 )
 def test_wrong_secret_rejected_401(unauthed_client, path):
@@ -26,8 +25,6 @@ def test_wrong_secret_rejected_401(unauthed_client, path):
     "module_name",
     [
         "app.api.v2.routers.internal_feedback",
-        "app.api.v2.routers.internal_slack_agent",
-        "app.api.v2.routers.internal_slack_integrations",
         "app.api.v2.routers.internal_cortex_token",
     ],
 )

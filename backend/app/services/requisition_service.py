@@ -280,18 +280,6 @@ class RequisitionService:
         if not result.data:
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to update status")
         req_data = result.data[0] if isinstance(result.data, list) else result.data
-
-        if new_status == "planned":
-            try:
-                from app.services.sqs_publisher import publish_event
-                org_id = req_data.get("organization_id") or existing.data.get("organization_id", "")
-                await publish_event("intake_complete", {
-                    "requisition_id": req_id,
-                    "organization_id": str(org_id),
-                })
-            except Exception:
-                pass
-
         return build_requisition_response(req_data)
 
     async def get_intake_status(self, req_id: str, org_id: str | None = None) -> dict:

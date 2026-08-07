@@ -1,7 +1,6 @@
-"""Characterization tests for the small lifespan background loops:
-slack_token_refresh and intake_lock_cleanup. Each loop is driven exactly one
-iteration by raising CancelledError on the second pass, so we exercise the body
-without an infinite loop.
+"""Characterization tests for the intake_lock_cleanup lifespan background loop.
+The loop is driven exactly one iteration by raising CancelledError on the second
+pass, so we exercise the body without an infinite loop.
 """
 
 import asyncio
@@ -10,64 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services import intake_lock_cleanup, slack_token_refresh
-
-
-# ----------------------- slack_token_refresh -----------------------
-
-@pytest.mark.asyncio
-async def test_slack_refresh_disabled_returns_immediately():
-    with patch.object(
-        slack_token_refresh, "get_settings",
-        lambda: SimpleNamespace(SLACK_TOKEN_REFRESH_ENABLED=False),
-    ):
-        # Should return without ever touching the service.
-        await slack_token_refresh.run_slack_token_refresh_loop()
-
-
-@pytest.mark.asyncio
-async def test_slack_refresh_runs_one_iteration_then_cancelled():
-    settings = SimpleNamespace(
-        SLACK_TOKEN_REFRESH_ENABLED=True,
-        SLACK_TOKEN_REFRESH_INTERVAL_SECONDS=0,
-        SLACK_TOKEN_REFRESH_LOOKAHEAD_SECONDS=900,
-        SLACK_TOKEN_REFRESH_BATCH_SIZE=10,
-    )
-    service = MagicMock()
-    service.refresh_expiring_installations = AsyncMock(return_value={"refreshed": 2, "failed": 0})
-
-    with patch.object(slack_token_refresh, "get_settings", lambda: settings), \
-         patch.object(slack_token_refresh, "get_slack_service", return_value=service), \
-         patch.object(slack_token_refresh.asyncio, "sleep", AsyncMock(side_effect=asyncio.CancelledError)):
-        with pytest.raises(asyncio.CancelledError):
-            await slack_token_refresh.run_slack_token_refresh_loop()
-    service.refresh_expiring_installations.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_slack_refresh_swallows_transient_error():
-    settings = SimpleNamespace(
-        SLACK_TOKEN_REFRESH_ENABLED=True,
-        SLACK_TOKEN_REFRESH_INTERVAL_SECONDS=0,
-        SLACK_TOKEN_REFRESH_LOOKAHEAD_SECONDS=900,
-        SLACK_TOKEN_REFRESH_BATCH_SIZE=10,
-    )
-    service = MagicMock()
-    service.refresh_expiring_installations = AsyncMock(side_effect=RuntimeError("db blip"))
-
-    sleeps = {"n": 0}
-
-    async def fake_sleep(_):
-        sleeps["n"] += 1
-        raise asyncio.CancelledError
-
-    with patch.object(slack_token_refresh, "get_settings", lambda: settings), \
-         patch.object(slack_token_refresh, "get_slack_service", return_value=service), \
-         patch.object(slack_token_refresh.asyncio, "sleep", fake_sleep):
-        with pytest.raises(asyncio.CancelledError):
-            await slack_token_refresh.run_slack_token_refresh_loop()
-    # The error did not crash the loop; it still reached the sleep.
-    assert sleeps["n"] == 1
+from app.services import intake_lock_cleanup
 
 
 # ----------------------- intake_lock_cleanup -----------------------

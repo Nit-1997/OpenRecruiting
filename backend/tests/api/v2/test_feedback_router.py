@@ -3,11 +3,11 @@ Tests for the v2 feedback router (PR 4b §8.2 — feedback endpoints).
 
 Endpoints under test:
   POST /candidate-rounds/{cr_id}/feedback           → human submit
-  POST /candidate-rounds/{cr_id}/request-feedback   → notification (email/slack)
+  POST /candidate-rounds/{cr_id}/request-feedback   → notification (email)
   POST /candidate-rounds/{cr_id}/reprocess          → Lambda re-run
 
 Mocks Supabase via respx; mocks the FeedbackNotificationService and
-FeedbackJobService via monkeypatch so no Slack / Lambda / Recall calls
+FeedbackJobService via monkeypatch so no Lambda / Recall calls
 fire. Naming pattern matches test_journey_mutations.py.
 """
 
@@ -318,23 +318,6 @@ def test_request_feedback_uses_explicit_interviewer_name_when_provided(
     )
     assert resp.status_code == 200, resp.text
     assert captured["interviewer"] == ("jordan@example.com", "Jordan Lee")
-
-
-def test_request_feedback_slack_returns_501(recruiter_client, respx_mock):
-    """The Slack channel for request-feedback isn't wired yet — must 501,
-    not silently succeed."""
-    respx_mock.get(rest_url("candidate_rounds")).mock(
-        return_value=httpx.Response(200, json=[_make_cr_with_round(status_val="scheduled")])
-    )
-    respx_mock.patch(rest_url("candidate_rounds")).mock(
-        return_value=httpx.Response(200, json=[_make_cr_with_round()])
-    )
-
-    resp = recruiter_client.post(
-        f"{V2_ROOT}/candidate-rounds/{CANDIDATE_ROUND_ID}/request-feedback",
-        json={"interviewer_email": "j@example.com", "channel": "slack"},
-    )
-    assert resp.status_code == 501
 
 
 def test_request_feedback_422_invalid_email(recruiter_client):

@@ -27,7 +27,7 @@ class SubmitFeedbackRequest(BaseModel):
 class RequestFeedbackRequest(BaseModel):
     interviewer_email: EmailStr
     interviewer_name: Optional[str] = None
-    channel: Literal["email", "slack", "both"] = "email"
+    channel: Literal["email"] = "email"
 
 
 class ReprocessRequest(BaseModel):

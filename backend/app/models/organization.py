@@ -14,7 +14,6 @@ class OrganizationResponse(BaseModel):
     name: str
     domain: Optional[str] = None
     description: Optional[str] = None
-    slack_features: Optional[dict] = None
     auto_join_enabled: Optional[bool] = None
     auto_join_untracked: Optional[bool] = None
     blocked_domains: Optional[List[str]] = None

@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = ""  # Optional override: DEBUG, INFO, WARNING, ERROR
 
     # Whether the app lifespan launches its background worker loops
-    # (intake lock cleanup, slack token refresh). Forced False under ENV=test
+    # (intake lock cleanup). Forced False under ENV=test
     # so the test suite's TestClient(app) does not start loops that fire
     # unmocked Supabase calls.
     RUN_BACKGROUND_WORKERS: bool = True
@@ -193,24 +193,8 @@ class Settings(BaseSettings):
     # S3 Blog Image Storage
     S3_BLOG_BUCKET: str = ""
 
-    # Slack Integration
-    SLACK_CLIENT_ID: str = ""
-    SLACK_CLIENT_SECRET: str = ""
-    SLACK_SIGNING_SECRET: str = ""
-    SLACK_ENCRYPTION_KEY: str = ""
-    SLACK_REDIRECT_URI: str = ""
-    SLACK_AGENT_URL: str = "http://slack-agent:8002"
-    SLACK_TOKEN_REFRESH_ENABLED: bool = True
-    SLACK_TOKEN_REFRESH_INTERVAL_SECONDS: int = 300
-    SLACK_TOKEN_REFRESH_LOOKAHEAD_SECONDS: int = 900
-    SLACK_TOKEN_REFRESH_BATCH_SIZE: int = 100
-
     # Internal API (agent-to-backend communication)
     INTERNAL_API_SECRET: str = ""
-
-    # SQS (agent event bus)
-    SQS_QUEUE_URL: str = ""
-    SQS_REGION: str = ""
 
     # Dodo Payments
     DODO_PAYMENTS_API_KEY: str = ""
@@ -266,7 +250,7 @@ class Settings(BaseSettings):
     CORTEX_BACKEND_INTERNAL_URL: str = "http://cortex-backend:8010"
     # OUTBOUND shared secret for the debrief skill call. This is DISTINCT from
     # INTERNAL_API_SECRET (the INBOUND secret this backend validates on its own
-    # internal endpoints, shared with the slack agent). It MUST equal
+    # internal endpoints). It MUST equal
     # cortex-backend's INTERNAL_SECRET, which cortex validates the
     # X-Internal-Secret header against — conflating the two 401s every /generate.
     CORTEX_INTERNAL_SECRET: str = ""

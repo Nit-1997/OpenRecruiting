@@ -1,9 +1,8 @@
 """Characterization tests for recall_webhook.notifications.notify_bot_not_admitted.
 
-Covers the CAS short-circuit, the happy path (email + Slack DM), the missing
-candidate_round / recruiter early returns, the email-skip-on-no-recruiter-email
-branch, the Slack reauth + generic-failure branches, and the send-failure CAS
-revert (success + revert-failure-warns).
+Covers the CAS short-circuit, the happy path, the missing candidate_round /
+recruiter early returns, the email-skip-on-no-recruiter-email branch, and the
+send-failure CAS revert (success + revert-failure-warns).
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -11,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.services.recall_webhook import notifications
-from app.services.slack_service import SlackReauthRequiredError
 
 
 def _multi_table_supabase(rows_by_table, cas_data=None):
@@ -45,7 +43,6 @@ def _full_context_rows():
         "requisitions": [{"role_title": "Engineer", "created_by": "rec1"}],
         "candidates": [{"name": "Alice", "email": "alice@x.com"}],
         "profiles": [{"email": "rec@m.ai", "full_name": "Rita Cruz"}],
-        "slack_connections": [{"slack_user_id": "U1", "slack_team_id": "T1"}],
     }
 
 
@@ -58,19 +55,14 @@ async def test_cas_already_alerted_short_circuits():
 
 
 @pytest.mark.asyncio
-async def test_happy_path_email_and_slack():
+async def test_happy_path_email():
     sb = _multi_table_supabase(_full_context_rows())
     email_svc = MagicMock()
     email_svc.send_templated_email = AsyncMock()
-    slack_svc = MagicMock()
-    slack_svc.get_bot_token_for_team = AsyncMock(return_value="tok")
-    slack_svc.send_dm = AsyncMock()
     with patch.object(notifications, "get_supabase_admin_client", return_value=sb), \
-         patch.object(notifications, "get_email_service", return_value=email_svc), \
-         patch("app.services.slack_service.get_slack_service", return_value=slack_svc):
+         patch.object(notifications, "get_email_service", return_value=email_svc):
         await notifications.notify_bot_not_admitted({"id": "db1", "candidate_round_id": "cr1"})
     email_svc.send_templated_email.assert_awaited_once()
-    slack_svc.send_dm.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -107,39 +99,12 @@ async def test_no_recruiter_id_returns():
 async def test_email_skipped_when_no_recruiter_email():
     rows = _full_context_rows()
     rows["profiles"] = [{"email": "", "full_name": "X"}]
-    rows["slack_connections"] = []  # also skip slack so test isolates email branch
     sb = _multi_table_supabase(rows)
     email_svc = MagicMock(); email_svc.send_templated_email = AsyncMock()
     with patch.object(notifications, "get_supabase_admin_client", return_value=sb), \
          patch.object(notifications, "get_email_service", return_value=email_svc):
         await notifications.notify_bot_not_admitted({"id": "db1", "candidate_round_id": "cr1"})
     email_svc.send_templated_email.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_slack_reauth_required_is_logged_not_raised():
-    rows = _full_context_rows()
-    sb = _multi_table_supabase(rows)
-    email_svc = MagicMock(); email_svc.send_templated_email = AsyncMock()
-    slack_svc = MagicMock()
-    slack_svc.get_bot_token_for_team = AsyncMock(side_effect=SlackReauthRequiredError("reconnect"))
-    with patch.object(notifications, "get_supabase_admin_client", return_value=sb), \
-         patch.object(notifications, "get_email_service", return_value=email_svc), \
-         patch("app.services.slack_service.get_slack_service", return_value=slack_svc):
-        await notifications.notify_bot_not_admitted({"id": "db1", "candidate_round_id": "cr1"})
-    email_svc.send_templated_email.assert_awaited_once()  # email still went out
-
-
-@pytest.mark.asyncio
-async def test_no_slack_connection_is_noop():
-    rows = _full_context_rows()
-    rows["slack_connections"] = []
-    sb = _multi_table_supabase(rows)
-    email_svc = MagicMock(); email_svc.send_templated_email = AsyncMock()
-    with patch.object(notifications, "get_supabase_admin_client", return_value=sb), \
-         patch.object(notifications, "get_email_service", return_value=email_svc):
-        await notifications.notify_bot_not_admitted({"id": "db1", "candidate_round_id": "cr1"})
-    email_svc.send_templated_email.assert_awaited_once()
 
 
 @pytest.mark.asyncio

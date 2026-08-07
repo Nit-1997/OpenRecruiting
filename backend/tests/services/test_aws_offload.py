@@ -134,42 +134,6 @@ async def test_dispatch_accepts_any_2xx_from_worker(respx_mock, status_code):
 
 
 # ---------------------------------------------------------------------------
-# sqs_publisher — offload
-# ---------------------------------------------------------------------------
-
-
-async def test_publish_event_offloads_send_message_to_thread():
-    import app.services.sqs_publisher as sqs
-
-    fake_client = MagicMock()
-    fake_client.send_message.return_value = {"MessageId": "m1"}
-
-    settings = MagicMock()
-    settings.SQS_QUEUE_URL = "https://sqs.local/q.fifo"
-    settings.SQS_REGION = "us-west-1"
-
-    real_to_thread = asyncio.to_thread
-    with patch.object(sqs, "_get_sqs_client", return_value=fake_client), \
-         patch.object(sqs, "get_settings", return_value=settings), \
-         patch.object(sqs.asyncio, "to_thread", wraps=real_to_thread) as spy:
-        ok = await sqs.publish_event("interview.created", {"organization_id": "org-1"})
-
-    assert ok is True
-    spy.assert_awaited_once()
-    assert spy.call_args.args[0] == fake_client.send_message
-
-
-async def test_publish_event_returns_false_when_not_configured():
-    import app.services.sqs_publisher as sqs
-
-    settings = MagicMock()
-    settings.SQS_QUEUE_URL = None
-    with patch.object(sqs, "get_settings", return_value=settings):
-        ok = await sqs.publish_event("evt", {})
-    assert ok is False
-
-
-# ---------------------------------------------------------------------------
 # s3_service — module-scope client cache
 #
 # NOTE: `upload_blog_image` stays synchronous because its only caller

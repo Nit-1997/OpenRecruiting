@@ -144,13 +144,13 @@ async def test_client_closed_even_on_exception(monkeypatch):
 @pytest.mark.asyncio
 async def test_default_secret_comes_from_cortex_internal_secret_setting(monkeypatch):
     """FIX 3: the OUTBOUND secret to cortex-backend is the DEDICATED
-    CORTEX_INTERNAL_SECRET, NOT the inbound INTERNAL_API_SECRET (which is shared
-    with the slack agent and validated by a different service)."""
+    CORTEX_INTERNAL_SECRET, NOT the inbound INTERNAL_API_SECRET (which is used
+    for inbound internal callers and validated by a different service)."""
     rec = _patch_client(monkeypatch, [_resp(200, _packet())])
 
     settings = mod.get_settings()
     monkeypatch.setattr(settings, "CORTEX_INTERNAL_SECRET", "cortex-outbound-secret")
-    monkeypatch.setattr(settings, "INTERNAL_API_SECRET", "inbound-slack-secret")
+    monkeypatch.setattr(settings, "INTERNAL_API_SECRET", "inbound-secret")
 
     # No internal_secret override → must fall back to CORTEX_INTERNAL_SECRET.
     client = CortexDebriefClient(base_url="http://cortex")
@@ -158,7 +158,7 @@ async def test_default_secret_comes_from_cortex_internal_secret_setting(monkeypa
 
     sent = rec["calls"][0]["headers"]["X-Internal-Secret"]
     assert sent == "cortex-outbound-secret"
-    assert sent != "inbound-slack-secret"
+    assert sent != "inbound-secret"
 
 
 @pytest.mark.asyncio

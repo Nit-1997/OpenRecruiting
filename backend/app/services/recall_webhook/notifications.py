@@ -3,14 +3,10 @@
 
 Fires when Recall's bot status reaches `fatal` or `call_ended` with a
 sub_code that means the bot was prevented from entering the meeting
-(waiting-room timeout, host denied, rejected, etc.). One email + one
-Slack DM per round, CAS-guarded so a webhook replay doesn't double-send.
+(waiting-room timeout, host denied, rejected, etc.). One email per round,
+CAS-guarded so a webhook replay doesn't double-send.
 
 Ported from `backend/v1/app/api/v1/webhooks/recall.py:483-603`.
-
-v2 doesn't have its own Slack service yet — the Slack DM portion
-degrades gracefully (logs and continues). Email path uses v2's existing
-email service.
 """
 
 from __future__ import annotations
@@ -24,8 +20,8 @@ logger = get_logger(__name__)
 
 
 async def notify_bot_not_admitted(recall_bot: dict) -> None:
-    """Background task: email + Slack DM the recruiter that the bot
-    couldn't join the interview.
+    """Background task: email the recruiter that the bot couldn't join
+    the interview.
 
     `recall_bot` is the row dict from the moment the webhook fired —
     contains id, candidate_round_id, error_code, etc.
@@ -83,11 +79,10 @@ async def _send_notifications(supabase, recall_bot: dict) -> None:
         return
 
     await _send_email(ctx)
-    await _send_slack_dm(supabase, ctx)
 
 
 async def _load_notification_context(supabase, cr_id: str) -> dict | None:
-    """Gather everything the email + Slack templates need in one shape.
+    """Gather everything the email template needs in one shape.
     Returns None when the candidate_round is gone (deleted between the
     webhook fire and our handler running) — nothing to notify about."""
     cr_row = await supabase.table("candidate_rounds")\
@@ -163,62 +158,3 @@ async def _send_email(ctx: dict) -> None:
     logger.info(
         f"not-admitted: email sent to {ctx['recruiter_email']} cr={ctx['cr_id']}"
     )
-
-
-async def _send_slack_dm(supabase, ctx: dict) -> None:
-    """Send a Slack DM to the recruiter via their connected workspace.
-
-    No-op when the recruiter doesn't have an active Slack connection.
-    Token refresh and reauth handling are owned by `SlackService` itself —
-    we just call `get_bot_token_for_team` + `send_dm` and let it manage
-    the lifecycle. Failures are logged at WARNING, not raised: the email
-    path already delivered the same information, so a Slack outage is
-    not a notification outage.
-    """
-    slack_row = await supabase.table("slack_connections")\
-        .select("slack_user_id, slack_team_id")\
-        .eq("profile_id", ctx["recruiter_id"])\
-        .eq("is_active", True)\
-        .execute_async()
-    if not slack_row.data:
-        return
-
-    from app.services.slack_service import (
-        SlackReauthRequiredError,
-        get_slack_service,
-    )
-
-    svc = get_slack_service()
-    team_id = slack_row.data[0]["slack_team_id"]
-    slack_user_id = slack_row.data[0]["slack_user_id"]
-    try:
-        bot_token = await svc.get_bot_token_for_team(team_id)
-        await svc.send_dm(
-            bot_token=bot_token,
-            slack_user_id=slack_user_id,
-            text=f"Scout wasn't admitted to interview with {ctx['candidate_name']}",
-            blocks=[{
-                "type": "section",
-                "block_id": "bot_not_admitted_alert",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": (
-                        f":warning: *Scout couldn't join interview*\n"
-                        f":bust_in_silhouette: {ctx['candidate_name']}\n"
-                        f":briefcase: {ctx['role_name']} — {ctx['round_name']}\n"
-                        f":x: Scout was not admitted from the lobby. "
-                        f"Interview feedback won't be generated for this round."
-                    ),
-                },
-            }],
-            team_id=team_id,
-        )
-        logger.info(f"not-admitted: Slack DM sent cr={ctx['cr_id']}")
-    except SlackReauthRequiredError as e:
-        # Recruiter's Slack workspace needs reconnect. Log at info — this
-        # is expected drift, not a system failure; the SlackService has
-        # already flipped the installation to needs_reauth so the next
-        # call surfaces the reauth banner in the UI.
-        logger.info(f"not-admitted: Slack reauth required cr={ctx['cr_id']}: {e}")
-    except Exception as e:
-        logger.warning(f"not-admitted: Slack DM failed cr={ctx['cr_id']}: {e}")
