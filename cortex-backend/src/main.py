@@ -1,4 +1,3 @@
-import asyncio
 from contextlib import asynccontextmanager
 
 import boto3
@@ -19,7 +18,6 @@ from src.config.settings import get_settings
 from src.config.database import neo4j_driver
 from src.sync.brain_sync_cron import BrainSyncCron
 from src.sync.event_record import IngestionRecordRepo
-from src.sync.sqs_consumer import SqsConsumer
 from src.sync.tombstone import TombstoneService
 
 
@@ -124,8 +122,6 @@ logger = structlog.get_logger(__name__)
 _graphiti: Graphiti | None = None
 _fetcher: SupabaseFetcher | None = None
 _scheduler: AsyncIOScheduler | None = None
-_consumer_task: asyncio.Task | None = None
-_consumer: SqsConsumer | None = None
 
 
 @asynccontextmanager
@@ -242,19 +238,7 @@ async def lifespan(app: FastAPI):
         ingestion_repo = IngestionRecordRepo(supabase_client)
         tombstone = TombstoneService(neo4j_driver)
 
-        global _consumer, _consumer_task, _scheduler
-        _consumer = SqsConsumer(
-            sqs_client=sqs_client,
-            queue_url=settings.sync.sqs_queue_url,
-            event_router=event_router,
-            ingestion_repo=ingestion_repo,
-            tombstone=tombstone,
-            max_messages=settings.sync.consumer_max_messages,
-            wait_seconds=settings.sync.consumer_wait_seconds,
-            visibility_timeout=settings.sync.consumer_visibility_timeout,
-        )
-        _consumer_task = asyncio.create_task(_consumer.run())
-
+        global _scheduler
         cron = BrainSyncCron(
             supabase=supabase_client,
             sqs_client=sqs_client,
@@ -293,13 +277,6 @@ async def lifespan(app: FastAPI):
 
     if _scheduler is not None:
         _scheduler.shutdown(wait=False)
-    if _consumer is not None:
-        _consumer.stop()
-    if _consumer_task is not None:
-        try:
-            await asyncio.wait_for(_consumer_task, timeout=10)
-        except asyncio.TimeoutError:
-            _consumer_task.cancel()
 
     if _fetcher:
         await _fetcher.close()

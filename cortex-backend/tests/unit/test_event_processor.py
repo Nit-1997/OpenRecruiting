@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -6,8 +5,9 @@ import pytest
 
 from src.model.ingestion import SourceRef
 from src.service.graph_ingestion_service import IngestionResult as HandlerResult
+from src.sync.event_processor import EventProcessor
+from src.sync.event_queue import ClaimedEvent
 from src.sync.event_record import IngestionRecord
-from src.sync.sqs_consumer import SqsConsumer
 
 
 def _success_result():
@@ -38,30 +38,26 @@ def deps(event_router):
     return router, handler, repo, tombstone
 
 
-def _msg(event_type="feedback_debrief_available", source_id="cr-1",
-         org_id="org-1", last_touch_at="2026-05-09T14:00:00+00:00",
-         publish_count=1, event_pk="ev-1"):
-    return {
-        "Body": json.dumps({
-            "event_type": event_type,
-            "source_id": source_id,
-            "org_id": org_id,
-            "last_touch_at": last_touch_at,
-            "publish_count": publish_count,
-            "event_pk": event_pk,
-        }),
-        "ReceiptHandle": "rh-1",
-    }
+def _event(event_type="feedback_debrief_available", source_id="cr-1",
+           org_id="org-1", last_touch_at="2026-05-09T14:00:00+00:00",
+           publish_count=1, event_pk="ev-1"):
+    return ClaimedEvent(
+        id=event_pk,
+        event_type=event_type,
+        source_id=source_id,
+        org_id=org_id,
+        last_touch_at=datetime.fromisoformat(last_touch_at),
+        publish_count=publish_count,
+    )
 
 
 @pytest.mark.asyncio
 async def test_first_ingest_path(deps):
     router, handler, repo, tombstone = deps
-    consumer = SqsConsumer(
-        sqs_client=MagicMock(), queue_url="q",
+    processor = EventProcessor(
         event_router=router, ingestion_repo=repo, tombstone=tombstone,
     )
-    await consumer.handle_message(_msg())
+    await processor.process(_event())
 
     tombstone.tombstone_prior_edges.assert_not_awaited()
     handler.handle.assert_awaited_once()
@@ -87,11 +83,10 @@ async def test_re_edit_path_tombstones_then_ingests(deps):
         nodes_count=2, edges_count=3, publish_count=1,
     ))
     tombstone.tombstone_prior_edges = AsyncMock(return_value=3)
-    consumer = SqsConsumer(
-        sqs_client=MagicMock(), queue_url="q",
+    processor = EventProcessor(
         event_router=router, ingestion_repo=repo, tombstone=tombstone,
     )
-    await consumer.handle_message(_msg(last_touch_at="2026-05-09T14:00:00+00:00"))
+    await processor.process(_event(last_touch_at="2026-05-09T14:00:00+00:00"))
 
     tombstone.tombstone_prior_edges.assert_awaited_once()
     handler.handle.assert_awaited_once()
@@ -109,11 +104,10 @@ async def test_stale_message_dropped(deps):
         ingested_at=datetime(2026, 5, 9, tzinfo=timezone.utc),
         nodes_count=2, edges_count=3, publish_count=1,
     ))
-    consumer = SqsConsumer(
-        sqs_client=MagicMock(), queue_url="q",
+    processor = EventProcessor(
         event_router=router, ingestion_repo=repo, tombstone=tombstone,
     )
-    await consumer.handle_message(_msg(last_touch_at="2026-05-08T00:00:00+00:00"))
+    await processor.process(_event(last_touch_at="2026-05-08T00:00:00+00:00"))
 
     tombstone.tombstone_prior_edges.assert_not_awaited()
     handler.handle.assert_not_awaited()
@@ -124,10 +118,30 @@ async def test_stale_message_dropped(deps):
 async def test_handle_failure_raises_for_sqs_retry(deps):
     router, handler, repo, tombstone = deps
     handler.handle = AsyncMock(return_value=_failure_result())
-    consumer = SqsConsumer(
-        sqs_client=MagicMock(), queue_url="q",
+    processor = EventProcessor(
         event_router=router, ingestion_repo=repo, tombstone=tombstone,
     )
     with pytest.raises(Exception):
-        await consumer.handle_message(_msg())
+        await processor.process(_event())
     repo.upsert.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_publish_count_is_taken_from_the_claim_not_the_payload(deps):
+    """publish_count used to arrive in the SQS body; it now comes off the claim.
+    IngestionRecord stores it as provenance, so a wrong source is silent."""
+    router, _handler, repo, tombstone = deps
+    processor = EventProcessor(
+        event_router=router, ingestion_repo=repo, tombstone=tombstone,
+    )
+
+    await processor.process(ClaimedEvent(
+        id="11111111-1111-1111-1111-111111111111",
+        event_type="plan_created",
+        source_id="22222222-2222-2222-2222-222222222222",
+        org_id="33333333-3333-3333-3333-333333333333",
+        last_touch_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+        publish_count=3,
+    ))
+
+    assert repo.upsert.await_args.args[0].publish_count == 3

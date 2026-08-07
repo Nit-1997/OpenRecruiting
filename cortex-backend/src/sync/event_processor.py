@@ -1,5 +1,3 @@
-import asyncio
-import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -7,6 +5,7 @@ import structlog
 
 from src.model.ingestion import SourceRef
 from src.service.graph_ingestion_service import IngestionResult as HandlerResult
+from src.sync.event_queue import ClaimedEvent
 from src.sync.event_record import IngestionRecord, IngestionRecordRepo
 from src.sync.provenance import Provenance
 from src.sync.tombstone import TombstoneService
@@ -32,7 +31,7 @@ class IngestionFailure(Exception):
     """Raised when handler.handle() returned a non-success status. Lets SQS retry."""
 
 
-class SqsConsumer:
+class EventProcessor:
     """Long-running consumer for the cortex-ingestion-events.fifo queue.
 
     For each message: decode → look up local IngestionRecord → branch first-ingest
@@ -41,32 +40,20 @@ class SqsConsumer:
 
     def __init__(
         self,
-        sqs_client: Any,
-        queue_url: str,
         event_router: Any,
         ingestion_repo: IngestionRecordRepo,
         tombstone: TombstoneService,
-        max_messages: int = 10,
-        wait_seconds: int = 20,
-        visibility_timeout: int = 300,
     ):
-        self._sqs = sqs_client
-        self._queue_url = queue_url
         self._router = event_router
         self._repo = ingestion_repo
         self._tombstone = tombstone
-        self._max_messages = max_messages
-        self._wait_seconds = wait_seconds
-        self._visibility_timeout = visibility_timeout
-        self._stop = asyncio.Event()
 
-    async def handle_message(self, raw: dict) -> None:
-        body = json.loads(raw["Body"])
-        event_type: str = body["event_type"]
-        source_id: str = body["source_id"]
-        org_id: str = body["org_id"]
-        incoming_touch = datetime.fromisoformat(body["last_touch_at"])
-        event_pk: str = body["event_pk"]
+    async def process(self, event: ClaimedEvent) -> None:
+        event_type = event.event_type
+        source_id = event.source_id
+        org_id = event.org_id
+        incoming_touch = event.last_touch_at
+        event_pk = event.id
 
         record = await self._repo.get(event_type=event_type, source_id=source_id)
 
@@ -117,7 +104,7 @@ class SqsConsumer:
             ingested_at=ingested_at,
             nodes_count=result.nodes_created,
             edges_count=result.edges_created,
-            publish_count=int(body.get("publish_count", 1)),
+            publish_count=event.publish_count,
         ))
 
         logger.info(
@@ -128,43 +115,3 @@ class SqsConsumer:
             nodes=result.nodes_created,
             edges=result.edges_created,
         )
-
-    async def run(self) -> None:
-        logger.info("sqs_consumer_started", queue=self._queue_url)
-        while not self._stop.is_set():
-            try:
-                resp = await asyncio.to_thread(
-                    self._sqs.receive_message,
-                    QueueUrl=self._queue_url,
-                    MaxNumberOfMessages=self._max_messages,
-                    WaitTimeSeconds=self._wait_seconds,
-                    VisibilityTimeout=self._visibility_timeout,
-                    AttributeNames=["All"],
-                    MessageAttributeNames=["All"],
-                )
-            except Exception as e:
-                logger.error("sqs_receive_failed", error=str(e))
-                await asyncio.sleep(5)
-                continue
-
-            messages = resp.get("Messages", [])
-            for msg in messages:
-                try:
-                    await self.handle_message(msg)
-                    await asyncio.to_thread(
-                        self._sqs.delete_message,
-                        QueueUrl=self._queue_url,
-                        ReceiptHandle=msg["ReceiptHandle"],
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "message_handling_failed",
-                        error=str(e),
-                        msg_id=msg.get("MessageId"),
-                    )
-                    # Do not delete — let SQS visibility timeout handle retry/DLQ.
-
-        logger.info("sqs_consumer_stopped")
-
-    def stop(self) -> None:
-        self._stop.set()
