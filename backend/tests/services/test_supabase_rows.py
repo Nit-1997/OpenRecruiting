@@ -5,8 +5,6 @@ of `_is_unique_violation`, and the ~2 copies of `_now_iso` into one module so th
 duplicating service files can adopt behaviour-preserving helpers later.
 
 The existing copies live in:
-- app/services/untracked_capture_service.py   (_first_row takes raw .data; msg-based _is_unique_violation; _now_iso)
-- app/services/untracked_import_service.py     (identical to capture)
 - app/services/intake_session_service.py       (_first_inserted takes the response obj, reads .data)
 - app/services/intake_publish_service.py        (identical to session)
 

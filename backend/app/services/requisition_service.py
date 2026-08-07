@@ -30,7 +30,6 @@ def build_requisition_response(req: dict) -> dict:
         ),
         "must_have_skills": req.get("must_have_skills") or [],
         "good_to_have_skills": req.get("good_to_have_skills") or [],
-        "auto_join_untracked": req.get("auto_join_untracked"),
     }
 
 
@@ -51,21 +50,6 @@ class RequisitionService:
     def __init__(self, supabase):
         self.supabase = supabase
 
-    async def _attach_org_untracked_flag(self, req: dict) -> dict:
-        org_id = req.get("organization_id")
-        if not org_id:
-            return req
-
-        org_result = await self.supabase.table("organizations") \
-            .select("auto_join_untracked") \
-            .eq("id", org_id) \
-            .limit(1) \
-            .execute_async()
-
-        org_row = org_result.data[0] if isinstance(org_result.data, list) and org_result.data else None
-        req["auto_join_untracked"] = bool(org_row.get("auto_join_untracked")) if org_row else False
-        return req
-
     def _req_query(self, req_id: str, org_id: str | None = None):
         q = self.supabase.table("requisitions").select("*").eq("id", req_id).is_null("deleted_at").is_("is_system_template", "false")
         if org_id:
@@ -76,8 +60,7 @@ class RequisitionService:
         result = await self._req_query(req_id, org_id).single().execute_async()
         if not result.data:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Requisition not found")
-        req_data = await self._attach_org_untracked_flag(result.data)
-        return build_requisition_response(req_data)
+        return build_requisition_response(result.data)
 
     async def list_requisitions(self, org_id: str, include_deleted: bool = False, page: int = 1, page_size: int = 25) -> tuple[list, int]:
         list_columns = "id,organization_id,role_title,role_location,experience_min_years,experience_max_years,status,must_have_skills,good_to_have_skills,created_at,updated_at,deleted_at,created_by"
@@ -134,8 +117,7 @@ class RequisitionService:
             rounds_with_questions.append(rr)
             total_duration += round_data.get("duration_minutes", 0)
 
-        req_data = await self._attach_org_untracked_flag(req_result.data)
-        req_response = build_requisition_response(req_data)
+        req_response = build_requisition_response(req_result.data)
         plan = None
         if rounds_with_questions:
             plan = {

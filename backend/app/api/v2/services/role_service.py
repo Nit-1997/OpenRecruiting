@@ -149,11 +149,8 @@ async def list_roles(
     page_size = max(min(page_size, 100), 1)
     offset = (page - 1) * page_size
 
-    # `is_system_template=true` rows are the org's materialized
-    # generic-untracked-interview requisition (see v1
-    # untracked_capture_service.py:258). They surface through the
-    # /untracked-interviews tab, not the regular Open/Pending/Closed tabs,
-    # so we exclude them here to match v1 list_requisitions behavior.
+    # `is_system_template=true` rows are org-internal scaffolding, never a real
+    # opening, so they stay out of the Open/Pending/Closed tabs.
     def _apply_list_filters(qb):
         qb = (
             qb.eq("organization_id", org_id)
@@ -386,8 +383,8 @@ async def get_role_header(
 async def _fetch_role_row_for_org(
     supabase, role_id: UUID, org_id: str
 ) -> Optional[dict]:
-    # System-template requisitions (untracked-generic) are excluded so
-    # /roles/{id}/close and /reopen can't mutate them.
+    # System-template requisitions are excluded so /roles/{id}/close and
+    # /reopen can't mutate them.
     result = await (
         supabase.table("requisitions")
         .select("*")

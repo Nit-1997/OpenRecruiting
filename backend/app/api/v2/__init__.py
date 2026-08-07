@@ -50,7 +50,6 @@ from app.api.v2.routers import (
     screening,
     screening_suggestion,
     team,
-    untracked,
     voice,
     webhooks,
     webhooks_feedback,
@@ -99,7 +98,6 @@ v2_router.include_router(intake_heartbeat.router)
 v2_router.include_router(voice.router)
 v2_router.include_router(recordings.router)
 v2_router.include_router(team.router)
-v2_router.include_router(untracked.router)
 v2_router.include_router(webhooks.router)
 v2_router.include_router(webhooks_knit.router)
 

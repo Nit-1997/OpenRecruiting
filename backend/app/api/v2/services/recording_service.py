@@ -49,18 +49,8 @@ def _parse_iso_utc(value: Any) -> datetime | None:
         return None
 
 
-async def _recall_bot_following_origin(supabase, cr_id: UUID, columns: str) -> dict | None:
-    """Latest recall_bots row for a round, falling back to its origin round.
-
-    An untracked-copy round (a detected interview merged into a real candidate
-    round) has NO recall_bots row of its own: `recall_bots.recall_bot_id` is
-    globally UNIQUE, so the source's bot row can't be duplicated onto the copy.
-    The recording therefore stays on the origin round; we follow
-    `candidate_rounds.origin_candidate_round_id` so Round Replay (video) and the
-    transcript's duration/feedback-split metadata resolve on the merged round
-    instead of 404-ing as "no recording". The video itself is re-minted from the
-    shared recall_bot_id, so pointing at the origin's row is correct.
-    """
+async def _latest_recall_bot(supabase, cr_id: UUID, columns: str) -> dict | None:
+    """Most-recent recall_bots row for a round."""
     own = await (
         supabase.table("recall_bots")
         .select(columns)
@@ -70,31 +60,7 @@ async def _recall_bot_following_origin(supabase, cr_id: UUID, columns: str) -> d
         .execute_async()
     )
     rows = own.data or []
-    if rows:
-        return rows[0]
-
-    cr = await (
-        supabase.table("candidate_rounds")
-        .select("origin_candidate_round_id")
-        .eq("id", str(cr_id))
-        .limit(1)
-        .execute_async()
-    )
-    cr_rows = cr.data or []
-    origin_id = cr_rows[0].get("origin_candidate_round_id") if cr_rows else None
-    if not origin_id or str(origin_id) == str(cr_id):
-        return None
-
-    origin = await (
-        supabase.table("recall_bots")
-        .select(columns)
-        .eq("candidate_round_id", str(origin_id))
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute_async()
-    )
-    origin_rows = origin.data or []
-    return origin_rows[0] if origin_rows else None
+    return rows[0] if rows else None
 
 
 # ---------------------------------------------------------------------------
@@ -120,10 +86,9 @@ async def get_recording_url(supabase, org_id: str, cr_id: UUID) -> dict:
     # Org-scope the CR via the shared helper.
     await load_cr_with_round_for_org(supabase, cr_id, org_id)
 
-    # Most-recent bot row for this CR (following origin for untracked-copy rounds
-    # whose recording lives on the source round). Pull the TTL column too so we
-    # can decide cache hit vs re-mint without a second trip.
-    bot = await _recall_bot_following_origin(
+    # Pull the TTL column too so we can decide cache hit vs re-mint without a
+    # second trip.
+    bot = await _latest_recall_bot(
         supabase,
         cr_id,
         "id, recall_bot_id, status, recording_url, recording_url_expires_at",
@@ -288,7 +253,7 @@ async def _lazy_ingest_transcript_from_recall(
 
     Why this lives here: the Recall webhook flow that populates
     `transcripts.segments` doesn't always fire (e.g., webhooks lost during
-    backend deploys, untracked-import path that bypasses the webhook). When
+    backend deploys). When
     the bot itself has `transcript_ready=true` and a pre-signed `transcript_url`,
     that data is the source of truth — we just haven't cached it yet.
     """
@@ -419,10 +384,7 @@ async def get_transcript(supabase, org_id: str, cr_id: UUID) -> dict:
     # recall_bots.feedback_started_at relative to joined_at. The drawer uses
     # this to render the segment toggle. Also doubles as the source for the
     # lazy transcript ingest when our DB row is empty but Recall has it.
-    # Follow origin for untracked-copy rounds: the recording bot row lives on the
-    # source round (recall_bot_id is globally unique), so the merged round reads
-    # its duration / feedback-split / lazy-ingest source from there.
-    bot = await _recall_bot_following_origin(
+    bot = await _latest_recall_bot(
         supabase,
         cr_id,
         "joined_at, feedback_started_at, recording_duration_seconds, "
@@ -432,7 +394,7 @@ async def get_transcript(supabase, org_id: str, cr_id: UUID) -> dict:
     # Lazy ingest: if our transcripts row is empty AND the bot has a ready
     # transcript URL, fetch it from Recall, upsert into the transcripts
     # table, and use those segments. The Recall webhook flow misses some
-    # rounds (untracked-import path, deploy-time webhook loss), and from
+    # rounds (deploy-time webhook loss), and from
     # the recruiter's POV the gap looks like "we never recorded a
     # transcript" which is wrong — the data exists, we just hadn't cached
     # it. Run once per round; subsequent calls hit the cached transcripts

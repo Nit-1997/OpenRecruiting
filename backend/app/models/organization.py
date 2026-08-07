@@ -15,7 +15,6 @@ class OrganizationResponse(BaseModel):
     domain: Optional[str] = None
     description: Optional[str] = None
     auto_join_enabled: Optional[bool] = None
-    auto_join_untracked: Optional[bool] = None
     blocked_domains: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime

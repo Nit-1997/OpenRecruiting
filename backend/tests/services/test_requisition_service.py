@@ -149,8 +149,7 @@ def test_persist_round_questions_helper_exists():
 #
 # A queue-based table-routed fake supabase: each table holds an ordered queue
 # of responses, and every read/write pops the next one. Writes are recorded.
-# This mirrors the recorder used by the untracked-conflict tests but supports
-# the much wider read/write surface RequisitionService exercises.
+# This supports the wide read/write surface RequisitionService exercises.
 # ===========================================================================
 import asyncio as _asyncio
 
@@ -305,18 +304,16 @@ def _stub_insert_many(monkeypatch, fake):
 
 # --- get_requisition -------------------------------------------------------
 @_pytest.mark.asyncio
-async def test_get_requisition_attaches_org_flag_and_builds_response():
+async def test_get_requisition_builds_response():
     fake = _FakeSb()
     fake.selects["requisitions"] = [
         {"id": "req-1", "organization_id": "org-1", "role_title": "Eng",
          "experience_min_years": 3, "experience_max_years": 5, "must_have_skills": None},
     ]
-    fake.selects["organizations"] = [[{"auto_join_untracked": True}]]
     svc = RequisitionService(fake)
     out = await svc.get_requisition("req-1", org_id="org-1")
     assert out["experience_display"] == "3-5 years"
     assert out["must_have_skills"] == []  # None coerced to []
-    assert out["auto_join_untracked"] is True
 
 
 @_pytest.mark.asyncio
@@ -327,16 +324,6 @@ async def test_get_requisition_404_when_missing():
     with _pytest.raises(HTTPException) as ei:
         await svc.get_requisition("missing")
     assert ei.value.status_code == 404
-
-
-@_pytest.mark.asyncio
-async def test_attach_org_flag_false_when_org_row_absent():
-    fake = _FakeSb()
-    fake.selects["requisitions"] = [{"id": "r", "organization_id": "org-x"}]
-    fake.selects["organizations"] = [[]]
-    svc = RequisitionService(fake)
-    out = await svc.get_requisition("r")
-    assert out["auto_join_untracked"] is False
 
 
 # --- list_requisitions -----------------------------------------------------
@@ -381,7 +368,6 @@ async def test_get_requisition_with_plan_builds_rounds_and_questions():
             {"id": "q2", "round_id": "r1", "question_number": 1},
         ],
     ]
-    fake.selects["organizations"] = [[{"auto_join_untracked": False}]]
     svc = RequisitionService(fake)
     out = await svc.get_requisition_with_plan("req-1", org_id="org-1")
     plan = out["plan"]
@@ -397,7 +383,6 @@ async def test_get_requisition_with_plan_no_rounds_yields_null_plan():
     fake = _FakeSb()
     fake.selects["requisitions"] = [{"id": "req-1", "organization_id": "org-1"}]
     fake.selects["rounds"] = [[]]
-    fake.selects["organizations"] = [[{"auto_join_untracked": False}]]
     svc = RequisitionService(fake)
     out = await svc.get_requisition_with_plan("req-1")
     assert out["plan"] is None

@@ -105,45 +105,6 @@ async def test_recording_url_cache_hit():
 
 
 @pytest.mark.asyncio
-async def test_recording_url_follows_origin_for_untracked_copy():
-    """An untracked-copy round has no recall_bots row of its own (recall_bot_id
-    is globally unique). get_recording_url must follow origin_candidate_round_id
-    to the source round's bot so Round Replay works on the merged round."""
-    future = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
-    origin_bot = {
-        "id": "b1", "recall_bot_id": "rb1", "status": "done",
-        "recording_url": "https://origin-recording", "recording_url_expires_at": future,
-    }
-
-    # Table-routed fake. The recall_bots exec mock is SHARED across builder
-    # instances so its FIFO spans both lookups: own (-> []) then origin (-> bot).
-    recall_exec = AsyncMock(side_effect=[
-        MagicMock(data=[]),            # own lookup -> none
-        MagicMock(data=[origin_bot]),  # origin lookup -> bot
-    ])
-    cr_exec = AsyncMock(return_value=MagicMock(
-        data=[{"origin_candidate_round_id": "origin-cr-1"}]))
-    sb = MagicMock()
-
-    def table(name):
-        b = MagicMock()
-        for attr in ("select", "eq", "order", "limit", "update"):
-            setattr(b, attr, MagicMock(return_value=b))
-        if name == "recall_bots":
-            b.execute_async = recall_exec
-        elif name == "candidate_rounds":
-            b.execute_async = cr_exec
-        else:
-            b.execute_async = AsyncMock(return_value=MagicMock(data=[]))
-        return b
-
-    sb.table = MagicMock(side_effect=table)
-    with patch.object(rs, "load_cr_with_round_for_org", AsyncMock()):
-        out = await rs.get_recording_url(sb, ORG_ID, CR_ID)
-    assert out["url"] == "https://origin-recording"
-
-
-@pytest.mark.asyncio
 async def test_recording_url_cache_miss_remints():
     sb = _recording_supabase([{
         "id": "b1", "recall_bot_id": "rb1", "status": "done",

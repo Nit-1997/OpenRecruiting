@@ -145,10 +145,6 @@ def test_get_requisition_success(staff_client, respx_mock):
         return httpx.Response(200, json=[make_requisition()])
 
     respx_mock.get(rest_url("requisitions")).mock(side_effect=_reqs)
-    # _attach_org_untracked_flag may read organizations; mock defensively.
-    respx_mock.get(rest_url("organizations")).mock(
-        return_value=httpx.Response(200, json=[{"id": "x", "auto_join_untracked": False}])
-    )
     resp = staff_client.get(f"{ADMIN}/requisitions/{REQ_ID}")
     assert resp.status_code == 200, resp.text
     assert resp.json()["id"] == REQ_ID

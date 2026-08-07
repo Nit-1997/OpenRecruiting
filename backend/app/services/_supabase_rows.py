@@ -7,8 +7,8 @@ owned by other lanes and will adopt these helpers in a behaviour-preserving way.
 Replicated semantics (verified against the existing copies):
 
 - ``first_row`` unifies the two prior shapes:
-  - ``_first_row(data)``      in ``untracked_capture_service`` / ``untracked_import_service``
-    accepted the raw ``.data`` value (list | dict | None) directly.
+  - ``_first_row(data)``      accepted the raw ``.data`` value (list | dict | None)
+    directly.
   - ``_first_inserted(result)`` in ``intake_session_service`` / ``intake_publish_service``
     accepted the *response object* and reached into ``result.data``.
   ``first_row`` accepts either: if the argument exposes a ``.data`` attribute it is

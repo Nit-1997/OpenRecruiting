@@ -49,7 +49,6 @@ class RequisitionResponse(BaseModel):
     intake_processing_error: Optional[str] = None
     intake_voice_session_token: Optional[str] = None
     intake_voice_session_status: Optional[str] = None
-    auto_join_untracked: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
 
