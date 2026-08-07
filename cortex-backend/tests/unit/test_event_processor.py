@@ -115,7 +115,7 @@ async def test_stale_message_dropped(deps):
 
 
 @pytest.mark.asyncio
-async def test_handle_failure_raises_for_sqs_retry(deps):
+async def test_handle_failure_raises_for_queue_retry(deps):
     router, handler, repo, tombstone = deps
     handler.handle = AsyncMock(return_value=_failure_result())
     processor = EventProcessor(
@@ -128,7 +128,7 @@ async def test_handle_failure_raises_for_sqs_retry(deps):
 
 @pytest.mark.asyncio
 async def test_publish_count_is_taken_from_the_claim_not_the_payload(deps):
-    """publish_count used to arrive in the SQS body; it now comes off the claim.
+    """publish_count used to arrive in the message body; it now comes off the claim.
     IngestionRecord stores it as provenance, so a wrong source is silent."""
     router, _handler, repo, tombstone = deps
     processor = EventProcessor(

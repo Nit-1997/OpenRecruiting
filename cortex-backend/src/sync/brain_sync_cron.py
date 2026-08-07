@@ -1,8 +1,10 @@
-import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable
 
 import structlog
+
+from src.sync.event_queue import ClaimedEvent, EventQueue
+from src.sync.event_processor import EventProcessor
 
 logger = structlog.get_logger(__name__)
 
@@ -12,10 +14,10 @@ ProgressCallback = Callable[[int, int, int], Awaitable[None]]
 
 
 class BrainSyncCron:
-    """In-process scheduler jobs that drain cortex_events to SQS.
+    """In-process scheduler jobs that drain cortex_events into the graph.
 
-    publish_settled_events: scans for rows past the 48h settledness window and emits.
-    publish_org_now: on-demand force-publish for one org, ignoring the window.
+    process_settled_events: claims rows past the 48h settledness window and ingests them.
+    process_org_now: on-demand force-ingest for one org, ignoring the window.
     reconcile: weekly safety net that re-nudges cortex_events for any settled
     Supabase rows that have no IngestionRecord.
     """
@@ -23,88 +25,70 @@ class BrainSyncCron:
     def __init__(
         self,
         supabase: Any,
-        sqs_client: Any,
-        queue_url: str,
+        queue: EventQueue,
+        processor: EventProcessor,
         settledness_window_hours: int = 48,
         batch_size: int = 1000,
     ):
         self._supabase = supabase
-        self._sqs = sqs_client
-        self._queue_url = queue_url
+        self._queue = queue
+        self._processor = processor
         self._window_hours = settledness_window_hours
         self._batch_size = batch_size
 
-    async def _publish_event_row(self, row: dict) -> None:
-        """Send one cortex_events row to SQS and stamp published_at/publish_count.
+    async def _process_one(
+        self, event: ClaimedEvent, errors: list[str] | None = None
+    ) -> bool:
+        """Returns True on success. Never raises: one poisoned row must not
+        stop the batch, and the queue records the failure for the retry.
 
-        Shared by the cron publisher and the on-demand force-publish path so the
-        two stay identical. Raises on any failure; the caller decides whether to
-        continue with the next row or abort.
+        `errors` is an optional sink so force-publish can report the causes in
+        its job record rather than only in the logs.
         """
-        next_publish_count = int(row.get("publish_count", 0)) + 1
-        self._sqs.send_message(
-            QueueUrl=self._queue_url,
-            MessageGroupId=f"{row['event_type']}:{row['source_id']}",
-            MessageDeduplicationId=f"{row['id']}:{row['last_touch_at']}",
-            MessageBody=json.dumps({
-                "event_type": row["event_type"],
-                "source_id": str(row["source_id"]),
-                "org_id": str(row["org_id"]),
-                "last_touch_at": row["last_touch_at"],
-                "publish_count": next_publish_count,
-                "event_pk": str(row["id"]),
-            }),
-        )
-        await (
-            self._supabase.table("cortex_events")
-            .update({
-                "published_at": datetime.now(timezone.utc).isoformat(),
-                "publish_count": next_publish_count,
-            })
-            .eq("id", row["id"])
-            .execute()
-        )
+        try:
+            await self._processor.process(event)
+        except Exception as e:
+            logger.warning(
+                "event_processing_failed",
+                event_id=event.id,
+                event_type=event.event_type,
+                source_id=event.source_id,
+                error=str(e),
+            )
+            if errors is not None:
+                errors.append(f"event_pk={event.id}: {str(e)[:120]}")
+            await self._queue.mark_failed(event.id, str(e))
+            return False
+        # Stamp the claimed row's own last_touch_at, never an app-clock now():
+        # an edit landing between claim and completion would otherwise be older
+        # than the stamp, fail `last_touch_at > completed_at`, and never re-queue.
+        await self._queue.mark_done(event.id, event.last_touch_at)
+        return True
 
-    async def publish_settled_events(self) -> int:
+    async def process_settled_events(self) -> int:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=self._window_hours)
-        resp = await self._supabase.rpc(
-            "cortex_events_settled",
-            {"cutoff": cutoff.isoformat(), "limit": self._batch_size},
-        ).execute()
+        events = await self._queue.claim_batch(limit=self._batch_size, cutoff=cutoff)
+        succeeded = 0
+        for event in events:
+            if await self._process_one(event):
+                succeeded += 1
+        if events:
+            logger.info("settled_events_processed", claimed=len(events), succeeded=succeeded)
+        return succeeded
 
-        rows = resp.data or []
-        sent = 0
-        for row in rows:
-            try:
-                await self._publish_event_row(row)
-                sent += 1
-            except Exception as e:
-                logger.error(
-                    "publish_failed",
-                    event_pk=row["id"],
-                    event_type=row["event_type"],
-                    error=str(e),
-                )
-        logger.info("publish_settled_events_complete", sent=sent, scanned=len(rows))
-        return sent
-
-    async def publish_org_now(
+    async def process_org_now(
         self,
         org_id: str,
         on_progress: ProgressCallback | None = None,
     ) -> dict:
-        """Force-publish all unpublished/restamped cortex_events for one org.
+        """Force-ingest every unfinished/restamped cortex_events row for one org.
 
-        Used for on-demand support flushes. Bypasses the 48h settledness window
-        so events can be ingested immediately rather than at the next cron tick.
+        Used for on-demand support flushes. Passing `cutoff=None` bypasses the
+        48h settledness window so events land in the graph now rather than at
+        the next poll.
 
-        Eligibility (`published_at IS NULL OR last_touch_at > published_at`) is
-        a column-vs-column comparison, which PostgREST URL filters cannot
-        express — `last_touch_at.gt.published_at` would compare against the
-        literal string `'published_at'`. We call the SQL RPC
-        `cortex_events_for_org_unpublished` instead (migration 75), which
-        mirrors `cortex_events_settled` (72) without the time cutoff and
-        scopes to one org.
+        `published` in the returned dict now counts rows actually ingested, not
+        rows handed to a queue — there is no longer a gap between the two.
 
         on_progress, if provided, is awaited after each batch with the cumulative
         (scanned, published, batches) so async callers (e.g. job tracker) can
@@ -122,41 +106,31 @@ class BrainSyncCron:
             remaining = FORCE_PUBLISH_MAX_ROWS - total_scanned
             page_limit = min(self._batch_size, remaining)
 
-            resp = await self._supabase.rpc(
-                "cortex_events_for_org_unpublished",
-                {"p_org_id": org_id, "p_limit": page_limit},
-            ).execute()
-            rows = resp.data or []
-            if not rows:
+            events = await self._queue.claim_batch(
+                limit=page_limit, cutoff=None, org_id=org_id
+            )
+            if not events:
                 break
 
-            new_rows = [r for r in rows if str(r["id"]) not in seen_ids]
-            if not new_rows:
+            # A failed row keeps its lease only until it expires; a short lease
+            # can hand back the same id, so stop rather than spin on it.
+            fresh = [e for e in events if e.id not in seen_ids]
+            if not fresh:
                 logger.warning(
-                    "publish_org_now_no_progress",
+                    "process_org_now_no_progress",
                     org_id=org_id,
-                    batch_rows=len(rows),
+                    batch_rows=len(events),
                     scanned=total_scanned,
                     published=total_published,
                 )
                 break
 
             batches += 1
-            for row in new_rows:
-                seen_ids.add(str(row["id"]))
+            for event in fresh:
+                seen_ids.add(event.id)
                 total_scanned += 1
-                try:
-                    await self._publish_event_row(row)
+                if await self._process_one(event, errors=errors):
                     total_published += 1
-                except Exception as e:
-                    errors.append(f"event_pk={row['id']}: {str(e)[:120]}")
-                    logger.error(
-                        "force_publish_failed",
-                        event_pk=row["id"],
-                        event_type=row["event_type"],
-                        org_id=org_id,
-                        error=str(e),
-                    )
 
             if on_progress is not None:
                 try:
@@ -169,7 +143,7 @@ class BrainSyncCron:
                     )
 
         logger.info(
-            "publish_org_now_complete",
+            "process_org_now_complete",
             org_id=org_id,
             scanned=total_scanned,
             published=total_published,
@@ -188,7 +162,7 @@ class BrainSyncCron:
 
         For each high-finality state in source tables, find rows that are
         eligible for ingestion but absent from cortex_ingestion_record, and
-        force a cortex_events upsert so the publisher re-drains them next night.
+        force a cortex_events upsert so the next poll re-drains them.
         """
         cutoff_iso = (datetime.now(timezone.utc) - timedelta(hours=49)).isoformat()
         sql_pairs = [

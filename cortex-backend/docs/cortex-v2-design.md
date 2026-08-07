@@ -5,6 +5,14 @@
 **Authors:** Nitin + Claude
 **Supersedes:** `docs/superpowers/specs/2026-04-13-cortex-design.md` (V1)
 
+> **Transport note (2026-08-06):** every "SQS" in the sections below is a record of
+> the design as approved, not of what runs. Producer and consumer both live in the
+> cortex-backend container, so the queue between them was carrying rows out of
+> Postgres and back into the same process. `cortex_events` is now the queue itself:
+> `BrainSyncCron` leases a batch via `cortex_events_claim_batch()` and ingests it
+> inline. Read the SQS passages as "the ingestion pipeline"; nothing else about the
+> ontology, handlers, or graph model changed.
+
 ---
 
 ## Executive Summary
@@ -1071,7 +1079,7 @@ cortex-backend/
 │   │   └── normalizers.py       # Competency alias resolution, category normalization
 │   │
 │   ├── ingestion/               # Event processing
-│   │   ├── sqs_consumer.py      # Async poll loop: SQS → route to handlers
+│   │   ├── event_processor.py   # Ingests one claimed cortex_events row: route to handlers
 │   │   ├── router.py            # event_type → handler dispatch
 │   │   ├── fetchers.py          # Supabase queries to hydrate events
 │   │   ├── triplet_builders.py  # Structured data → EntityNode + EntityEdge

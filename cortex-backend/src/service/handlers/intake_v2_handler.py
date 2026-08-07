@@ -1,4 +1,4 @@
-"""IntakeV2Handler — consume `intake_v2_completed` SQS events from intake-agent-v2.
+"""IntakeV2Handler — consume `intake_v2_completed` events from intake-agent-v2.
 
 Builds the full set of triplets per spec §4.6 and (in handle()) writes a raw
 transcript episode to Cortex for semantic search.

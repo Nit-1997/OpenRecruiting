@@ -36,7 +36,7 @@ test:          ## Run the backend suite (Python 3.11 in Docker)
 	docker build -f backend/Dockerfile.test -t openrecruiting-backend-test .
 	docker run --rm -e ENV=test -v "$(PWD)/backend:/app" -w /app openrecruiting-backend-test python -m pytest -q
 
-# tests/integration is hermetic (it mocks SQS/Supabase/Graphiti), so it runs here too;
+# tests/integration is hermetic (it mocks Supabase/Graphiti), so it runs here too;
 # tests marked live_infra want a real Neo4j/Supabase and drop out. Excluded: tests/e2e is
 # order-fragile via the @lru_cache'd get_settings(), and tests/test_health.py has an async
 # fixture that pytest-asyncio strict mode cannot run. See cortex-backend/Dockerfile.test.

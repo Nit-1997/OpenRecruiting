@@ -28,14 +28,16 @@ _SOURCE_REF_KEY = {
 
 
 class IngestionFailure(Exception):
-    """Raised when handler.handle() returned a non-success status. Lets SQS retry."""
+    """Raised when handler.handle() returned a non-success status. The caller
+    marks the row failed; lease expiry re-offers it until the attempt cap."""
 
 
 class EventProcessor:
-    """Long-running consumer for the cortex-ingestion-events.fifo queue.
+    """Ingests one claimed cortex_events row.
 
-    For each message: decode → look up local IngestionRecord → branch first-ingest
-    vs re-edit → call existing handler → upsert IngestionRecord on success.
+    Look up the local IngestionRecord → branch first-ingest vs re-edit → call the
+    existing handler → upsert IngestionRecord on success. Transport-free: it
+    neither claims nor completes rows, so the queue owns all retry state.
     """
 
     def __init__(

@@ -54,16 +54,15 @@ class CorsConfig(BaseModel):
 
 class SyncConfig(BaseModel):
     enabled: bool = True
-    sqs_queue_url: str = ""
-    sqs_dlq_url: str = ""
-    aws_region: str = "us-west-1"
-    publisher_interval_hours: int = 24
+    # Eligibility is gated by settledness_window_hours, not by how often we look:
+    # polling daily would leave a newly settled row waiting another full day.
+    poll_interval_seconds: int = 60
     reconciliation_interval_days: int = 7
     settledness_window_hours: int = 48
     publish_batch_size: int = 1000
-    consumer_max_messages: int = 10
-    consumer_wait_seconds: int = 20
-    consumer_visibility_timeout: int = 300
+    claim_lease_seconds: int = 300
+    claim_batch_size: int = 10
+    claim_max_attempts: int = 5
 
 
 class Settings(BaseModel):
@@ -100,18 +99,17 @@ def get_settings() -> Settings:
         settings.logging.level = log_level
     if supabase_url := os.environ.get("SUPABASE_URL"):
         settings.supabase.url = supabase_url
-    if supabase_key := os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
+    # SUPABASE_SECRET_KEY (sb_secret_...) is what the rest of the stack ships in
+    # .env; reading only the older name left every Supabase call unauthenticated.
+    if supabase_key := (
+        os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or os.environ.get("SUPABASE_SECRET_KEY")
+    ):
         settings.supabase.service_role_key = supabase_key
     if openai_key := os.environ.get("OPENAI_API_KEY"):
         settings.openai.api_key = openai_key
     if internal_secret := os.environ.get("INTERNAL_SECRET"):
         settings.auth.internal_secret = internal_secret
-    if sqs_url := os.environ.get("CORTEX_SQS_QUEUE_URL"):
-        settings.sync.sqs_queue_url = sqs_url
-    if sqs_dlq := os.environ.get("CORTEX_SQS_DLQ_URL"):
-        settings.sync.sqs_dlq_url = sqs_dlq
-    if aws_region := os.environ.get("AWS_REGION"):
-        settings.sync.aws_region = aws_region
     if sync_enabled := os.environ.get("CORTEX_SYNC_ENABLED"):
         settings.sync.enabled = sync_enabled.lower() in ("1", "true", "yes")
 

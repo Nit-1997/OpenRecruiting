@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 
-import boto3
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -17,6 +16,8 @@ from supabase import create_async_client
 from src.config.settings import get_settings
 from src.config.database import neo4j_driver
 from src.sync.brain_sync_cron import BrainSyncCron
+from src.sync.event_processor import EventProcessor
+from src.sync.event_queue import EventQueue
 from src.sync.event_record import IngestionRecordRepo
 from src.sync.tombstone import TombstoneService
 
@@ -140,6 +141,7 @@ async def lifespan(app: FastAPI):
     # gated on an OpenAI key. Without one the service still starts and serves
     # /health and read-only graph queries -- an absent key disables a feature
     # rather than crash-looping the container.
+    event_router = None
     if not settings.openai.api_key:
         logger.warning(
             "graph_ingestion_disabled",
@@ -228,30 +230,43 @@ async def lifespan(app: FastAPI):
             reason="Supabase URL or service_role_key missing",
         )
 
-    if settings.sync.enabled and settings.sync.sqs_queue_url:
-        sqs_client = boto3.client("sqs", region_name=settings.sync.aws_region)
+    if not settings.sync.enabled:
+        logger.info("brain_sync_disabled", reason="sync.enabled=False")
+    elif event_router is None:
+        # No handlers exist without an OpenAI key, so claiming rows would only
+        # burn their retry budget.
+        logger.info("brain_sync_disabled", reason="graph ingestion unavailable")
+    elif supabase_async_client is None:
+        logger.info("brain_sync_disabled", reason="Supabase credentials missing")
+    else:
         supabase_client = supabase_async_client
-        if supabase_client is None:
-            supabase_client = await create_async_client(
-                settings.supabase.url, settings.supabase.service_role_key
-            )
         ingestion_repo = IngestionRecordRepo(supabase_client)
         tombstone = TombstoneService(neo4j_driver)
 
         global _scheduler
+        queue = EventQueue(
+            supabase_client,
+            lease_seconds=settings.sync.claim_lease_seconds,
+            max_attempts=settings.sync.claim_max_attempts,
+        )
+        processor = EventProcessor(
+            event_router=event_router,
+            ingestion_repo=ingestion_repo,
+            tombstone=tombstone,
+        )
         cron = BrainSyncCron(
             supabase=supabase_client,
-            sqs_client=sqs_client,
-            queue_url=settings.sync.sqs_queue_url,
+            queue=queue,
+            processor=processor,
             settledness_window_hours=settings.sync.settledness_window_hours,
-            batch_size=settings.sync.publish_batch_size,
+            batch_size=settings.sync.claim_batch_size,
         )
         set_brain_sync_cron(cron)
         set_force_publish_job_service(ForcePublishJobService(supabase_client))
         _scheduler = AsyncIOScheduler(timezone="UTC")
         _scheduler.add_job(
-            cron.publish_settled_events,
-            trigger=IntervalTrigger(hours=settings.sync.publisher_interval_hours),
+            cron.process_settled_events,
+            trigger=IntervalTrigger(seconds=settings.sync.poll_interval_seconds),
             id="brain_sync_publisher",
             max_instances=1,
             coalesce=True,
@@ -264,12 +279,7 @@ async def lifespan(app: FastAPI):
             coalesce=True,
         )
         _scheduler.start()
-        logger.info("brain_sync_started",
-                    queue=settings.sync.sqs_queue_url,
-                    publisher_hours=settings.sync.publisher_interval_hours)
-    else:
-        logger.info("brain_sync_disabled",
-                    reason="sync.enabled=False" if not settings.sync.enabled else "no sqs_queue_url")
+        logger.info("brain_sync_started", poll_seconds=settings.sync.poll_interval_seconds)
 
     logger.info("cortex_started", neo4j=settings.neo4j.uri)
 

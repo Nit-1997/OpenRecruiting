@@ -75,7 +75,7 @@ def _get_brain_sync_cron() -> BrainSyncCron:
     if _brain_sync_cron is None:
         raise HTTPException(
             status_code=503,
-            detail="Brain sync is disabled (sync.enabled=False or no sqs_queue_url) — force-publish unavailable",
+            detail="Brain sync is disabled (sync.enabled=False) — force-publish unavailable",
         )
     return _brain_sync_cron
 
@@ -214,7 +214,7 @@ async def _run_force_publish_job(
     Terminal status semantics:
         - no errors            → 'completed'
         - some published, some failed → 'partial'
-        - zero published with errors   → 'failed' (SQS/Supabase outage, etc.)
+        - zero published with errors   → 'failed' (Supabase/Neo4j outage, etc.)
 
     A previous version unconditionally called `mark_completed` even when every
     row failed, making outages indistinguishable from green runs to status
@@ -228,7 +228,7 @@ async def _run_force_publish_job(
                 job_id, scanned=scanned, published=published, batches=batches
             )
 
-        result = await cron.publish_org_now(org_id, on_progress=_on_progress)
+        result = await cron.process_org_now(org_id, on_progress=_on_progress)
         scanned = result["scanned"]
         published = result["published"]
         batches = result["batches"]
@@ -285,9 +285,8 @@ async def force_publish_org_events(
 ):
     """Kick off an async force-publish run for one org.
 
-    Drains unpublished cortex_events for `org_id` to SQS now, bypassing the 48h
-    settledness window the nightly cron uses. Downstream SQS consumer + handlers
-    still do the actual graph ingestion. Capped at FORCE_PUBLISH_MAX_ROWS per
+    Claims and ingests unfinished cortex_events for `org_id` now, bypassing the
+    48h settledness window the poller uses. Capped at FORCE_PUBLISH_MAX_ROWS per
     run.
 
     Returns 202 with a job_id; poll GET /ingest/org/force-publish/{job_id} for

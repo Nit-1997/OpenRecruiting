@@ -7,7 +7,7 @@ The intelligence engine powering Scout's recruitment platform. Builds a temporal
 - **Graphiti + Neo4j** — Temporal knowledge graph with entity resolution and contradiction detection
 - **Two ingestion modes** — `add_triplet()` for structured data ($0 LLM cost), `add_episode()` for unstructured text
 - **Ontology-first** — TTL/OWL recruitment ontology constrains extraction, validation, and retrieval
-- **SQS-triggered pipeline** — Decoupled ingestion from feedback agent, intake agent, and backfill scripts
+- **Ledger-triggered pipeline** — Postgres triggers stamp `cortex_events`; the in-process poller claims and ingests
 - **Three-tier ontology** — Base (universal O*NET) → Organization-specific → Industry (cross-org benchmarks)
 - **Intelligence layer** — Supabase PostgreSQL for signals, insights, recipes, interviewer profiles
 
@@ -22,8 +22,8 @@ The intelligence engine powering Scout's recruitment platform. Builds a temporal
 |---|---|---|
 | Graph database | Neo4j Aura Free → Professional | 200K nodes free tier, ~18 months runway |
 | Graph engine | Graphiti | Entity resolution, temporal edges, hybrid retrieval |
-| Event queue | SQS + DLQ | `cortex-ingestion-events` |
-| Ingestion worker | AWS Lambda (Python) | Same deploy pattern as openrecruiting-feedback-agent |
+| Event queue | Supabase PostgreSQL | `cortex_events`, leased via `cortex_events_claim_batch()` |
+| Ingestion worker | In-process APScheduler poller | Runs inside the cortex-backend container |
 | Intelligence tables | Supabase PostgreSQL | brain_signals, brain_insights, brain_ontology, etc. |
 | Embeddings | OpenAI text-embedding-3-small | Via Graphiti embedder |
 | LLM (episodic extraction) | Claude Sonnet | Via Graphiti Anthropic client |

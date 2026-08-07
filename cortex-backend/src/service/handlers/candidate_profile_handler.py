@@ -13,7 +13,7 @@ carries a parsed resume/profile and fans it out onto the EXISTING Candidate node
 Skill/Company/Market/Location are concept targets — they pass NO target_id and
 canonicalize by name. Null/empty fields skip their edge group. There is no
 Supabase rebuild for this payload (the enrichment is provided directly), so the
-SQS-replay `fetch_and_build_triplets` path is unsupported, mirroring
+replay `fetch_and_build_triplets` path is unsupported, mirroring
 RecruiterInsightHandler.
 """
 from __future__ import annotations

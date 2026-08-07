@@ -1,8 +1,8 @@
 """Tests for _run_force_publish_job's terminal-state selector.
 
-Locks in fix #3 from the adversarial review: when publish_org_now returns
+Locks in fix #3 from the adversarial review: when process_org_now returns
 errors, the job MUST NOT be marked 'completed'. The original implementation
-unconditionally called mark_completed, making SQS/Supabase outages look green
+unconditionally called mark_completed, making Neo4j/Supabase outages look green
 to status pollers.
 """
 from unittest.mock import AsyncMock, MagicMock
@@ -24,7 +24,7 @@ def _make_jobs() -> MagicMock:
 
 def _make_cron(result: dict) -> MagicMock:
     cron = MagicMock()
-    cron.publish_org_now = AsyncMock(return_value=result)
+    cron.process_org_now = AsyncMock(return_value=result)
     return cron
 
 
@@ -48,7 +48,7 @@ async def test_terminal_partial_when_some_published_and_some_errors():
         "scanned": 10,
         "published": 7,
         "batches": 1,
-        "errors": ["event_pk=ev-3: sqs timeout"],
+        "errors": ["event_pk=ev-3: neo4j timeout"],
     })
     jobs = _make_jobs()
 
@@ -66,17 +66,17 @@ async def test_terminal_partial_when_some_published_and_some_errors():
 
 @pytest.mark.asyncio
 async def test_terminal_failed_when_nothing_published_but_errors():
-    """SQS/Supabase outage scenario: every row failed → must not be
+    """Neo4j/Supabase outage scenario: every row failed → must not be
     'completed'. Regression for the adversarial review's fix #3."""
     cron = _make_cron({
         "scanned": 4,
         "published": 0,
         "batches": 1,
         "errors": [
-            "event_pk=ev-1: sqs unavailable",
-            "event_pk=ev-2: sqs unavailable",
-            "event_pk=ev-3: sqs unavailable",
-            "event_pk=ev-4: sqs unavailable",
+            "event_pk=ev-1: neo4j unavailable",
+            "event_pk=ev-2: neo4j unavailable",
+            "event_pk=ev-3: neo4j unavailable",
+            "event_pk=ev-4: neo4j unavailable",
         ],
     })
     jobs = _make_jobs()
@@ -88,7 +88,7 @@ async def test_terminal_failed_when_nothing_published_but_errors():
     assert fail_args[0] == "job-1"
     summary = fail_args[1]
     assert "All 4 eligible rows failed" in summary
-    assert "sqs unavailable" in summary
+    assert "neo4j unavailable" in summary
     jobs.mark_completed.assert_not_called()
     jobs.mark_partial.assert_not_called()
 
@@ -96,7 +96,7 @@ async def test_terminal_failed_when_nothing_published_but_errors():
 @pytest.mark.asyncio
 async def test_unexpected_exception_marks_failed():
     cron = MagicMock()
-    cron.publish_org_now = AsyncMock(side_effect=RuntimeError("network died"))
+    cron.process_org_now = AsyncMock(side_effect=RuntimeError("network died"))
     jobs = _make_jobs()
 
     await _run_force_publish_job("job-1", "org-1", cron, jobs)

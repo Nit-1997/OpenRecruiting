@@ -179,7 +179,7 @@ async def test_mark_partial_sets_partial_terminal_state(supabase):
 
     await svc.mark_partial(
         "job-1", scanned=10, published=7, batches=1,
-        errors=["event_pk=ev-3: sqs timeout", "event_pk=ev-5: sqs timeout"],
+        errors=["event_pk=ev-3: neo4j timeout", "event_pk=ev-5: neo4j timeout"],
     )
 
     update_payload = supabase.update.call_args.args[0]
