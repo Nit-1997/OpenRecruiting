@@ -42,7 +42,7 @@ function CTASection() {
           </h2>
 
           <p id="cta-description" className="text-base md:text-lg text-white/70 max-w-xl mx-auto mb-10">
-            See how OpenRecruiting works with your calendar, your ATS, and your video calls. Nothing to install. Nothing changes for your interviewers.
+            See how OpenRecruiting works with your ATS and your video calls. Nothing to install. Nothing changes for your interviewers.
           </p>
 
           <div id="cta-buttons" className="flex justify-center">

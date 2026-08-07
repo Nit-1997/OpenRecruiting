@@ -3,7 +3,6 @@ import { cleanup, render } from '@testing-library/react';
 import {
   AshbyIcon,
   ClaudeIcon,
-  GoogleCalendarIcon,
   GreenhouseIcon,
   LeverIcon,
   AgentIcon,
@@ -34,7 +33,6 @@ describe('brand icons — render smoke tests', () => {
     ['AshbyIcon', AshbyIcon],
     ['GreenhouseIcon', GreenhouseIcon],
     ['LeverIcon', LeverIcon],
-    ['GoogleCalendarIcon', GoogleCalendarIcon],
     ['ClaudeIcon', ClaudeIcon],
   ])('%s renders with the provided id', (_name, Component) => {
     render(<Component id={`icon-${_name}`} className="h-5 w-5" />);

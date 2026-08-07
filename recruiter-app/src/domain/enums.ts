@@ -51,7 +51,7 @@ export type OrgRole = 'owner' | 'admin' | 'recruiter' | 'viewer';
 
 export type PlanTier = 'starter' | 'growth' | 'scale' | 'enterprise';
 
-export type IntegrationProvider = 'slack' | 'google_calendar' | 'recall' | 'untracked_bot';
+export type IntegrationProvider = 'slack' | 'recall' | 'untracked_bot';
 
 export type IntegrationStatus = 'connected' | 'available' | 'error' | 'disabled';
 

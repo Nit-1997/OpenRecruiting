@@ -46,7 +46,6 @@ export default function PrivacyPage() {
 
             <h3 className="font-semibold mt-4 mb-2">1.3 Information from Third-Party Integrations</h3>
             <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Google Calendar:</strong> Calendar availability and event details (with your explicit OAuth consent). Scopes: <code>calendar.readonly</code>, <code>calendar.events</code>.</li>
               <li><strong>Slack:</strong> Workspace identity, user ID, and messages sent to the OpenRecruiting bot (with your workspace admin&apos;s consent).</li>
               <li><strong>Google Authentication:</strong> Email and profile information when you sign in with Google (via Supabase Auth).</li>
               <li><strong>Meeting Recordings:</strong> Audio and video from interviews conducted through integrated meeting platforms (via Recall.ai), used solely for generating interview feedback.</li>
@@ -60,7 +59,6 @@ export default function PrivacyPage() {
               <li>Provide, operate, and maintain the Services;</li>
               <li>Create and manage your account;</li>
               <li>Generate AI-powered interview plans, feedback, and scorecards;</li>
-              <li>Schedule interviews and manage calendar integrations;</li>
               <li>Process Slack messages and deliver agent responses;</li>
               <li>Process payments and manage billing;</li>
               <li>Send transactional notifications (e.g., feedback ready, intake processed);</li>
@@ -86,7 +84,7 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">4. Data Storage and Security</h2>
             <ul className="list-disc pl-6 space-y-1">
               <li><strong>Database:</strong> All user data is stored in Supabase (PostgreSQL) with Row Level Security (RLS) enforcing multi-tenant data isolation.</li>
-              <li><strong>Encryption:</strong> OAuth tokens (Google Calendar, Slack) are encrypted at rest using Fernet symmetric encryption.</li>
+              <li><strong>Encryption:</strong> Slack OAuth tokens are encrypted at rest using Fernet symmetric encryption.</li>
               <li><strong>Transport:</strong> All data in transit is encrypted via TLS/HTTPS.</li>
               <li><strong>Access Control:</strong> Internal API endpoints use secret-based authentication. Database access is restricted to service roles.</li>
               <li><strong>Meeting Recordings:</strong> Processed by Recall.ai and AWS Lambda. Transcripts are stored temporarily for feedback generation and are not retained beyond processing.</li>

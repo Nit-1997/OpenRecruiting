@@ -13,8 +13,8 @@ afterEach(() => clearDb());
 
 describe('integrations service', () => {
   test('connect flips status to connected', async () => {
-    await integrations.connect('google_calendar');
-    const status = await integrations.getStatus('google_calendar');
+    await integrations.connect('untracked_bot');
+    const status = await integrations.getStatus('untracked_bot');
     expect(status.status).toBe('connected');
     expect(status.connected_at).toBeTruthy();
   });

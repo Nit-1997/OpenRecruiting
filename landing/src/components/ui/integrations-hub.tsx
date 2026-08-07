@@ -5,13 +5,6 @@ import Image from "next/image";
 
 const CATEGORIES = [
   {
-    label: "Calendar",
-    items: [
-      { name: "Google Calendar", icon: "/logos/calendar_7_2x.png" },
-      { name: "Outlook", icon: "/logos/microsoft_outlook_alt_macos_bigsur_icon_189970.webp" },
-    ],
-  },
-  {
     label: "Video",
     items: [
       { name: "Google Meet", icon: "/logos/google_meet_horizontal_wordmark_2020q4_2x_icon_124_40_292e71bcb52a56e2a9005164118f183b.png" },

@@ -5,14 +5,6 @@ export interface SlackIntegrationFixture {
   notification_channel: string;
 }
 
-export interface GoogleCalendarIntegrationFixture {
-  connected: boolean;
-  email: string;
-  connected_at: string;
-  calendar_watch_enabled: boolean;
-  auto_join_untracked: boolean;
-}
-
 export interface ClaudeIntegrationFixture {
   connected: boolean;
   workspace: string;
@@ -72,13 +64,6 @@ export const INTEGRATIONS = {
     connected_at: '2d ago',
     notification_channel: '#openrecruiting-hiring',
   } as SlackIntegrationFixture,
-  google_calendar: {
-    connected: true,
-    email: 'nitin@acme.com',
-    connected_at: '12d ago',
-    calendar_watch_enabled: true,
-    auto_join_untracked: false,
-  } as GoogleCalendarIntegrationFixture,
   claude: {
     connected: false,
     workspace: '',
@@ -112,7 +97,7 @@ export const INTEGRATIONS = {
 
 export const WORKSPACE_PREFERENCES: WorkspacePreferencesFixture = {
   timezone: 'America/Los_Angeles',
-  auto_join_untracked: INTEGRATIONS.google_calendar.auto_join_untracked,
+  auto_join_untracked: false,
   notifications_channel: INTEGRATIONS.slack.notification_channel,
 };
 

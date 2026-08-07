@@ -128,23 +128,6 @@ export function AgentIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 /**
- * Google Calendar mark — rendered from the official Google brand PNG
- * saved under /public/brand/google-calendar.png.
- */
-export function GoogleCalendarIcon({ className, id }: BrandImgProps) {
-  return (
-    // biome-ignore lint/performance/noImgElement: static brand mark; Next/Image optimization is unnecessary overhead
-    <img
-      id={id}
-      src="/brand/google-calendar.png"
-      alt="Google Calendar"
-      className={className}
-      draggable={false}
-    />
-  );
-}
-
-/**
  * Claude (Anthropic) mark — rendered from the official Claude color SVG
  * saved under /public/brand/claude.svg.
  */

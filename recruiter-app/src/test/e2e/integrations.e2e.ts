@@ -1,19 +1,17 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('P6 integrations rail view', () => {
-  test('/view/integrations renders title + both integration cards + workspace prefs', async ({
+  test('/view/integrations renders title + integration cards + workspace prefs', async ({
     page,
   }) => {
     await page.goto('/view/integrations');
     await expect(page.locator('#integrations-view')).toBeVisible();
     await expect(page.locator('#integrations-view-title')).toContainText('Integrations');
 
-    // Slack + GCal cards.
+    // Slack card.
     await expect(page.locator('#integrations-view-slack')).toBeVisible();
     await expect(page.locator('#integrations-view-slack-title')).toContainText('Slack');
     await expect(page.locator('#integrations-view-slack-badge')).toContainText(/connected/i);
-    await expect(page.locator('#integrations-view-gcal')).toBeVisible();
-    await expect(page.locator('#integrations-view-gcal-title')).toContainText('Google Calendar');
 
     // Workspace prefs block.
     await expect(page.locator('#integrations-view-prefs')).toBeVisible();
@@ -36,30 +34,6 @@ test.describe('P6 integrations rail view', () => {
     await expect(page.locator('#integrations-view-slack-settings-disconnect')).toBeVisible();
   });
 
-  test('clicking GCal Settings opens the inline panel with timezone dropdown', async ({ page }) => {
-    await page.goto('/view/integrations');
-    await page.locator('#integrations-view-gcal-settings-toggle').click();
-
-    await expect(page.locator('#integrations-view-gcal-settings-panel')).toBeVisible();
-    const tzSelect = page.locator('#integrations-view-gcal-settings-field-tz-select');
-    await expect(tzSelect).toBeVisible();
-    const options = await tzSelect.locator('option').count();
-    expect(options).toBeGreaterThanOrEqual(20);
-
-    // Watch + auto-join toggles present.
-    await expect(page.locator('#integrations-view-gcal-settings-field-watch-toggle')).toBeVisible();
-    await expect(page.locator('#integrations-view-gcal-settings-field-auto-toggle')).toBeVisible();
-  });
-
-  test('Q&A "is my calendar connected" returns expected response', async ({ page }) => {
-    await page.goto('/view/integrations');
-    const input = page.locator('#app-shell-qna-chat-composer-input');
-    await input.fill('is my calendar connected');
-    await page.locator('#app-shell-qna-chat-composer-send').click();
-
-    await expect(page.locator('#app-shell-qna-chat-scroll')).toContainText(/connected/i);
-    await expect(page.locator('#app-shell-qna-chat-scroll')).toContainText(/nitin@acme/i);
-  });
 
   test('Q&A "disconnect slack" points at the Settings chip', async ({ page }) => {
     await page.goto('/view/integrations');

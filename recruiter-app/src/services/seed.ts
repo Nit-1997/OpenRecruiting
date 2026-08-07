@@ -305,15 +305,6 @@ function buildIntegrations(): Integration[] {
       metadata: { workspace: 'OpenRecruiting HQ', channel: '#hiring' },
     },
     {
-      provider: 'google_calendar',
-      status: 'available',
-      label: 'Google Calendar',
-      blurb: 'Auto-detect interviews + send invites.',
-      connected_at: null,
-      last_synced_at: null,
-      metadata: {},
-    },
-    {
       provider: 'recall',
       status: 'connected',
       label: 'Recall.ai',
