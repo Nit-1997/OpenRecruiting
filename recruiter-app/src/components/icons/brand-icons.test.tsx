@@ -7,7 +7,6 @@ import {
   LeverIcon,
   AgentIcon,
   BrandIcon,
-  SlackIcon,
 } from './brand-icons';
 
 afterEach(cleanup);
@@ -29,7 +28,6 @@ describe('brand icons — render smoke tests', () => {
   // Brand image components render an <img> (logo bitmaps). All take id +
   // className.
   test.each([
-    ['SlackIcon', SlackIcon],
     ['AshbyIcon', AshbyIcon],
     ['GreenhouseIcon', GreenhouseIcon],
     ['LeverIcon', LeverIcon],

@@ -49,7 +49,6 @@ const plans: Plan[] = [
       "Unlimited intake calls",
       "10 interviews per month",
       "AI-generated feedback reports",
-      "Slack integration",
     ],
     cta: "Get Started",
     highlighted: true,

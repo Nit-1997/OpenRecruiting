@@ -20,8 +20,8 @@ describe('integrations service', () => {
   });
 
   test('disconnect flips back to available', async () => {
-    await integrations.disconnect('slack');
-    const status = await integrations.getStatus('slack');
+    await integrations.disconnect('recall');
+    const status = await integrations.getStatus('recall');
     expect(status.status).toBe('available');
   });
 

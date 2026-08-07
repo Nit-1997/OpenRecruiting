@@ -26,6 +26,7 @@ type JsonSchema = {
   $ref?: string;
   default?: unknown;
   enum?: string[];
+  const?: unknown;
   format?: string;
 };
 
@@ -140,11 +141,11 @@ describe('contract: RequestFeedbackRequest', () => {
     expect(isRequired(schema, 'interviewer_email')).toBe(true);
   });
 
-  test('channel is a Literal enum of email|slack|both', () => {
-    // Pydantic emits `Literal[...]` as enum on the property.
+  test('channel is pinned to email', () => {
+    // Pydantic emits a single-value `Literal[...]` as `const`, not `enum`.
     const channel = schema.properties?.channel;
     expect(channel).toBeDefined();
-    expect(channel?.enum ?? []).toEqual(expect.arrayContaining(['email', 'slack', 'both']));
+    expect(channel?.const).toBe('email');
   });
 });
 

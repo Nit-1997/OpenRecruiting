@@ -25,24 +25,6 @@ const EMAIL_KEYS: Array<{ key: PrefKey; label: string; blurb: string }> = [
   },
 ];
 
-const SLACK_KEYS: Array<{ key: PrefKey; label: string; blurb: string }> = [
-  {
-    key: 'slack_feedback_requests',
-    label: 'Feedback requests',
-    blurb: 'Ping in #hiring when you owe a debrief.',
-  },
-  {
-    key: 'slack_interview_reminders',
-    label: 'Interview reminders',
-    blurb: '10 minutes before your interview.',
-  },
-  {
-    key: 'slack_weekly_digest',
-    label: 'Weekly digest',
-    blurb: 'Shared summary in #hiring each Monday.',
-  },
-];
-
 export function NotificationsTab({ id }: { id: string }) {
   const { data: prefs, error } = useNotificationPrefs();
 
@@ -72,7 +54,6 @@ export function NotificationsTab({ id }: { id: string }) {
       </header>
 
       <Channel id={`${id}-email`} title="Email" rows={EMAIL_KEYS} prefs={prefs} />
-      <Channel id={`${id}-slack`} title="Slack" rows={SLACK_KEYS} prefs={prefs} />
     </div>
   );
 }

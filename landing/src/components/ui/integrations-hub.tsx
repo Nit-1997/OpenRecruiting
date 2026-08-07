@@ -15,7 +15,6 @@ const CATEGORIES = [
   {
     label: "Communication",
     items: [
-      { name: "Slack", icon: "/logos/slack.webp" },
       { name: "Gmail", icon: "/logos/gmail-icon-free-png.webp" },
       { name: "Outlook", icon: "/logos/microsoft_outlook_alt_macos_bigsur_icon_189970.webp" },
     ],

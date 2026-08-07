@@ -55,5 +55,5 @@ export interface FeedbackSubmissionInput {
 export interface FeedbackRequestInput {
   interviewer_email: string;
   interviewer_name?: string;
-  channel: 'email' | 'slack' | 'both';
+  channel: 'email';
 }

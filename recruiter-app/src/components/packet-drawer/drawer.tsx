@@ -2080,8 +2080,8 @@ function FeedbackRequestModal({
 }) {
   const [email, setEmail] = useState(defaultEmail);
   const [name, setName] = useState('');
-  // Email is the only channel available right now (Slack intentionally disabled).
-  const [channel] = useState<'email' | 'slack' | 'both'>('email');
+  // Email is the only channel the v2 API accepts.
+  const [channel] = useState<'email'>('email');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -1,10 +1,3 @@
-export interface SlackIntegrationFixture {
-  connected: boolean;
-  team_name: string;
-  connected_at: string;
-  notification_channel: string;
-}
-
 export interface ClaudeIntegrationFixture {
   connected: boolean;
   workspace: string;
@@ -23,7 +16,6 @@ export interface AvailableIntegrationFixture {
 export interface WorkspacePreferencesFixture {
   timezone: string;
   auto_join_untracked: boolean;
-  notifications_channel: string;
 }
 
 export const COMMON_TIMEZONES = [
@@ -49,21 +41,7 @@ export const COMMON_TIMEZONES = [
   'Pacific/Auckland',
 ] as const;
 
-export const NOTIFICATION_CHANNELS = [
-  '#openrecruiting-hiring',
-  '#product-hiring',
-  '#design-hiring',
-  '#engineering-hiring',
-  'Direct message',
-] as const;
-
 export const INTEGRATIONS = {
-  slack: {
-    connected: true,
-    team_name: 'acme.slack',
-    connected_at: '2d ago',
-    notification_channel: '#openrecruiting-hiring',
-  } as SlackIntegrationFixture,
   claude: {
     connected: false,
     workspace: '',
@@ -98,7 +76,6 @@ export const INTEGRATIONS = {
 export const WORKSPACE_PREFERENCES: WorkspacePreferencesFixture = {
   timezone: 'America/Los_Angeles',
   auto_join_untracked: false,
-  notifications_channel: INTEGRATIONS.slack.notification_channel,
 };
 
 export function findAvailableIntegration(id: string): AvailableIntegrationFixture | undefined {

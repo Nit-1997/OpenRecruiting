@@ -14,7 +14,4 @@ export interface NotificationPreferences {
   email_feedback_requests: boolean;
   email_interview_reminders: boolean;
   email_weekly_digest: boolean;
-  slack_feedback_requests: boolean;
-  slack_interview_reminders: boolean;
-  slack_weekly_digest: boolean;
 }

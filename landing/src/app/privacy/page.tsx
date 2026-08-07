@@ -33,7 +33,7 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-6 space-y-1">
               <li><strong>Account Data:</strong> Name, email address, organization name when you register.</li>
               <li><strong>Recruitment Data:</strong> Job requisitions, candidate names, emails, interview plans, and feedback that you create or upload.</li>
-              <li><strong>Communication Data:</strong> Messages you send through our Slack integration or other chat interfaces.</li>
+              <li><strong>Communication Data:</strong> Messages you send through our in-app chat interfaces.</li>
               <li><strong>Payment Data:</strong> Billing information processed by our third-party payment provider (Dodo Payments). We do not store full payment card details.</li>
             </ul>
 
@@ -46,7 +46,6 @@ export default function PrivacyPage() {
 
             <h3 className="font-semibold mt-4 mb-2">1.3 Information from Third-Party Integrations</h3>
             <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Slack:</strong> Workspace identity, user ID, and messages sent to the OpenRecruiting bot (with your workspace admin&apos;s consent).</li>
               <li><strong>Google Authentication:</strong> Email and profile information when you sign in with Google (via Supabase Auth).</li>
               <li><strong>Meeting Recordings:</strong> Audio and video from interviews conducted through integrated meeting platforms (via Recall.ai), used solely for generating interview feedback.</li>
             </ul>
@@ -59,7 +58,6 @@ export default function PrivacyPage() {
               <li>Provide, operate, and maintain the Services;</li>
               <li>Create and manage your account;</li>
               <li>Generate AI-powered interview plans, feedback, and scorecards;</li>
-              <li>Process Slack messages and deliver agent responses;</li>
               <li>Process payments and manage billing;</li>
               <li>Send transactional notifications (e.g., feedback ready, intake processed);</li>
               <li>Improve and personalize the Services;</li>
@@ -74,7 +72,6 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-6 space-y-1">
               <li>Generate structured interview plans from intake call transcripts;</li>
               <li>Produce interview feedback and candidate scorecards;</li>
-              <li>Power the conversational Slack agent for recruiting operations;</li>
               <li>Conduct voice-based intake calls.</li>
             </ul>
             <p className="mt-2">Data sent to AI providers is used solely for generating outputs and is not used to train their models. We use API-based access with data processing agreements in place.</p>
@@ -84,7 +81,6 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">4. Data Storage and Security</h2>
             <ul className="list-disc pl-6 space-y-1">
               <li><strong>Database:</strong> All user data is stored in Supabase (PostgreSQL) with Row Level Security (RLS) enforcing multi-tenant data isolation.</li>
-              <li><strong>Encryption:</strong> Slack OAuth tokens are encrypted at rest using Fernet symmetric encryption.</li>
               <li><strong>Transport:</strong> All data in transit is encrypted via TLS/HTTPS.</li>
               <li><strong>Access Control:</strong> Internal API endpoints use secret-based authentication. Database access is restricted to service roles.</li>
               <li><strong>Meeting Recordings:</strong> Processed by Recall.ai and AWS Lambda. Transcripts are stored temporarily for feedback generation and are not retained beyond processing.</li>
@@ -132,7 +128,7 @@ export default function PrivacyPage() {
               <li><strong>Account Data:</strong> Retained until account deletion.</li>
               <li><strong>Recruitment Data:</strong> Retained until you delete requisitions, candidates, or your account.</li>
               <li><strong>Meeting Transcripts:</strong> Retained for feedback generation; raw recordings are not stored permanently.</li>
-              <li><strong>Chat History:</strong> Slack agent conversation history is retained for context continuity and can be cleared by the user at any time.</li>
+              <li><strong>Chat History:</strong> In-app agent conversation history is retained for context continuity and is deleted with the associated requisition or your account.</li>
               <li><strong>Analytics Data:</strong> Retained per PostHog&apos;s data retention policies.</li>
             </ul>
             <p className="mt-2">Upon account deletion, we will delete or anonymize your personal data within 30 days, except where retention is required by law.</p>

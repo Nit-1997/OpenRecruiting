@@ -345,7 +345,6 @@ describe('useActivity + useNotificationPrefs', () => {
   test('useNotificationPrefs returns the prefs row', async () => {
     const spy = spyOn(services.profile, 'getNotificationPrefs').mockResolvedValue({
       email: true,
-      slack: false,
     } as unknown as Awaited<ReturnType<typeof services.profile.getNotificationPrefs>>);
     function Probe() {
       const s = useNotificationPrefs();

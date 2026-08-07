@@ -296,15 +296,6 @@ function buildCandidatesAndRounds(requisitions: Requisition[]): {
 function buildIntegrations(): Integration[] {
   return [
     {
-      provider: 'slack',
-      status: 'connected',
-      label: 'Slack',
-      blurb: 'Mirror feedback requests + reminders into a channel.',
-      connected_at: NOW,
-      last_synced_at: NOW,
-      metadata: { workspace: 'OpenRecruiting HQ', channel: '#hiring' },
-    },
-    {
       provider: 'recall',
       status: 'connected',
       label: 'Recall.ai',
@@ -800,9 +791,6 @@ export function buildSeed(): MockDb {
       email_feedback_requests: true,
       email_interview_reminders: true,
       email_weekly_digest: true,
-      slack_feedback_requests: true,
-      slack_interview_reminders: false,
-      slack_weekly_digest: false,
     },
     activity: [
       {
