@@ -141,9 +141,6 @@ Every method below that has no real endpoint now throws
 | `disconnect` | **NOT-AVAILABLE-IN-V2** | No v2 endpoint. Throws `notImplementedInV2` (FE-F5). |
 | `getStatus` | **NOT-AVAILABLE-IN-V2** | No v2 endpoint. Throws `notImplementedInV2` (FE-F5). |
 
-> `integrations-gcal.ts` / `integrations-slack.ts` are separate OAuth-handoff
-> helpers (real redirect URLs), not part of this mock service layer.
-
 ### `public-feedback.ts`
 | Method | Source | Notes |
 |---|---|---|
