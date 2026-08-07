@@ -58,6 +58,22 @@ class BrainSyncCron:
             if errors is not None:
                 errors.append(f"event_pk={event.id}: {str(e)[:120]}")
             await self._queue.mark_failed(event.id, str(e))
+            # claim_batch returns the post-increment count, so this attempt was
+            # the row's last: it leaves the queue here and no source-table edit
+            # brings it back. Only reconcile(), or a manual publish_count reset,
+            # will. Distinct from the warnings above precisely because it is
+            # terminal.
+            if event.publish_count >= self._queue.max_attempts:
+                logger.error(
+                    "event_parked_at_attempt_cap",
+                    event_id=event.id,
+                    event_type=event.event_type,
+                    source_id=event.source_id,
+                    org_id=event.org_id,
+                    attempts=event.publish_count,
+                    error=str(e),
+                    remedy="reconcile() re-nudges it, or reset publish_count to 0",
+                )
             return False
         # Stamp the claimed row's own last_touch_at, never an app-clock now():
         # an edit landing between claim and completion would otherwise be older
@@ -163,6 +179,19 @@ class BrainSyncCron:
         For each high-finality state in source tables, find rows that are
         eligible for ingestion but absent from cortex_ingestion_record, and
         force a cortex_events upsert so the next poll re-drains them.
+
+        This is also the only automatic way out of the attempt cap. A row parked
+        at max_attempts is invisible to claim_batch forever — source-table
+        triggers bump last_touch_at but never publish_count — so a fix deployed
+        for whatever poisoned the row would otherwise change nothing. The upsert
+        below therefore resets the retry budget for every row it re-nudges, which
+        is safe because it only ever touches rows that still have no
+        IngestionRecord.
+
+        That recovery reaches only the event types queried here. Anything else
+        parked (plan_created, say) still needs a manual
+        `UPDATE cortex_events SET publish_count = 0` — which is what the
+        event_parked_at_attempt_cap log exists to prompt.
         """
         cutoff_iso = (datetime.now(timezone.utc) - timedelta(hours=49)).isoformat()
         sql_pairs = [
@@ -217,6 +246,8 @@ class BrainSyncCron:
                         "source_table": "reconciliation",
                         "payload_keys": {},
                         "last_touch_at": datetime.now(timezone.utc).isoformat(),
+                        "publish_count": 0,
+                        "last_error": None,
                     }, on_conflict="event_type,source_id")
                     .execute()
                 )

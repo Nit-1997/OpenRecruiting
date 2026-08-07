@@ -8,10 +8,11 @@
 #     openrecruiting-cortex-backend-test python -m pytest -q -m "not live_infra" \
 #     tests/unit tests/integration
 #
-# tests/unit and tests/integration are both hermetic: integration mocks SQS,
-# Supabase and Graphiti and never enters the app lifespan, so no service is
-# contacted. Mark anything that does need a real Neo4j/Supabase `live_infra`
-# and it drops out of that run while still living in tests/integration.
+# tests/unit and tests/integration are both hermetic: integration mocks the
+# event queue, Supabase and Graphiti and never enters the app lifespan, so no
+# service is contacted. Mark anything that does need a real Neo4j/Supabase
+# `live_infra` and it drops out of that run while still living in
+# tests/integration.
 #
 # Two groups are left out, neither for infrastructure reasons:
 #   tests/e2e           - passes alone, fails in a full-tree run. Its fixture

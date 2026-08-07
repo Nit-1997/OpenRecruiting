@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import structlog
 
 from src.sync.brain_sync_cron import BrainSyncCron
 from src.sync.event_queue import ClaimedEvent
@@ -43,6 +44,7 @@ def queue():
     q.claim_batch = AsyncMock(return_value=[])
     q.mark_done = AsyncMock()
     q.mark_failed = AsyncMock()
+    q.max_attempts = 5
     return q
 
 
@@ -104,6 +106,38 @@ async def test_one_poisoned_row_does_not_stop_the_batch(supabase, queue, process
     assert processed == 1
     queue.mark_failed.assert_awaited_once_with("ev-bad", "handler exploded")
     queue.mark_done.assert_awaited_once_with("ev-good", good.last_touch_at)
+
+
+def _parked_logs(logs: list[dict]) -> list[dict]:
+    return [entry for entry in logs if entry["event"] == "event_parked_at_attempt_cap"]
+
+
+@pytest.mark.asyncio
+async def test_the_last_attempt_is_logged_distinctly(supabase, queue, processor):
+    """claim_batch returns the post-increment count, so publish_count == the cap
+    means this failure was terminal. It must not read like the retryable
+    warnings that preceded it — nothing else announces a row leaving the queue."""
+    queue.claim_batch.return_value = [_event(publish_count=5)]
+    processor.process.side_effect = RuntimeError("handler exploded")
+
+    with structlog.testing.capture_logs() as logs:
+        await _cron(supabase, queue, processor).process_settled_events()
+
+    parked = _parked_logs(logs)
+    assert len(parked) == 1
+    assert parked[0]["event_id"] == "ev-1"
+    assert parked[0]["attempts"] == 5
+
+
+@pytest.mark.asyncio
+async def test_a_retryable_failure_is_not_logged_as_parked(supabase, queue, processor):
+    queue.claim_batch.return_value = [_event(publish_count=4)]
+    processor.process.side_effect = RuntimeError("handler exploded")
+
+    with structlog.testing.capture_logs() as logs:
+        await _cron(supabase, queue, processor).process_settled_events()
+
+    assert _parked_logs(logs) == []
 
 
 @pytest.mark.asyncio
@@ -200,3 +234,22 @@ async def test_reconcile_nudges_rows_missing_an_ingestion_record(supabase, queue
     assert supabase.rpc.call_args_list[0].args[0] == "execute_readonly_query"
     supabase.table.assert_called_with("cortex_events")
     queue.claim_batch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_restores_the_retry_budget(supabase, queue, processor):
+    """The only automatic way back for a row parked at the attempt cap: source
+    triggers bump last_touch_at but never publish_count, and mark_done only runs
+    on a success the parked row can no longer reach."""
+    supabase.execute.side_effect = [
+        MagicMock(data=[{"source_id": "cr-1", "org_id": "org-1",
+                        "last_touch_at": "2026-05-01T00:00:00+00:00"}]),
+        MagicMock(data=[{"id": "ev-parked"}]),
+        MagicMock(data=[]),
+    ]
+
+    await _cron(supabase, queue, processor).reconcile()
+
+    payload = supabase.upsert.call_args.args[0]
+    assert payload["publish_count"] == 0
+    assert payload["last_error"] is None

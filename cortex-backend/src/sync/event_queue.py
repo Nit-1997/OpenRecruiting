@@ -31,6 +31,12 @@ class EventQueue:
         self._lease_seconds = lease_seconds
         self._max_attempts = max_attempts
 
+    @property
+    def max_attempts(self) -> int:
+        """Callers compare a claimed row's (post-increment) publish_count against
+        this to tell a retry apart from the last attempt the row will ever get."""
+        return self._max_attempts
+
     async def claim_batch(
         self,
         limit: int,

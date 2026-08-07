@@ -266,4 +266,13 @@ async def test_a_failing_event_is_retried_then_parked(
     row = await _event_row(supabase, seeded_cortex_event["id"])
     assert row["completed_at"] is None
     assert row["last_error"] is not None
-    assert row["publish_count"] <= 5, "attempt cap did not park the row"
+    # Exactly 5, not `<= 5`: a lease that never expires, or a claim predicate of
+    # publish_count < 1, would leave the row at 1 and satisfy any upper bound.
+    assert row["publish_count"] == 5, "the row was not retried up to the cap"
+
+    # And the cap has to actually park it. A zero lease removes every reason for
+    # the row to be unclaimable except publish_count.
+    still_claimable = await EventQueue(
+        supabase, lease_seconds=0, max_attempts=5
+    ).claim_batch(limit=10, cutoff=None, org_id=seeded_cortex_event["org_id"])
+    assert still_claimable == [], "a row at the attempt cap is still being claimed"
