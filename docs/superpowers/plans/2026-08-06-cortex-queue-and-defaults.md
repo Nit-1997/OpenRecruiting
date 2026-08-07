@@ -775,12 +775,36 @@ Expected: PASS, ~440 tests. Then the integration file:
 `docker compose exec -T cortex-backend python -m pytest tests/integration -v -m integration`
 Expected: PASS, 2 tests.
 
-- [ ] **Step 7: Verify boto3 is gone from cortex-backend**
+- [ ] **Step 7: Sweep the references Task 3 had to leave behind**
 
-Run: `grep -rn "boto3\|sqs" cortex-backend/src | grep -v '\.pyc'`
+Task 3's byte-identical constraint meant it could not touch prose inside the
+file it ported, and its verification grep only covered `src`. Four things
+survive, all confirmed present:
+
+1. `cortex-backend/scripts/_e2e_drain.py` and `_e2e_drain_parallel.py` still
+   `import src.sync.sqs_consumer` and are broken. They are `boto3.client('sqs')`
+   poll loops whose reason to exist disappears with the queue — **delete both.**
+   `clear_and_reingest.py` imports only `src.main` and stays.
+2. `event_processor.py`'s class docstring still opens "Long-running consumer for
+   the cortex-ingestion-events.fifo queue. For each message: decode → …". Every
+   clause describes deleted code. Rewrite it for the claim/process model.
+3. `IngestionFailure`'s docstring still says "Lets SQS retry." It is now
+   `mark_failed` plus lease expiry that retries — say that.
+4. `cortex-backend/docs/cortex-v2-design.md:1074` still lists
+   `sqs_consumer.py  # Async poll loop: SQS → route to handlers` in its layout
+   tree. Update the filename and the description.
+
+Rename the test `test_handle_failure_raises_for_sqs_retry` to match (3).
+
+- [ ] **Step 8: Verify boto3 and SQS are gone from cortex-backend**
+
+Run: `grep -rniE "boto3|sqs" cortex-backend --include='*.py' --include='*.md' | grep -v '\.pyc'`
+
+Note this greps **all of `cortex-backend`**, not just `src` — scoping it to `src`
+is what let the broken scripts and stale docs survive in the first place.
 Expected: no output.
 
-- [ ] **Step 8: Rebuild and prove the graph populates**
+- [ ] **Step 9: Rebuild and prove the graph populates**
 
 ```bash
 docker compose up -d --build cortex-backend
@@ -800,7 +824,7 @@ Expected: greater than 0. If it is 0, check `cortex_events` actually has rows
 past the 48h window — an empty ledger is not the same failure as a broken
 consumer, and the two must not be confused.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add cortex-backend/ && git commit -m "feat(cortex): ingest from Postgres instead of SQS
