@@ -307,24 +307,6 @@ def test_get_organization_404(staff_client, respx_mock):
     assert resp.status_code == 404, resp.text
 
 
-def test_update_org_calendar_settings(staff_client, respx_mock):
-    respx_mock.patch(rest_url("organizations")).mock(
-        return_value=httpx.Response(200, json=[make_org()])
-    )
-    resp = staff_client.patch(
-        f"{ADMIN}/organizations/{ORG_ID}/calendar-intelligence",
-        json={"auto_join_enabled": True},
-    )
-    assert resp.status_code == 200, resp.text
-
-
-def test_update_org_calendar_settings_no_fields(staff_client, respx_mock):
-    resp = staff_client.patch(
-        f"{ADMIN}/organizations/{ORG_ID}/calendar-intelligence", json={}
-    )
-    assert resp.status_code == 400, resp.text
-
-
 def test_list_org_slack_connections(staff_client, respx_mock):
     respx_mock.get(rest_url("slack_connections")).mock(
         return_value=httpx.Response(200, json=[])
@@ -373,7 +355,7 @@ def test_update_user_slack_features(staff_client, respx_mock):
     )
     resp = staff_client.patch(
         f"{ADMIN}/organizations/{ORG_ID}/users/{RECRUITER_USER_ID}/slack-features",
-        json={"calendar_notifications": False},
+        json={"assistant_read": False},
     )
     assert resp.status_code == 200, resp.text
 
@@ -384,7 +366,7 @@ def test_update_user_slack_features_404(staff_client, respx_mock):
     )
     resp = staff_client.patch(
         f"{ADMIN}/organizations/{ORG_ID}/users/{RECRUITER_USER_ID}/slack-features",
-        json={"calendar_notifications": False},
+        json={"assistant_read": False},
     )
     assert resp.status_code == 404, resp.text
 

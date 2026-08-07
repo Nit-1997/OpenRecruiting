@@ -1,7 +1,7 @@
 """Untracked-interview service (v2).
 
-Listing + management of untracked-but-detected interviews captured by
-Calendar Intelligence. The read path mirrors the v1 query shape from
+Listing + management of untracked-but-detected interviews. The read
+path mirrors the v1 query shape from
 `backend/v1/app/services/untracked_import_service.py`; the mutation
 path implements the 3-button product surface in the FE roles rail:
 
@@ -88,7 +88,7 @@ async def list_untracked(
     cand_by_id = {str(c["id"]): c for c in candidates}
     cand_ids = list(cand_by_id.keys())
 
-    # The captured candidate_rounds — one per detected calendar event.
+    # The captured candidate_rounds — one per detected event.
     rounds_result = await (
         supabase.table("candidate_rounds")
         .select(

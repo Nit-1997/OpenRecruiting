@@ -14,7 +14,7 @@ from app.services.supabase import get_supabase_admin_client
 from app.api.v2.core.rpc import call_rpc
 
 
-from typing import Optional, List
+from typing import Optional
 
 logger = get_logger(__name__)
 
@@ -24,14 +24,7 @@ class DeleteOrganizationResponse(BaseModel):
     organization_id: UUID
 
 
-class OrgCalendarIntelligenceSettings(BaseModel):
-    auto_join_enabled: Optional[bool] = None
-    auto_join_untracked: Optional[bool] = None
-    blocked_domains: Optional[List[str]] = None
-
-
 class OrgSlackFeaturesSettings(BaseModel):
-    calendar_notifications: Optional[bool] = None
     assistant_read: Optional[bool] = None
     assistant_write: Optional[bool] = None
 
@@ -222,32 +215,6 @@ async def restore_organization(
     )
 
 
-@router.patch("/{org_id}/calendar-intelligence")
-async def update_org_calendar_settings(
-    org_id: UUID,
-    body: OrgCalendarIntelligenceSettings,
-    current_user: CurrentUser = Depends(require_staff),
-):
-    update_data = {}
-    if body.auto_join_enabled is not None:
-        update_data["auto_join_enabled"] = body.auto_join_enabled
-    if body.auto_join_untracked is not None:
-        update_data["auto_join_untracked"] = body.auto_join_untracked
-    if body.blocked_domains is not None:
-        update_data["blocked_domains"] = body.blocked_domains
-    if not update_data:
-        raise HTTPException(status_code=400, detail="No fields to update")
-
-    supabase = get_supabase_admin_client()
-    result = await supabase.table("organizations") \
-        .update(update_data) \
-        .eq("id", str(org_id)) \
-        .execute_async()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Organization not found")
-    return result.data[0] if isinstance(result.data, list) else result.data
-
-
 @router.patch("/{org_id}/slack-features")
 async def update_org_slack_features(
     org_id: UUID,
@@ -263,12 +230,9 @@ async def update_org_slack_features(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     features = current.data[0].get("slack_features") or {
-        "calendar_notifications": True,
         "assistant_read": False,
         "assistant_write": False,
     }
-    if body.calendar_notifications is not None:
-        features["calendar_notifications"] = body.calendar_notifications
     if body.assistant_read is not None:
         features["assistant_read"] = body.assistant_read
     if body.assistant_write is not None:
@@ -314,8 +278,6 @@ async def update_user_slack_features(
         raise HTTPException(status_code=404, detail="No active Slack connection for this user")
 
     current_features = conn.data[0].get("user_slack_features") or {}
-    if body.calendar_notifications is not None:
-        current_features["calendar_notifications"] = body.calendar_notifications
     if body.assistant_read is not None:
         current_features["assistant_read"] = body.assistant_read
     if body.assistant_write is not None:

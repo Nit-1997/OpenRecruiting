@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 
 _warm_message_cooldown: dict[str, float] = {}
 WARM_MESSAGE_INTERVAL = 3600
-_DEFAULT_SLACK_FEATURES = {"calendar_notifications": True, "assistant_read": False, "assistant_write": False}
+_DEFAULT_SLACK_FEATURES = {"assistant_read": False, "assistant_write": False}
 router = APIRouter(prefix="/webhooks")
 
 
@@ -127,12 +127,10 @@ async def handle_message_event(event: dict, team_id: str):
         _warm_message_cooldown[slack_user_id] = now
         await service.send_message(
             bot_token, channel,
-            "OpenRecruiting is helping you by detecting interviews on your calendar. Assistant features are coming soon!",
+            "Assistant features are coming soon!",
             [{"type": "section", "text": {"type": "mrkdwn", "text": (
-                ":wave: *Hey!* I'm currently helping you by detecting interviews on your calendar "
-                "and sending you notifications.\n\n"
                 ":rocket: *Assistant features* (asking questions, scheduling, managing candidates) "
-                "are coming soon! For now, check your calendar notifications from me.\n\n"
+                "are coming soon!\n\n"
                 ":link: *Dashboard:* <http://localhost:3005/dashboard|Open OpenRecruiting>"
             )}}],
             team_id=team_id,
@@ -284,15 +282,6 @@ async def slack_interactions(request: Request, background_tasks: BackgroundTasks
 
     if action_type == "block_actions":
         background_tasks.add_task(handle_block_action, payload)
-    elif action_type == "view_submission":
-        callback_id = payload.get("view", {}).get("callback_id", "")
-        if callback_id.startswith("cal_intel_"):
-            try:
-                from app.services.calendar_intelligence_handler import handle_cal_intel_modal_submit
-            except ImportError:
-                logger.info("cal_intel modal submit received but Calendar Intelligence not yet ported to v2; ignoring")
-            else:
-                background_tasks.add_task(handle_cal_intel_modal_submit, payload)
 
     return {"ok": True}
 
@@ -320,17 +309,8 @@ async def _handle_block_action_inner(payload: dict):
     action = actions[0]
     action_id = action.get("action_id", "")
 
-    URL_BUTTON_IDS = {"view_in_app", "view_plan_app", "join_meeting", "open_intake_call", "view_calendar"}
+    URL_BUTTON_IDS = {"view_in_app", "view_plan_app", "join_meeting", "open_intake_call"}
     if action_id in URL_BUTTON_IDS or action_id.startswith(("view_req_", "view_candidate_req_", "view_pipeline_")):
-        return
-
-    if action_id.startswith("cal_intel_"):
-        try:
-            from app.services.calendar_intelligence_handler import handle_cal_intel_action
-        except ImportError:
-            logger.info("cal_intel action received but Calendar Intelligence not yet ported to v2; ignoring")
-            return
-        await handle_cal_intel_action(action_id, payload)
         return
 
     value_str = action.get("value", "{}")

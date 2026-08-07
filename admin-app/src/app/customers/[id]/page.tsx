@@ -17,7 +17,6 @@ const CACHE_DURATION = 3 * 60 * 1000; // 3 minutes
 const CACHE_VERSION = 4;
 
 interface SlackFeatures {
-  calendar_notifications: boolean;
   assistant_read: boolean;
   assistant_write: boolean;
 }
@@ -28,8 +27,6 @@ interface Organization {
   domain: string | null;
   description: string | null;
   slack_features: SlackFeatures | null;
-  auto_join_enabled: boolean | null;
-  blocked_domains: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -162,15 +159,10 @@ export default function OrganizationDetailPage() {
   const [deleteReqConfirmId, setDeleteReqConfirmId] = useState<string | null>(null);
 
   const [slackFeatures, setSlackFeatures] = useState<SlackFeatures>({
-    calendar_notifications: true,
     assistant_read: false,
     assistant_write: false,
   });
   const [savingSlackFeatures, setSavingSlackFeatures] = useState(false);
-
-  const [autoJoinEnabled, setAutoJoinEnabled] = useState(true);
-  const [blockedDomains, setBlockedDomains] = useState<string[]>([]);
-  const [savingCalIntel, setSavingCalIntel] = useState(false);
 
   const [userFeatures, setUserFeatures] = useState<Record<string, SlackFeatures | null>>({});
   const [savingUserFeatureId, setSavingUserFeatureId] = useState<string | null>(null);
@@ -194,12 +186,6 @@ export default function OrganizationDetailPage() {
         setDeletedRequisitions(data.deletedRequisitions);
         if (data.slackFeatures) {
           setSlackFeatures(data.slackFeatures);
-        }
-        if (data.organization.auto_join_enabled !== null && data.organization.auto_join_enabled !== undefined) {
-          setAutoJoinEnabled(data.organization.auto_join_enabled);
-        }
-        if (data.organization.blocked_domains) {
-          setBlockedDomains(data.organization.blocked_domains);
         }
         setIsLoading(false);
         return !isExpired;
@@ -257,17 +243,10 @@ export default function OrganizationDetailPage() {
       const orgData = await orgResponse.json();
       setOrganization(orgData);
       const features = orgData.slack_features || {
-        calendar_notifications: true,
         assistant_read: false,
         assistant_write: false,
       };
       setSlackFeatures(features);
-      if (orgData.auto_join_enabled !== null && orgData.auto_join_enabled !== undefined) {
-        setAutoJoinEnabled(orgData.auto_join_enabled);
-      }
-      if (orgData.blocked_domains) {
-        setBlockedDomains(orgData.blocked_domains);
-      }
 
       let usersData: Profile[] = [];
       let deletedUsersData: Profile[] = [];
@@ -723,41 +702,6 @@ export default function OrganizationDetailPage() {
     }
   };
 
-  const handleCalIntelToggle = async (field: string, value: boolean) => {
-    setSavingCalIntel(true);
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
-
-      const response = await fetch(`${API_V2_URL}/api/v2/admin/organizations/${orgId}/calendar-intelligence`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ [field]: value }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || "Failed to update calendar intelligence settings");
-      }
-
-      const updated = await response.json();
-      if (updated.auto_join_enabled !== undefined) {
-        setAutoJoinEnabled(updated.auto_join_enabled);
-      }
-      if (updated.blocked_domains) {
-        setBlockedDomains(updated.blocked_domains);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update");
-    } finally {
-      setSavingCalIntel(false);
-    }
-  };
-
   const handleUserFeatureToggle = async (userId: string, feature: string, value: boolean) => {
     setSavingUserFeatureId(userId);
     try {
@@ -930,19 +874,6 @@ export default function OrganizationDetailPage() {
               </h3>
               <p className="text-xs text-muted-foreground mb-3">Org defaults — can be overridden per user in the Users tab</p>
               <div className="space-y-3">
-                <label id="toggle-calendar-notifications" className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <p className="text-sm font-medium">Calendar Notifications</p>
-                    <p className="text-xs text-muted-foreground">Interview detection alerts</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={slackFeatures.calendar_notifications}
-                    onChange={(e) => handleSlackFeatureToggle("calendar_notifications", e.target.checked)}
-                    disabled={savingSlackFeatures}
-                    className="rounded border-border h-4 w-4"
-                  />
-                </label>
                 <label id="toggle-assistant-read" className="flex items-center justify-between cursor-pointer">
                   <div>
                     <p className="text-sm font-medium">Assistant (Read)</p>
@@ -966,28 +897,6 @@ export default function OrganizationDetailPage() {
                     checked={slackFeatures.assistant_write}
                     onChange={(e) => handleSlackFeatureToggle("assistant_write", e.target.checked)}
                     disabled={savingSlackFeatures}
-                    className="rounded border-border h-4 w-4"
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div id="org-calendar-intelligence" className="mt-6 pt-6 border-t border-border">
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                Calendar Intelligence
-                {savingCalIntel && <Loader2 className="w-3 h-3 animate-spin" />}
-              </h3>
-              <div className="space-y-3">
-                <label id="toggle-auto-join" className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <p className="text-sm font-medium">Auto-Join Meetings</p>
-                    <p className="text-xs text-muted-foreground">Automatically join detected interviews</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={autoJoinEnabled}
-                    onChange={(e) => handleCalIntelToggle("auto_join_enabled", e.target.checked)}
-                    disabled={savingCalIntel}
                     className="rounded border-border h-4 w-4"
                   />
                 </label>

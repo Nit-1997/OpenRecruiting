@@ -1,5 +1,5 @@
 """Happy-path + error-mapping tests for the slack-agent internal endpoints
-(create requisition, intake-call, add candidate, calendar slots, team invite).
+(create requisition, add candidate, team invite).
 The secret guard is overridden; the underlying services are mocked.
 """
 
@@ -33,28 +33,6 @@ def test_create_requisition(client):
     body = resp.json()
     assert body["id"] == "req1"
     assert body["title"] == "Engineer"
-
-
-def test_intake_call_ok(client):
-    svc = MagicMock()
-    svc.start_intake_call = AsyncMock(return_value={"intake_call_url": "https://call", "calendar_event_link": None})
-    with patch("app.api.v2.routers.internal_slack_agent.get_intake_call_service", return_value=svc):
-        resp = client.post("/api/v2/internal/intake-call", json={
-            "profile_id": "p1", "org_id": "o1", "requisition_id": "r1",
-        })
-    assert resp.status_code == 200
-    assert resp.json()["intake_call_url"] == "https://call"
-
-
-def test_intake_call_value_error_400(client):
-    svc = MagicMock()
-    svc.start_intake_call = AsyncMock(side_effect=ValueError("no calendar connected"))
-    with patch("app.api.v2.routers.internal_slack_agent.get_intake_call_service", return_value=svc):
-        resp = client.post("/api/v2/internal/intake-call", json={
-            "profile_id": "p1", "org_id": "o1", "requisition_id": "r1",
-        })
-    assert resp.status_code == 400
-    assert "no calendar" in resp.json()["detail"]
 
 
 def test_add_candidate_ok(client):
@@ -92,17 +70,6 @@ def test_add_candidate_other_value_error_400(client):
             "org_id": "o1", "requisition_id": "r1", "name": "Alice", "email": "a@x.com",
         })
     assert resp.status_code == 400
-
-
-def test_calendar_slots(client):
-    svc = MagicMock()
-    svc.find_available_slots = AsyncMock(return_value={"slots": [{"start": "t1"}]})
-    with patch("app.api.v2.routers.internal_slack_agent.get_google_calendar_service", return_value=svc):
-        resp = client.post("/api/v2/internal/calendar/slots", json={
-            "profile_id": "p1", "start_date": "2025-01-01", "end_date": "2025-01-02",
-        })
-    assert resp.status_code == 200
-    assert resp.json()["slots"][0]["start"] == "t1"
 
 
 def test_team_invite_ok(client):

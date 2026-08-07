@@ -90,7 +90,3 @@ class EventType:
     PARTICIPANT_LEAVE = "participant_events.leave"
     CHAT_MESSAGE = "participant_events.chat_message"
     TRANSCRIPT_DATA = "transcript.data"
-
-    # Calendar intelligence — out of scope for v2 today, calendar webhooks
-    # continue to hit v1.
-    CALENDAR_PREFIX = "calendar."

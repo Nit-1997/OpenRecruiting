@@ -7,7 +7,6 @@ Coverage:
   - participant_events.join populates tracked_participants
   - participant_events.leave triggers feedback collection via heuristic
   - chat_message "Scout on" / "yes" triggers feedback collection
-  - calendar events are ignored (v1-owned)
 
 These exercise the wire contract through respx-mocked Supabase. They do
 NOT exercise the Recall API itself (monkey-patched).
@@ -92,22 +91,15 @@ def test_webhook_rejects_when_signature_present_but_invalid(
 
 
 def test_webhook_bypass_in_test_env(unauthed_client, respx_mock, monkeypatch):
-    """ENV=test + no signature header → handler runs (calendar event queued)."""
-    import app.workers.calendar_intelligence_worker as worker
-
-    async def fake_enqueue(event_type, data):
-        return {"calendar_id": "unknown", "hint_dt": None}
-
-    monkeypatch.setattr(worker, "enqueue_calendar_sync_hint", fake_enqueue)
+    """ENV=test + no signature header → handler runs (event acknowledged)."""
     resp = unauthed_client.post(
         f"{V2_ROOT}/webhooks/recall/bot-status",
-        json={"event": "calendar.event_updated", "data": {}},
+        json={"event": "something.else", "data": {}},
     )
     assert resp.status_code == 200
     body = resp.json()
-    # Calendar events are now routed to the ported worker.
-    assert body["status"] == "queued"
-    assert body["event"] == "calendar.event_updated"
+    assert body["status"] == "ignored"
+    assert body["event"] == "something.else"
 
 
 def test_unsigned_webhook_rejected_when_prod_misconfigured_as_test(
@@ -377,28 +369,3 @@ def test_realtime_participant_leave_drops_candidate_via_heuristic(
     )
     assert resp.status_code == 200, resp.text
 
-
-# ---------------------------------------------------------------------------
-# Calendar event — ignored
-# ---------------------------------------------------------------------------
-
-
-def test_main_webhook_routes_calendar_event_to_worker(
-    unauthed_client, respx_mock, monkeypatch
-):
-    import app.workers.calendar_intelligence_worker as worker
-
-    async def fake_enqueue(event_type, data):
-        return {"calendar_id": "cal_1", "hint_dt": None}
-
-    monkeypatch.setattr(worker, "enqueue_calendar_sync_hint", fake_enqueue)
-    resp = unauthed_client.post(
-        f"{V2_ROOT}/webhooks/recall/bot-status",
-        json={"event": "calendar.event_updated", "data": {}},
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["status"] == "queued"
-    assert body["event"] == "calendar.event_updated"
-    assert body["calendar_id"] == "cal_1"
-    assert body.get("reason") != "calendar_owned_by_v1"

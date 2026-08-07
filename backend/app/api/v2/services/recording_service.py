@@ -52,7 +52,7 @@ def _parse_iso_utc(value: Any) -> datetime | None:
 async def _recall_bot_following_origin(supabase, cr_id: UUID, columns: str) -> dict | None:
     """Latest recall_bots row for a round, falling back to its origin round.
 
-    An untracked-copy round (a calendar interview merged into a real candidate
+    An untracked-copy round (a detected interview merged into a real candidate
     round) has NO recall_bots row of its own: `recall_bots.recall_bot_id` is
     globally UNIQUE, so the source's bot row can't be duplicated onto the copy.
     The recording therefore stays on the origin round; we follow
@@ -290,8 +290,7 @@ async def _lazy_ingest_transcript_from_recall(
     `transcripts.segments` doesn't always fire (e.g., webhooks lost during
     backend deploys, untracked-import path that bypasses the webhook). When
     the bot itself has `transcript_ready=true` and a pre-signed `transcript_url`,
-    that data is the source of truth — we just haven't cached it yet. v1
-    does the same thing in calendar_intelligence.py:219.
+    that data is the source of truth — we just haven't cached it yet.
     """
     # Reuse the module-level pooled httpx client. Creating a fresh client
     # per call costs connection pool warm-up and ignores the keep-alive

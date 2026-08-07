@@ -17,7 +17,6 @@ os.environ.update({
     "AWS_SECRET_ACCESS_KEY": "test-aws-secret",
     "LAMBDA_CALLBACK_SECRET": "test-lambda-secret",
     "ENV": "test",
-    "CALENDAR_INTELLIGENCE_ENABLED": "true",
     "KNIT_API_KEY": "test-knit-key",
     "ATS_INTEGRATIONS_ENABLED": "true",
 })

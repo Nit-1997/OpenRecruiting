@@ -3,7 +3,7 @@
 ENV=test + no webhook-signature header → _verify_or_test_bypass returns True,
 so the handler body runs. Covers the realtime event routing (join/leave/chat/
 transcript/unhandled/missing-bot), the main webhook bot_status_change ignored
-branch, calendar enqueue success + failure, and unhandled main events.
+branch, and unhandled main events.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -48,15 +48,6 @@ def test_main_unhandled_event_ignored(unauthed_client):
     resp = unauthed_client.post(f"{V2}/webhooks/recall/bot-status", json={"event": "something.else", "data": {}})
     assert resp.status_code == 200
     assert resp.json()["status"] == "ignored"
-
-
-def test_main_calendar_enqueue_failure_503(unauthed_client):
-    import app.workers.calendar_intelligence_worker as worker
-    with patch.object(worker, "enqueue_calendar_sync_hint", AsyncMock(side_effect=RuntimeError("sqs down"))):
-        resp = unauthed_client.post(f"{V2}/webhooks/recall/bot-status", json={
-            "event": "calendar.event_created", "data": {},
-        })
-    assert resp.status_code == 503
 
 
 # --------------- granular bot.* events (Recall's real format) ---------------
@@ -127,20 +118,6 @@ def test_granular_bot_event_bot_id_fallback_to_flat(unauthed_client):
         })
     assert resp.status_code == 200
     assert mock.await_args.args[1]["bot_id"] == "flat-1"
-
-
-def test_calendar_event_enqueued_on_account_webhook(unauthed_client):
-    # The account webhook (/bot-status) also carries calendar.* events; a
-    # successful enqueue acks {status: queued}. (The 503 failure path is covered
-    # by test_main_calendar_enqueue_failure_503 above.)
-    import app.workers.calendar_intelligence_worker as worker
-    with patch.object(worker, "enqueue_calendar_sync_hint",
-                      AsyncMock(return_value={"calendar_id": "c1", "hint_dt": None})):
-        resp = unauthed_client.post(f"{V2}/webhooks/recall/bot-status", json={
-            "event": "calendar.event_created", "data": {},
-        })
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "queued"
 
 
 # ----------------------- realtime webhook -----------------------

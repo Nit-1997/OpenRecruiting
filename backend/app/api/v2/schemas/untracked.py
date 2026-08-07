@@ -1,8 +1,7 @@
 """Untracked-interview response schemas (v2, read-only).
 
-The role-detail v2 spec doesn't cover untracked interviews — Calendar
-Intelligence is a separate concern — but the v2 frontend must not call
-v1 endpoints (two API base URLs, two CORS setups, two auth flows). This
+The role-detail v2 spec doesn't cover untracked interviews — they are a
+separate concern — but the v2 frontend must not call v1 endpoints (two API base URLs, two CORS setups, two auth flows). This
 schema lives under v2 so the FE keeps a single `/api/v2/*` base.
 
 Shape mirrors the v2 frontend `UntrackedInterview` domain type

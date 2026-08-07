@@ -12,9 +12,8 @@ Three paths in priority order:
 
 Ported from `backend/v1/app/api/v1/webhooks/recall.py:1237-1317`.
 
-The `_materialize_missing_detection_round` repair path is calendar-
-intelligence-specific and STAYS in v1. v2 callers are guaranteed to have
-a candidate_round_id since they came through v2's schedule RPC.
+v2 callers are guaranteed to have a candidate_round_id since they came
+through v2's schedule RPC.
 """
 
 from __future__ import annotations

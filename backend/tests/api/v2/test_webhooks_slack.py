@@ -206,7 +206,7 @@ def test_slack_interactions_bad_json_payload_ok(unauthed_client, signing):
     assert resp.json() == {"ok": True}
 
 
-def test_slack_interactions_view_submission_non_cal_intel_no_crash(unauthed_client, signing):
+def test_slack_interactions_view_submission_no_crash(unauthed_client, signing):
     payload = json.dumps({"type": "view_submission", "view": {"callback_id": "other_modal"}})
     body = f"payload={payload}".encode()
     resp = unauthed_client.post(
@@ -244,7 +244,6 @@ async def test_effective_features_org_lookup(monkeypatch, respx_mock):
     )
     out = await ws._get_effective_slack_features("org-1", {})
     assert out["assistant_read"] is True
-    assert out["calendar_notifications"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -460,20 +459,6 @@ async def test_block_action_inner_view_req_prefix_noop(monkeypatch):
     svc = _slack_svc(monkeypatch)
     await ws._handle_block_action_inner({"actions": [{"action_id": "view_req_123"}]})
     svc.get_bot_token_for_team.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_block_action_inner_cal_intel_routes_to_handler(monkeypatch):
-    """cal_intel_ action routes to the Calendar Intelligence handler and returns
-    without touching the generic agent flow."""
-    svc = _slack_svc(monkeypatch)
-    handler = AsyncMock()
-    monkeypatch.setattr(
-        "app.services.calendar_intelligence_handler.handle_cal_intel_action", handler
-    )
-    await ws._handle_block_action_inner({"actions": [{"action_id": "cal_intel_join"}]})
-    handler.assert_awaited_once()
-    svc.send_message.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -741,17 +726,5 @@ async def test_slack_interactions_handler_bad_json_payload_direct(monkeypatch):
     monkeypatch.setattr(get_settings(), "SLACK_SIGNING_SECRET", SIGNING_SECRET, raising=False)
     body = b"payload=not-json"
     req = _FakeRequest(body, _sign(body), form={"payload": "not-json"})
-    out = await ws.slack_interactions(req, _FakeBg())
-    assert out == {"ok": True}
-
-
-@pytest.mark.asyncio
-async def test_slack_interactions_handler_view_submission_cal_intel_import_guarded(monkeypatch):
-    """cal_intel_ view_submission: Calendar Intelligence handler may be importable;
-    either way the route must respond ok and not crash."""
-    monkeypatch.setattr(get_settings(), "SLACK_SIGNING_SECRET", SIGNING_SECRET, raising=False)
-    payload = json.dumps({"type": "view_submission", "view": {"callback_id": "cal_intel_xyz"}})
-    body = f"payload={payload}".encode()
-    req = _FakeRequest(body, _sign(body), form={"payload": payload})
     out = await ws.slack_interactions(req, _FakeBg())
     assert out == {"ok": True}

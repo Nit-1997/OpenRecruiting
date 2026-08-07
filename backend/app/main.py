@@ -13,7 +13,6 @@ from app.api.v2 import v2_router
 from app.api.v2.core.error_handlers import register_v2_error_handlers
 from app.services.intake_lock_cleanup import run_stale_lock_cleanup_loop
 from app.services.slack_token_refresh import run_slack_token_refresh_loop
-from app.workers.calendar_intelligence_worker import run_calendar_intelligence_loops, run_deferred_backfill
 from app.services.supabase import get_supabase_admin_client
 
 setup_logging()
@@ -88,10 +87,6 @@ async def lifespan(app: FastAPI):
         logger.info("intake_lock_cleanup_task_scheduled")
         background_tasks.append(asyncio.create_task(run_slack_token_refresh_loop()))
         logger.info("slack_token_refresh_task_scheduled")
-        background_tasks.append(asyncio.create_task(run_calendar_intelligence_loops()))
-        logger.info("calendar_intelligence_loops_scheduled")
-        background_tasks.append(asyncio.create_task(run_deferred_backfill()))
-        logger.info("calendar_intelligence_backfill_scheduled")
         if get_settings().ATS_INTEGRATIONS_ENABLED:
             from app.services.ats_sync.drainer import run_ats_sync_drainer
             from app.services.ats_sync.interview_reconcile import (

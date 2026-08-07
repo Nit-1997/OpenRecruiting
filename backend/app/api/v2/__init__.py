@@ -32,9 +32,7 @@ from app.api.v2.routers import (
     intake_switch,
     intake_text_messages,
     integrations_ats,
-    integrations_gcal,
     integrations_slack,
-    internal_calendar_intelligence,
     internal_cortex_token,
     internal_feedback,
     internal_screening,
@@ -72,7 +70,6 @@ v2_router.include_router(billing.router)
 v2_router.include_router(debrief.router)
 v2_router.include_router(debrief_chat.router)
 v2_router.include_router(integrations_ats.router)
-v2_router.include_router(integrations_gcal.router)
 v2_router.include_router(integrations_slack.router)
 v2_router.include_router(internal_cortex_token.router)
 v2_router.include_router(mcp_oauth.router)
@@ -109,7 +106,6 @@ v2_router.include_router(recordings.router)
 v2_router.include_router(team.router)
 v2_router.include_router(untracked.router)
 v2_router.include_router(webhooks.router)
-v2_router.include_router(internal_calendar_intelligence.router)
 v2_router.include_router(internal_slack_agent.router)
 v2_router.include_router(internal_slack_integrations.router)
 v2_router.include_router(webhooks_knit.router)

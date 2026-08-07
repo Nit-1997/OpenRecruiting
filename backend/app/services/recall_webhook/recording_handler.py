@@ -84,8 +84,7 @@ async def fetch_and_store_recording(
 
             if not candidate_round_id:
                 # Detection-only / intake / orphan bots don't get the
-                # Lambda branch in v2. v1's auto-join calendar repair
-                # (`_materialize_missing_detection_round`) stays in v1.
+                # Lambda branch in v2.
                 logger.info(
                     f"recording: no candidate_round_id for bot={recall_bot_id} — stopping"
                 )

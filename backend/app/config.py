@@ -59,9 +59,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = ""  # Optional override: DEBUG, INFO, WARNING, ERROR
 
     # Whether the app lifespan launches its background worker loops
-    # (intake lock cleanup, slack token refresh, calendar intelligence,
-    # deferred backfill). Forced False under ENV=test so the test suite's
-    # TestClient(app) does not start loops that fire unmocked Supabase calls.
+    # (intake lock cleanup, slack token refresh). Forced False under ENV=test
+    # so the test suite's TestClient(app) does not start loops that fire
+    # unmocked Supabase calls.
     RUN_BACKGROUND_WORKERS: bool = True
 
     # Recall.ai Configuration. Optional: with no API key, meeting capture is
@@ -207,25 +207,6 @@ class Settings(BaseSettings):
 
     # Internal API (agent-to-backend communication)
     INTERNAL_API_SECRET: str = ""
-
-    # Google Calendar Integration
-    GOOGLE_CLIENT_ID: str = ""
-    GOOGLE_CLIENT_SECRET: str = ""
-    GOOGLE_REDIRECT_URI: str = ""
-    INTEGRATION_ENCRYPTION_KEY: str = ""
-
-    # Calendar Intelligence
-    CALENDAR_INTELLIGENCE_ENABLED: bool = False
-    CALENDAR_INTELLIGENCE_POLL_INTERVAL: int = 300
-    CALENDAR_INTELLIGENCE_REMINDER_INTERVAL: int = 1800
-    CALENDAR_INTELLIGENCE_ORPHAN_REMINDER_LEAD_HOURS: int = 2
-    CALENDAR_INTELLIGENCE_ORPHAN_EXPIRY_DAYS: int = 7
-    CALENDAR_INTELLIGENCE_UNDO_GRACE_MINUTES: int = 5
-    CALENDAR_INTELLIGENCE_PREP_REMINDER_INTERVAL: int = 300
-    CALENDAR_INTELLIGENCE_PREP_LOOKAHEAD_MINUTES: int = 15
-    CALENDAR_INTELLIGENCE_MODEL: str = "claude-haiku-4-5-20251001"
-    CALENDAR_INTELLIGENCE_REQ_LOOKBACK_DAYS: int = 90
-    CALENDAR_INTELLIGENCE_UNTRACKED_BOT_ENABLED: bool = True
 
     # SQS (agent event bus)
     SQS_QUEUE_URL: str = ""

@@ -3,7 +3,7 @@ Recall.ai webhook router.
 
 Two endpoints, mirroring v1's:
 
-  POST /api/v2/webhooks/recall/bot-status (account: bot lifecycle + calendar)
+  POST /api/v2/webhooks/recall/bot-status (account: bot lifecycle)
   POST /api/v2/webhooks/recall/realtime   (per-bot: transcript + participants)
 
 Both verify the HMAC signature, parse the envelope, then dispatch to the
@@ -13,7 +13,7 @@ in `app.services.recall_webhook.*`.
 Why two endpoints? Recall delivers events via two separate channels:
   - the ACCOUNT webhook (configured once in the Recall dashboard) carries bot
     lifecycle events (`bot.joining_call`/`bot.in_call_recording`/`bot.done`/…)
-    plus `calendar.*` events → `/bot-status`;
+    → `/bot-status`;
   - per-bot REALTIME endpoints (the URL is written onto each bot at creation
     time) carry high-frequency in-call events (`transcript.data`,
     `participant_events.*`, chat) → `/realtime`.
@@ -46,7 +46,7 @@ router = APIRouter(prefix="/webhooks/recall", tags=["v2/webhooks"])
 
 
 # ---------------------------------------------------------------------------
-# Account webhook (/bot-status) — bot lifecycle (bot.*) + calendar.*
+# Account webhook (/bot-status) — bot lifecycle (bot.*)
 # ---------------------------------------------------------------------------
 
 
@@ -55,7 +55,7 @@ async def handle_recall_bot_status_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
-    """Account-level Recall webhook — bot lifecycle (`bot.*`) + `calendar.*`.
+    """Account-level Recall webhook — bot lifecycle (`bot.*`).
 
     This is the single account webhook, configured once in the Recall dashboard
     (v1 used this same `/bot-status` path). Per-bot, high-frequency in-call
@@ -63,10 +63,8 @@ async def handle_recall_bot_status_webhook(
     to `/webhooks/recall/realtime` — that URL is written onto each bot at
     creation time — so there are exactly two endpoints: this one and `/realtime`.
 
-    We handle `bot.*` (bot lifecycle) here. Calendar events (`calendar.*`) are
-    routed to the ported calendar-intelligence worker (enqueue a durable sync
-    hint + best-effort fast-path dispatch). Anything else is acknowledged with
-    `{status: ignored}` so Recall doesn't retry forever.
+    We handle `bot.*` (bot lifecycle) here. Anything else is acknowledged
+    with `{status: ignored}` so Recall doesn't retry forever.
     """
     if not await _verify_or_test_bypass(request):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
@@ -121,23 +119,6 @@ async def handle_recall_bot_status_webhook(
             "recording_fetch_queued": outcome.recording_fetch_enqueued,
             "not_admitted_queued": outcome.not_admitted_enqueued,
         }
-
-    # Calendar events: enqueue a durable sync hint, then best-effort
-    # fast-path dispatch the immediate sync pass via the ported worker.
-    if event_type.startswith(EventType.CALENDAR_PREFIX):
-        from app.workers.calendar_intelligence_worker import (
-            enqueue_calendar_sync_hint,
-            process_calendar_sync_hint,
-        )
-        try:
-            enqueue_result = await enqueue_calendar_sync_hint(event_type, data)
-        except Exception as e:
-            logger.error(f"webhook: calendar sync enqueue failed: {e}")
-            raise HTTPException(status_code=503, detail="Calendar sync enqueue failed")
-        calendar_id = str(enqueue_result.get("calendar_id") or "unknown")
-        if enqueue_result.get("hint_dt") is not None and get_settings().CALENDAR_INTELLIGENCE_ENABLED:
-            background_tasks.add_task(process_calendar_sync_hint, event_type, data)
-        return {"status": "queued", "event": event_type, "calendar_id": calendar_id}
 
     logger.info(f"webhook: unhandled event {event_type}")
     return {"status": "ignored", "event": event_type}
