@@ -178,14 +178,6 @@ function statusCountsFromAll(all: Requisition[]): RoleStatusCounts {
   };
 }
 
-// The synthetic untracked requisition (mirrors backend
-// `org_generic_template_bindings.materialized_requisition_id`) holds the
-// captured candidate_rounds backing the untracked feedback packets. It must
-// never surface in the public role list or counts.
-export function isUntrackedSyntheticReq(req: { id: string }): boolean {
-  return req.id.startsWith('req_ut_');
-}
-
 export async function list(
   status?: RequisitionStatusFilter,
   options?: ListRolesOptions,
@@ -222,7 +214,7 @@ export async function list(
   }
 
   await simulate();
-  const all = structuredClone(getDb().requisitions).filter((r) => !isUntrackedSyntheticReq(r));
+  const all = structuredClone(getDb().requisitions);
   const statusFiltered = status ? all.filter((r) => r.status === status) : all;
   // Mock-path mirrors the backend filter: role_title + role_location ilike.
   const needle = q?.toLowerCase();

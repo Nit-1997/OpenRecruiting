@@ -76,7 +76,6 @@ import * as interviews from '../interviews';
 import * as profile from '../profile';
 import * as requisitions from '../requisitions';
 import { ServiceError } from '../service-error';
-import * as untracked from '../untracked';
 
 beforeEach(() => resetMock());
 afterEach(() => resetMock());
@@ -248,9 +247,6 @@ describe('FE-F5: no silent fabrication on the v2 path', () => {
   test('interviews.sendReminder throws notImplementedInV2', () =>
     expectNotAvailable(() => interviews.sendReminder('cr-1')));
 
-  // --- untracked.markNotInterview: NOT-AVAILABLE-IN-V2 ---
-  test('untracked.markNotInterview throws notImplementedInV2', () =>
-    expectNotAvailable(() => untracked.markNotInterview('ut-1')));
 
   // --- integrations: documented MOCK-ONLY, but must not fabricate on v2 ---
   test('integrations.list throws notImplementedInV2', () =>

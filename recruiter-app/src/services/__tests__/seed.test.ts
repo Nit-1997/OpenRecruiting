@@ -28,9 +28,9 @@ describe('seed', () => {
     expect(seed._meta.version).toBe(1);
   });
 
-  test('integrations list covers recall, untracked_bot', () => {
+  test('integrations list covers recall', () => {
     const seed = buildSeed();
     const providers = seed.integrations.map((i) => i.provider).sort();
-    expect(providers).toEqual(['recall', 'untracked_bot']);
+    expect(providers).toEqual(['recall']);
   });
 });

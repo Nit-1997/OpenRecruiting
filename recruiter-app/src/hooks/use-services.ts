@@ -28,7 +28,6 @@ import {
   profile,
   requisitions,
   team,
-  untracked,
 } from '@/services';
 import type { CandidatePacket } from '@/services/candidates';
 import type { ServiceEventName } from '@/services/events';
@@ -37,7 +36,6 @@ import type {
   RequisitionStatusFilter,
   RoleListPage,
 } from '@/services/requisitions';
-import type { ListUntrackedOptions, UntrackedListPage } from '@/services/untracked';
 
 // ── Stale-while-revalidate cache ───────────────────────────────────────────
 // Keyed per-query (see each wrapper hook's cacheKey). A warm remount paints the
@@ -361,39 +359,6 @@ export function useActivity(limit = 20): AsyncState<ActivityEvent[]> {
   return useAsyncList<ActivityEvent[]>(() => activity.list(limit), ['activity:created'], [limit], {
     cacheKey: `activity:${limit}`,
   });
-}
-
-export function useUntracked(options?: ListUntrackedOptions): AsyncState<UntrackedListPage> {
-  useEnsureSeeded();
-  const page = options?.page ?? 1;
-  const pageSize = options?.page_size ?? 10;
-  return useAsyncList<UntrackedListPage>(
-    () => untracked.list({ page, page_size: pageSize }),
-    ['untracked:updated'],
-    [page, pageSize],
-    { cacheKey: `untracked:${page}:${pageSize}` },
-  );
-}
-
-/**
- * Fetch the rich feedback packet for an untracked interview. Calls the
- * dedicated v2 endpoint (which the standard packet RPC can't serve for
- * materialized-untracked rows) and shapes the result into the same
- * `CandidatePacket` the PacketDrawer expects.
- */
-export function useUntrackedPacket(
-  untrackedId: string | null | undefined,
-): AsyncState<CandidatePacket | null> {
-  useEnsureSeeded();
-  return useAsyncList<CandidatePacket | null>(
-    () => {
-      if (!untrackedId) return Promise.resolve(null);
-      return untracked.getPacket(untrackedId);
-    },
-    ['untracked:updated', 'candidate_round:updated', 'feedback:submitted'],
-    [untrackedId],
-    { cacheKey: `untracked-packet:${untrackedId ?? 'none'}` },
-  );
 }
 
 // Spec §7: the packet drawer fires ONE call to /roles/{id}/candidates/{cid}/packet

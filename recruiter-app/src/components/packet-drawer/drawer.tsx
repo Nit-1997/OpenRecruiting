@@ -36,7 +36,7 @@ import type {
   RoundType,
   TranscriptSegment,
 } from '@/domain';
-import { usePacket, useRecording, useRequisition, useUntrackedPacket } from '@/hooks/use-services';
+import { usePacket, useRecording, useRequisition } from '@/hooks/use-services';
 import { ROLLUP_ICON } from '@/lib/feedback-rollup';
 import { formatScheduledDate, formatScheduledTime } from '@/lib/format-scheduled';
 import { isCustomRound } from '@/lib/rounds';
@@ -53,18 +53,10 @@ interface PacketDrawerProps {
   candidateId: string;
   initialRoundId: string | null;
   // View-only mode for surfaces that aren't part of an active hiring
-  // pipeline (e.g. untracked-interview captures). Suppresses the
-  // "Add custom round" / round-delete / schedule / cancel / request-
-  // feedback affordances since none of them apply.
+  // pipeline (e.g. a closed role). Suppresses the "Add custom round" /
+  // round-delete / schedule / cancel / request-feedback affordances since
+  // none of them apply.
   viewOnly?: boolean;
-  // When set, the drawer fetches the captured untracked-interview packet
-  // via the dedicated `/api/v2/untracked-interviews/{id}/packet` endpoint
-  // instead of the standard role-candidate packet RPC. The RPC doesn't
-  // cover materialized-untracked rows, so untracked captures need this
-  // alternate fetcher. `reqId` + `candidateId` are still passed through
-  // for child components (round rail keys, recording sub-fetches) — they
-  // come from the untracked row's `source_*` fields.
-  untrackedId?: string;
   // 'overlay' (default) renders the classic fixed right-side slide-over with
   // scrim. 'embedded' renders the same packet UI as a plain block that fills
   // its parent (no fixed positioning, no scrim) — used when the drawer lives
@@ -102,27 +94,18 @@ export function PacketDrawer({
   candidateId,
   initialRoundId,
   viewOnly = false,
-  untrackedId,
   variant = 'overlay',
   onClose,
 }: PacketDrawerProps) {
   // Spec §7: drawer mount fires ONE call to /packet. All read-side state
   // derives from this single response. useRequisition is kept separately
   // for role-level chrome (role_title) that the packet response doesn't
-  // include — it's a tiny, well-cached header fetch. Skipped for
-  // untracked captures since the materialized requisition isn't readable
-  // through /api/v2/roles/{id} and the header label comes from the
-  // packet's own round name instead.
-  const { data: req } = useRequisition(untrackedId ? null : reqId);
-  // Untracked captures go through a dedicated endpoint; everything else
-  // goes through the standard candidate-packet RPC. One of the two is
-  // always passed a null id and short-circuits in its hook to avoid an
-  // unnecessary fetch.
-  const standardPacket = usePacket(untrackedId ? null : reqId, untrackedId ? null : candidateId);
-  const untrackedPacket = useUntrackedPacket(untrackedId ?? null);
-  const packet = untrackedId ? untrackedPacket.data : standardPacket.data;
-  const packetLoading = untrackedId ? untrackedPacket.loading : standardPacket.loading;
-  const packetError = untrackedId ? untrackedPacket.error : standardPacket.error;
+  // include — it's a tiny, well-cached header fetch.
+  const { data: req } = useRequisition(reqId);
+  const standardPacket = usePacket(reqId, candidateId);
+  const packet = standardPacket.data;
+  const packetLoading = standardPacket.loading;
+  const packetError = standardPacket.error;
 
   // Derive the slices the drawer needs from the single packet response.
   // packet.rounds is ordered by round_number (matches the RPC's ORDER BY).
@@ -146,12 +129,11 @@ export function PacketDrawer({
   // The packet RPC carries no screening state, so light-fetch saved screening
   // configs per round (mirrors plan-tab.tsx). `enabled === true` ⇒ OpenRecruiting hosts
   // the round: scheduling it means sending the async screening link, not
-  // booking a human interviewer + meeting URL. Skipped for untracked captures
-  // (no req-scoped screening) and view-only surfaces.
+  // booking a human interviewer + meeting URL. Skipped for view-only surfaces.
   const [aiByRound, setAiByRound] = useState<Record<string, boolean>>({});
   const roundIdsKey = allRounds.map((cr) => cr.round_id).join(',');
   useEffect(() => {
-    if (untrackedId || viewOnly || !reqId) return;
+    if (viewOnly || !reqId) return;
     const roundIds = roundIdsKey ? roundIdsKey.split(',') : [];
     if (roundIds.length === 0) return;
     let cancelled = false;
@@ -167,7 +149,7 @@ export function PacketDrawer({
     return () => {
       cancelled = true;
     };
-  }, [reqId, roundIdsKey, untrackedId, viewOnly]);
+  }, [reqId, roundIdsKey, viewOnly]);
 
   useEffect(() => {
     if (!activeRoundId && allRounds.length > 0) {
@@ -219,7 +201,7 @@ export function PacketDrawer({
         <header className="flex items-start justify-between gap-4 border-border border-b px-4 py-3 sm:px-6 sm:py-4 print:border-b-0">
           <div className="min-w-0">
             <p className="font-mono text-[10px] text-text-faint uppercase tracking-[0.14em]">
-              {untrackedId ? 'Untracked interview' : 'Feedback packet'}
+              Feedback packet
             </p>
             <h2
               id={`${id}-title`}
@@ -228,9 +210,7 @@ export function PacketDrawer({
               {candidateName}
             </h2>
             <p className="mt-0.5 text-[12.5px] text-text-muted">
-              {untrackedId
-                ? `${packet?.candidate?.email ?? ''} · ${visibleRoundDefs[0]?.name ?? 'Generic interview'}`
-                : `${packet?.candidate?.email ? `${packet.candidate.email} · ` : ''}${req?.role_title ?? 'Role'} · ${allRounds.length} rounds`}
+              {`${packet?.candidate?.email ? `${packet.candidate.email} · ` : ''}${req?.role_title ?? 'Role'} · ${allRounds.length} rounds`}
             </p>
           </div>
           <button
@@ -307,11 +287,6 @@ export function PacketDrawer({
                   Couldn't load this interview's packet.
                 </p>
                 <p className="mt-1 text-[12px] text-[#B91C1C]/80">{packetError.message}</p>
-                {untrackedId && (
-                  <p className="mt-2 font-mono text-[11px] text-[#B91C1C]/70">
-                    Endpoint: GET /api/v2/untracked-interviews/{untrackedId}/packet
-                  </p>
-                )}
               </div>
             ) : packetLoading ? (
               <PacketPaneSkeleton id={`${id}-pane-skeleton`} />

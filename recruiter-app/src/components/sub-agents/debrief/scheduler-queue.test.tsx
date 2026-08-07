@@ -25,7 +25,7 @@ const EMPTY_HOOK = {
 
 beforeEach(() => {
   useSessionStore.getState().reset();
-  spies = (['usePacket', 'useRequisition', 'useRecording', 'useUntrackedPacket'] as const).map(
+  spies = (['usePacket', 'useRequisition', 'useRecording'] as const).map(
     (name) =>
       spyOn(services, name).mockReturnValue(
         EMPTY_HOOK as unknown as ReturnType<(typeof services)[typeof name]>,

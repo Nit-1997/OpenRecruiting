@@ -5,7 +5,6 @@ import {
   Briefcase,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
   Clock,
   FileText,
   Inbox,
@@ -19,40 +18,35 @@ import { useRouter } from 'next/navigation';
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
-import { PacketDrawer } from '@/components/packet-drawer/drawer';
-import { LinkToExistingPicker } from '@/components/rail-views/roles/link-picker';
 import { AtsSourceBadge } from '@/components/shared/ats-source-badge';
 import { RolesTableSkeleton } from '@/components/shell/skeletons';
 import { useToast } from '@/components/ui/toast';
-import type { RequisitionStatus, UntrackedInterview } from '@/domain';
+import type { RequisitionStatus } from '@/domain';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useFocusTrap } from '@/hooks/use-focus-trap';
-import { useRequisitions, useUntracked } from '@/hooks/use-services';
+import { useRequisitions } from '@/hooks/use-services';
 import { useShellSync } from '@/hooks/use-shell-sync';
 import { IntakeApiError, startIntakeForRole } from '@/lib/intake/api';
 import { cn } from '@/lib/utils';
-import { feedback as feedbackSvc, requisitions, untracked as untrackedSvc } from '@/services';
+import { requisitions } from '@/services';
 import type { RoleListItem } from '@/services/requisitions';
 import { ServiceError } from '@/services/service-error';
 
-type TabKey = 'open' | 'pending' | 'closed' | 'untracked';
+type TabKey = 'open' | 'pending' | 'closed';
 
 const TAB_LABELS: Record<TabKey, string> = {
   open: 'Open',
   pending: 'Pending',
   closed: 'Closed',
-  untracked: 'Untracked Interviews',
 };
 
 const TAB_EMPTY: Record<TabKey, string> = {
   open: 'No open roles. Create one to get started.',
   pending: 'No pending roles.',
   closed: 'No closed roles.',
-  untracked: 'No untracked interviews found.',
 };
 
 const PAGE_SIZE = 10;
@@ -64,7 +58,6 @@ interface RolesViewProps {
 // Design (image attached to the role-list ticket):
 //   On page mount → fetch active tab + prefetch the other two role tabs.
 //   Each tab has its own page index; switching tabs preserves the page.
-//   Untracked is its own paginated API (`/api/v2/untracked-interviews`).
 //   Status_counts come from the same response (org-wide) — used for tab badges.
 //   Per-row `pipeline.{round_count, candidate_count}` ships with each item,
 //   so no N+1 fetch per row.
@@ -77,7 +70,6 @@ export function RolesView({ id }: RolesViewProps) {
     open: 1,
     pending: 1,
     closed: 1,
-    untracked: 1,
   });
   const [query, setQuery] = useState('');
   // Server-side search is debounced so a keystroke storm fires one request
@@ -85,20 +77,11 @@ export function RolesView({ id }: RolesViewProps) {
   // ANY page surfaces (the old in-memory page-slice filter only saw page 1).
   const debouncedQuery = useDebouncedValue(query.trim(), 280);
   const [kebabOpenFor, setKebabOpenFor] = useState<string | null>(null);
-  // Holds the synthetic (reqId, candidateId) backing an untracked interview's
-  // packet — opens the standard PacketDrawer, no special-case branch.
-  const [untrackedPacket, setUntrackedPacket] = useState<{
-    id: string;
-    reqId: string;
-    candidateId: string;
-    untrackedId?: string;
-  } | null>(null);
-
   // Reset each tab to page 1 when the (debounced) query changes — otherwise
   // a narrowed result set would land on a now-empty page ("page 5 of 1").
   // Driven by the debounced value so it stays in lockstep with the fetch.
   useEffect(() => {
-    setPageByTab({ open: 1, pending: 1, closed: 1, untracked: 1 });
+    setPageByTab({ open: 1, pending: 1, closed: 1 });
   }, [debouncedQuery]);
 
   // Three parallel role-list fetches: the active tab is foreground, the other
@@ -122,14 +105,9 @@ export function RolesView({ id }: RolesViewProps) {
     page_size: PAGE_SIZE,
     q: debouncedQuery || undefined,
   });
-  const untrackedPage = useUntracked({
-    page: pageByTab.untracked,
-    page_size: PAGE_SIZE,
-  });
-
   // Tab badges read from `status_counts` (org-wide, identical across the three
-  // role responses). Untracked uses its own `total`. While loading, fall back
-  // to 0 instead of the previous-page's count to avoid stale numbers.
+  // role responses). While loading, fall back to 0 instead of the
+  // previous-page's count to avoid stale numbers.
   const statusCounts =
     openPage.data?.status_counts ??
     pendingPage.data?.status_counts ??
@@ -139,14 +117,12 @@ export function RolesView({ id }: RolesViewProps) {
     open: statusCounts?.open ?? 0,
     pending: statusCounts?.pending ?? 0,
     closed: statusCounts?.closed ?? 0,
-    untracked: untrackedPage.data?.total ?? 0,
   };
 
   const tabs: { key: TabKey; icon: typeof Inbox; count: number }[] = [
     { key: 'open', icon: Inbox, count: counts.open },
     { key: 'pending', icon: Clock, count: counts.pending },
     { key: 'closed', icon: Archive, count: counts.closed },
-    { key: 'untracked', icon: ClipboardList, count: counts.untracked },
   ];
 
   // Roving tabindex (mirrors top-bar.tsx): Arrow Left/Right move focus across
@@ -183,9 +159,7 @@ export function RolesView({ id }: RolesViewProps) {
       ? (openPage.data?.items ?? [])
       : activeTab === 'pending'
         ? (pendingPage.data?.items ?? [])
-        : activeTab === 'closed'
-          ? (closedPage.data?.items ?? [])
-          : [];
+        : (closedPage.data?.items ?? []);
 
   // Raw page data for the active tab (null until first load for THIS tab).
   // Drives the cold-load skeleton gate below; with the SWR cache a warm revisit
@@ -195,36 +169,20 @@ export function RolesView({ id }: RolesViewProps) {
       ? openPage.data
       : activeTab === 'pending'
         ? pendingPage.data
-        : activeTab === 'closed'
-          ? closedPage.data
-          : untrackedPage.data;
+        : closedPage.data;
 
   const activeTotal: number =
     activeTab === 'open'
       ? (openPage.data?.total ?? 0)
       : activeTab === 'pending'
         ? (pendingPage.data?.total ?? 0)
-        : activeTab === 'closed'
-          ? (closedPage.data?.total ?? 0)
-          : (untrackedPage.data?.total ?? 0);
+        : (closedPage.data?.total ?? 0);
 
   const activePage = pageByTab[activeTab];
 
   // Role search is server-side (`q` on the role-list hooks above), so
   // `activeItems` already holds the matching page from the whole org. No
   // in-memory page-slice filter — a match on any page is now visible.
-  const untrackedItems = untrackedPage.data?.items ?? [];
-  const filteredUntracked = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return untrackedItems;
-    return untrackedItems.filter(
-      (u) =>
-        u.candidate_name.toLowerCase().includes(q) ||
-        u.event_title.toLowerCase().includes(q) ||
-        u.interviewer_email.toLowerCase().includes(q),
-    );
-  }, [query, untrackedItems]);
-
   const totalPagesActive = Math.max(1, Math.ceil(activeTotal / PAGE_SIZE));
 
   return (
@@ -309,11 +267,7 @@ export function RolesView({ id }: RolesViewProps) {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={
-            activeTab === 'untracked'
-              ? 'Search untracked interviews…'
-              : 'Search roles by title, team, location, or skill…'
-          }
+          placeholder="Search roles by title, team, location, or skill…"
           className="min-w-0 flex-1 border-0 bg-transparent text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none"
           aria-label="Search"
         />
@@ -333,33 +287,6 @@ export function RolesView({ id }: RolesViewProps) {
       <div id={panelId} role="tabpanel" aria-labelledby={`${id}-tab-${activeTab}`}>
         {activeData == null ? (
           <RolesTableSkeleton id={`${id}-skeleton`} rows={PAGE_SIZE} />
-        ) : activeTab === 'untracked' ? (
-          <UntrackedList
-            id={`${id}-untracked`}
-            items={filteredUntracked}
-            onOpenPacket={(u) =>
-              // Imported rows route to the target candidate's re-processed
-              // packet via the standard role-packet RPC. Available rows
-              // use the dedicated untracked-packet endpoint — the RPC
-              // doesn't serve materialized-untracked rows. Both produce a
-              // CandidatePacket the drawer renders unchanged.
-              setUntrackedPacket(
-                u.imported_candidate_id && u.imported_requisition_id
-                  ? {
-                      id: u.id,
-                      reqId: u.imported_requisition_id,
-                      candidateId: u.imported_candidate_id,
-                    }
-                  : {
-                      id: u.id,
-                      reqId: u.source_requisition_id,
-                      candidateId: u.source_candidate_id,
-                      untrackedId: u.id,
-                    },
-              )
-            }
-            onRouteToIntake={(u) => router.push(`/intake?untracked_id=${u.id}`)}
-          />
         ) : activeItems.length === 0 ? (
           <EmptyState id={`${id}-empty`} message={TAB_EMPTY[activeTab]} />
         ) : (
@@ -410,21 +337,6 @@ export function RolesView({ id }: RolesViewProps) {
           }))
         }
       />
-
-      {untrackedPacket && (
-        <PacketDrawer
-          id={`${id}-untracked-packet`}
-          reqId={untrackedPacket.reqId}
-          candidateId={untrackedPacket.candidateId}
-          initialRoundId={null}
-          // View-only: untracked rows have no plan to edit, no rounds to add,
-          // no interviews to schedule. The drawer renders just the captured
-          // feedback + replay; mutation chrome is suppressed.
-          viewOnly
-          {...(untrackedPacket.untrackedId ? { untrackedId: untrackedPacket.untrackedId } : {})}
-          onClose={() => setUntrackedPacket(null)}
-        />
-      )}
     </div>
   );
 }
@@ -711,213 +623,6 @@ function Pager({ id, page, pageSize, total, totalPages, onPrev, onNext }: PagerP
         </button>
       </div>
     </div>
-  );
-}
-
-interface UntrackedListProps {
-  id: string;
-  items: UntrackedInterview[];
-  onOpenPacket: (u: UntrackedInterview) => void;
-  onRouteToIntake: (u: UntrackedInterview) => void;
-}
-
-function UntrackedList({ id, items, onOpenPacket, onRouteToIntake }: UntrackedListProps) {
-  if (items.length === 0) {
-    return <EmptyState id={id} message={TAB_EMPTY.untracked} />;
-  }
-  return (
-    <div id={id} className="flex flex-col gap-3">
-      {items.map((u) => (
-        <UntrackedCard
-          key={u.id}
-          id={`${id}-card-${u.id}`}
-          item={u}
-          onOpenPacket={() => onOpenPacket(u)}
-          onRouteToIntake={() => onRouteToIntake(u)}
-        />
-      ))}
-    </div>
-  );
-}
-
-function UntrackedCard({
-  id,
-  item,
-  onOpenPacket,
-  onRouteToIntake,
-}: {
-  id: string;
-  item: UntrackedInterview;
-  onOpenPacket: () => void;
-  onRouteToIntake: () => void;
-}) {
-  const [linkPickerOpen, setLinkPickerOpen] = useState(false);
-  const { showToast } = useToast();
-  // Click → open packet drawer. Buttons stop propagation so they don't trigger
-  // the drawer. Whole-card overlay button matches the RoleRow pattern above.
-  return (
-    <article
-      id={id}
-      className="group relative rounded-[14px] border border-border bg-white p-4 transition-colors hover:border-text-primary"
-    >
-      <button
-        id={`${id}-open`}
-        type="button"
-        onClick={onOpenPacket}
-        aria-label={`Open feedback packet for ${item.candidate_name}`}
-        className="absolute inset-0 z-10 cursor-pointer rounded-[14px]"
-      />
-      <div id={`${id}-head`} className="pointer-events-none relative z-20 flex flex-col gap-3">
-        <div id={`${id}-text`} className="min-w-0">
-          <h3 className="truncate font-medium font-sans text-[14.5px] text-text-primary">
-            {item.candidate_name}
-          </h3>
-          <p className="mt-0.5 truncate text-[12px] text-text-muted">{item.candidate_email}</p>
-          <p className="mt-2 text-[13px] text-text-primary">{item.event_title}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-text-muted">
-            <span>
-              {new Date(item.event_start).toLocaleString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-              })}
-            </span>
-            <span>·</span>
-            <span className="truncate">{item.interviewer_email}</span>
-          </div>
-          <span
-            className={cn(
-              'mt-2 inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]',
-              item.status === 'available'
-                ? 'border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]'
-                : item.status === 'imported'
-                  ? 'border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]'
-                  : 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]',
-            )}
-          >
-            {item.status}
-          </span>
-        </div>
-        {item.status === 'available' && (
-          <div
-            id={`${id}-actions`}
-            className="pointer-events-auto relative z-30 flex flex-wrap items-center gap-2 border-border border-t pt-3"
-          >
-            <UntrackedAction
-              id={`${id}-import`}
-              label="Import as a New Role"
-              onClick={onRouteToIntake}
-            />
-            <UntrackedAction
-              id={`${id}-link`}
-              label="Link to Existing"
-              onClick={() => setLinkPickerOpen(true)}
-            />
-            <UntrackedAction
-              id={`${id}-not-interview`}
-              label="Not an Interview"
-              onClick={async () => {
-                await untrackedSvc.markNotInterview(item.id).catch(logErr);
-              }}
-              muted
-            />
-          </div>
-        )}
-        {item.status === 'imported' && (
-          <div
-            id={`${id}-imported-actions`}
-            className="pointer-events-auto relative z-30 flex flex-wrap items-center gap-2 border-border border-t pt-3"
-          >
-            <UntrackedAction
-              id={`${id}-undo`}
-              label="Undo association"
-              onClick={async () => {
-                try {
-                  const { restored } = await untrackedSvc.undo(item.id);
-                  showToast(
-                    restored
-                      ? 'Association undone — prior scorecard restored.'
-                      : 'Association undone; interview is available again.',
-                    'success',
-                  );
-                } catch (err) {
-                  showToast(
-                    `Couldn't undo: ${err instanceof Error ? err.message : 'please try again'}`,
-                    'error',
-                  );
-                }
-              }}
-              muted
-            />
-          </div>
-        )}
-      </div>
-
-      {linkPickerOpen && (
-        <LinkToExistingPicker
-          id={`${id}-picker`}
-          untracked={item}
-          onClose={() => setLinkPickerOpen(false)}
-          onConfirm={async (options) => {
-            setLinkPickerOpen(false);
-            try {
-              const { targetCandidateRoundId } = await untrackedSvc.linkToExistingRole(
-                item.id,
-                options,
-              );
-              if (options.action === 'request_feedback' && options.interviewerEmail) {
-                await feedbackSvc.requestFeedbackByCrId(targetCandidateRoundId, {
-                  interviewer_email: options.interviewerEmail,
-                  channel: 'email',
-                  ...(options.interviewerName ? { interviewer_name: options.interviewerName } : {}),
-                });
-                showToast('Feedback request sent to the interviewer.', 'success');
-              } else {
-                await feedbackSvc.reprocess(targetCandidateRoundId, true);
-                showToast('Scoring the interview transcript…', 'success');
-              }
-            } catch (err) {
-              showToast(
-                `Couldn't complete: ${err instanceof Error ? err.message : 'please try again'}`,
-                'error',
-              );
-            }
-          }}
-        />
-      )}
-    </article>
-  );
-}
-
-function UntrackedAction({
-  id,
-  label,
-  onClick,
-  muted,
-}: {
-  id: string;
-  label: string;
-  onClick: () => void;
-  muted?: boolean;
-}) {
-  return (
-    <button
-      id={id}
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      className={cn(
-        'inline-flex items-center rounded-full border px-3 py-1.5 font-medium font-sans text-[12px] transition-colors',
-        muted
-          ? 'border-border bg-white text-text-muted hover:border-text-primary hover:text-text-primary'
-          : 'border-border bg-white text-text-primary hover:border-text-primary',
-      )}
-    >
-      {label}
-    </button>
   );
 }
 

@@ -13,4 +13,3 @@ export * as screening from './screening';
 export { buildSeed, registerSeedFactory, seedDb } from './seed';
 export { ServiceError } from './service-error';
 export * as team from './team';
-export * as untracked from './untracked';

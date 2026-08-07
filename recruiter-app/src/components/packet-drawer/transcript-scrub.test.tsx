@@ -11,7 +11,6 @@ mock.module('@/hooks/use-services', () => ({
   usePacket: () => ({ data: null, loading: false, error: null }),
   useRecording: () => ({ data: null }),
   useRequisition: () => ({ data: null, loading: false, error: null }),
-  useUntrackedPacket: () => ({ data: null, loading: false, error: null }),
   useEnsureSeeded: () => {},
 }));
 

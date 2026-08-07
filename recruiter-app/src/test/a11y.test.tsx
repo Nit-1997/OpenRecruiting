@@ -40,7 +40,6 @@ import { Label } from '@/components/ui/label';
 import { ToastProvider, useToast } from '@/components/ui/toast';
 import * as services from '@/services';
 import type { RoleListItem, RoleListPage } from '@/services/requisitions';
-import type { UntrackedListPage } from '@/services/untracked';
 
 afterEach(cleanup);
 
@@ -263,16 +262,11 @@ function rolePage(items: RoleListItem[], total = items.length): RoleListPage {
   };
 }
 
-function emptyUntracked(): UntrackedListPage {
-  return { items: [], page: 1, page_size: 10, total: 0 };
-}
-
 describe('a11y: RolesView tabs + kebab (FE-J2)', () => {
   test('roles rail (tabs visible) has no serious/critical axe violations', async () => {
     const listSpy = spyOn(services.requisitions, 'list').mockResolvedValue(
       rolePage([roleItem('r1', 'Frontend Engineer')], 1),
     );
-    const untrackedSpy = spyOn(services.untracked, 'list').mockResolvedValue(emptyUntracked());
 
     const { container } = render(
       <ToastProvider>
@@ -287,14 +281,12 @@ describe('a11y: RolesView tabs + kebab (FE-J2)', () => {
     await expectNoSeriousViolations(container);
 
     listSpy.mockRestore();
-    untrackedSpy.mockRestore();
   });
 
   test('roles rail with an open kebab menu has no serious/critical axe violations', async () => {
     const listSpy = spyOn(services.requisitions, 'list').mockResolvedValue(
       rolePage([roleItem('r1', 'Frontend Engineer')], 1),
     );
-    const untrackedSpy = spyOn(services.untracked, 'list').mockResolvedValue(emptyUntracked());
 
     const { container } = render(
       <ToastProvider>
@@ -317,6 +309,5 @@ describe('a11y: RolesView tabs + kebab (FE-J2)', () => {
     await expectNoSeriousViolations(document.body);
 
     listSpy.mockRestore();
-    untrackedSpy.mockRestore();
   });
 });

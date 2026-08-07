@@ -1,29 +1,25 @@
 /**
  * RolesView — FE-J2 correctness + a11y.
  *
- * Covers the four audit findings:
+ * Covers the audit findings:
  *  1. Search is server-side: typing a query calls `requisitions.list` with `q`,
  *     and a match that lives on page 2+ (NOT in the first page slice) renders.
  *     The old in-memory page-slice filter is gone.
- *  2. The Link-to-Existing picker is backed by its own `q` fetch, so it can
- *     target a role that was never loaded into the main tab pages.
- *  3. Kebab a11y: opens, closes on Escape + outside-click, focus moves in.
- *  4. Tabs a11y: the active tabpanel is associated via aria-controls /
+ *  2. Kebab a11y: opens, closes on Escape + outside-click, focus moves in.
+ *  3. Tabs a11y: the active tabpanel is associated via aria-controls /
  *     aria-labelledby and tabs use roving tabindex.
  *
- * Strategy: spy on the REAL services so the genuine `useRequisitions` /
- * `useUntracked` hooks run, letting us assert the exact `list(status, { q })`
- * calls the wiring makes — a non-polluting service-spy pattern.
+ * Strategy: spy on the REAL services so the genuine `useRequisitions` hooks
+ * run, letting us assert the exact `list(status, { q })` calls the wiring
+ * makes — a non-polluting service-spy pattern.
  */
 
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { ToastProvider } from '@/components/ui/toast';
-import type { UntrackedInterview } from '@/domain';
 import { clearAsyncCache } from '@/hooks/use-services';
 import * as services from '@/services';
 import type { RoleListItem, RoleListPage } from '@/services/requisitions';
-import type { UntrackedListPage } from '@/services/untracked';
 import { RolesView } from './view';
 
 afterEach(() => {
@@ -58,24 +54,6 @@ function page(items: RoleListItem[], total = items.length): RoleListPage {
   };
 }
 
-function emptyUntracked(): UntrackedListPage {
-  return { items: [], page: 1, page_size: 10, total: 0 };
-}
-
-function untrackedAvailable(id: string): UntrackedInterview {
-  return {
-    id,
-    candidate_name: 'Casey Candidate',
-    candidate_email: 'casey@example.com',
-    event_title: 'Onsite loop',
-    event_start: new Date().toISOString(),
-    interviewer_email: 'bob@acme.com',
-    status: 'available',
-    source_requisition_id: 'req_ut_1',
-    source_candidate_id: 'cand_ut_1',
-  } as unknown as UntrackedInterview;
-}
-
 describe('RolesView — server-side search (FE-J2)', () => {
   test('typing a query calls requisitions.list with q and renders a match not on page 1', async () => {
     const FIRST_PAGE = page([role('r1', 'Frontend Engineer')], 25);
@@ -85,7 +63,6 @@ describe('RolesView — server-side search (FE-J2)', () => {
     const listSpy = spyOn(services.requisitions, 'list').mockImplementation((_status, options) => {
       return Promise.resolve(options?.q ? Q_PAGE : FIRST_PAGE);
     });
-    const untrackedSpy = spyOn(services.untracked, 'list').mockResolvedValue(emptyUntracked());
 
     const { container } = render(
       <ToastProvider>
@@ -118,87 +95,6 @@ describe('RolesView — server-side search (FE-J2)', () => {
     expect(calledWithQ).toBe(true);
 
     listSpy.mockRestore();
-    untrackedSpy.mockRestore();
-  });
-});
-
-describe('RolesView — Link-to-Existing picker (client-side full list + ranking)', () => {
-  test('lists all linkable roles with metadata and filters client-side (no server q)', async () => {
-    // The picker fetches the full list with NO server `q` (status === undefined);
-    // both linkable roles come back and filtering happens in the browser.
-    const PICKER_PAGE = page(
-      [role('rZ', 'Distributed Systems Lead', 'planned'), role('r1', 'Frontend Engineer')],
-      2,
-    );
-
-    const listSpy = spyOn(services.requisitions, 'list').mockImplementation((status) => {
-      if (status === undefined) return Promise.resolve(PICKER_PAGE);
-      return Promise.resolve(page([role('r1', 'Frontend Engineer')], 1));
-    });
-    const untrackedSpy = spyOn(services.untracked, 'list').mockResolvedValue({
-      items: [untrackedAvailable('u1')],
-      page: 1,
-      page_size: 10,
-      total: 1,
-    });
-
-    const { container } = render(
-      <ToastProvider>
-        <RolesView id="roles" />
-      </ToastProvider>,
-    );
-
-    // Switch to the Untracked tab where the picker lives.
-    await waitFor(() => {
-      expect(container.querySelector('#roles-tab-untracked')).not.toBeNull();
-    });
-    await act(async () => {
-      fireEvent.click(container.querySelector('#roles-tab-untracked') as HTMLButtonElement);
-    });
-
-    await waitFor(() => {
-      expect(container.querySelector('#roles-untracked-card-u1-link')).not.toBeNull();
-    });
-    await act(async () => {
-      fireEvent.click(
-        container.querySelector('#roles-untracked-card-u1-link') as HTMLButtonElement,
-      );
-    });
-
-    const pickerSearch = await waitFor(() => {
-      const el = document.querySelector('#roles-untracked-card-u1-picker-role-search');
-      expect(el).not.toBeNull();
-      return el as HTMLInputElement;
-    });
-
-    // Full list: both linkable roles render, each with its candidate/round metadata.
-    await waitFor(() => {
-      expect(document.body.textContent).toContain('Distributed Systems Lead');
-    });
-    expect(document.body.textContent).toContain('Frontend Engineer');
-    expect(document.body.textContent).toContain('1 candidate');
-    expect(document.body.textContent).toContain('2 rounds');
-
-    // Typing filters the list CLIENT-SIDE: the non-match leaves the list and no
-    // server search call is made with the picker query.
-    await act(async () => {
-      fireEvent.change(pickerSearch, { target: { value: 'distributed' } });
-    });
-    const pickerList = await waitFor(() => {
-      const el = document.querySelector('#roles-untracked-card-u1-picker-role-list');
-      expect(el).not.toBeNull();
-      return el as HTMLElement;
-    });
-    await waitFor(() => {
-      expect(pickerList.textContent).toContain('Distributed Systems Lead');
-    });
-    expect(pickerList.textContent).not.toContain('Frontend Engineer');
-
-    const calledWithPickerQ = listSpy.mock.calls.some(([, opts]) => opts?.q === 'distributed');
-    expect(calledWithPickerQ).toBe(false);
-
-    listSpy.mockRestore();
-    untrackedSpy.mockRestore();
   });
 });
 
@@ -207,7 +103,6 @@ describe('RolesView — kebab a11y (FE-J2)', () => {
     const listSpy = spyOn(services.requisitions, 'list').mockResolvedValue(
       page([role('r1', 'Frontend Engineer')], 1),
     );
-    const untrackedSpy = spyOn(services.untracked, 'list').mockResolvedValue(emptyUntracked());
 
     const { container } = render(
       <ToastProvider>
@@ -254,7 +149,6 @@ describe('RolesView — kebab a11y (FE-J2)', () => {
     });
 
     listSpy.mockRestore();
-    untrackedSpy.mockRestore();
   });
 });
 
@@ -262,9 +156,6 @@ describe('RolesView — cold-load skeleton', () => {
   test('shows the table skeleton while the active tab has no data yet', () => {
     const listSpy = spyOn(services.requisitions, 'list').mockReturnValue(
       new Promise<RoleListPage>(() => {}),
-    );
-    const untrackedSpy = spyOn(services.untracked, 'list').mockReturnValue(
-      new Promise<UntrackedListPage>(() => {}),
     );
 
     const { container } = render(
@@ -277,7 +168,6 @@ describe('RolesView — cold-load skeleton', () => {
     expect(container.querySelector('#roles-empty')).toBeNull();
 
     listSpy.mockRestore();
-    untrackedSpy.mockRestore();
   });
 });
 
@@ -286,7 +176,6 @@ describe('RolesView — tabs a11y (FE-J2)', () => {
     const listSpy = spyOn(services.requisitions, 'list').mockResolvedValue(
       page([role('r1', 'Frontend Engineer')], 1),
     );
-    const untrackedSpy = spyOn(services.untracked, 'list').mockResolvedValue(emptyUntracked());
 
     const { container } = render(
       <ToastProvider>
@@ -320,6 +209,5 @@ describe('RolesView — tabs a11y (FE-J2)', () => {
     expect(document.activeElement).toBe(pendingTab);
 
     listSpy.mockRestore();
-    untrackedSpy.mockRestore();
   });
 });

@@ -5,16 +5,9 @@ import type {
   Integration,
   Requisition,
   Round,
-  RoundRecording,
-  TranscriptSegment,
-  UntrackedInterview,
 } from '@/domain';
 import { getCandidatesForReq } from '@/fixtures/candidates';
 import { REQS, type RoleFixture } from '@/fixtures/roles';
-import {
-  UNTRACKED_INTERVIEWS,
-  type UntrackedInterview as UntrackedFixture,
-} from '@/fixtures/untracked-interviews';
 import { isV2ApiEnabled } from '@/lib/env';
 import { generateId, type MockDb, resetDb } from './mock-db';
 
@@ -25,11 +18,6 @@ function mapStatus(legacy: RoleFixture['status']): Requisition['status'] {
   if (legacy === 'live') return 'planned';
   if (legacy === 'draft') return 'intake_pending';
   return 'closed';
-}
-
-function mapUntrackedStatus(s: UntrackedFixture['status']): UntrackedInterview['status'] {
-  if (s === 'failed') return 'dismissed';
-  return s;
 }
 
 const ROUND_QUESTIONS: Record<
@@ -304,260 +292,7 @@ function buildIntegrations(): Integration[] {
       last_synced_at: NOW,
       metadata: { bot_email: 'scout-bot@recall.ai' },
     },
-    {
-      provider: 'untracked_bot',
-      status: 'disabled',
-      label: 'Untracked-interview bot',
-      blurb: 'Auto-join calendar events not linked to a OpenRecruiting role.',
-      connected_at: null,
-      last_synced_at: null,
-      metadata: {},
-    },
   ];
-}
-
-function buildUntracked(): UntrackedInterview[] {
-  return UNTRACKED_INTERVIEWS.map((u) => ({
-    id: u.id,
-    candidate_name: u.candidate_name,
-    candidate_email: u.candidate_email,
-    event_title: u.event_title,
-    event_start: u.event_start,
-    event_duration_minutes: 45,
-    interviewer_email: u.interviewer_email,
-    recording_url: null,
-    status: mapUntrackedStatus(u.status),
-    imported_candidate_id: null,
-    imported_requisition_id: null,
-    // Mock-path matches the v2 backend contract: each row carries the
-    // synthetic (req, candidate) backing its captured candidate_round so
-    // the FE can open the packet via the standard RPC.
-    source_candidate_id: untrackedCandidateId(u.id),
-    source_requisition_id: UNTRACKED_GENERIC_REQ_ID,
-    detected_at: u.event_start,
-  }));
-}
-
-// Mirrors backend `org_generic_template_bindings.materialized_requisition_id`
-// (see backend/app/api/v2/services/untracked_service.py). One hidden
-// requisition per org holds every captured untracked candidate + their
-// recorded round, so the existing PacketDrawer can render an untracked
-// interview's feedback packet with no special-case branch.
-export const UNTRACKED_GENERIC_REQ_ID = 'req_ut_generic';
-export const UNTRACKED_GENERIC_ROUND_ID = 'round_ut_generic';
-
-export function untrackedCandidateId(utId: string): string {
-  return `cand_ut_${utId}`;
-}
-
-export function untrackedCandidateRoundId(utId: string): string {
-  return `cr_ut_${utId}`;
-}
-
-const UNTRACKED_GENERIC_QUESTIONS = [
-  {
-    heading: 'Role-related signal',
-    description: 'What did the candidate demonstrate that maps to a hireable role?',
-  },
-  {
-    heading: 'Depth of experience',
-    description: 'Evidence of real, specific, owned outcomes — not narration.',
-  },
-  {
-    heading: 'Communication & presence',
-    description: 'Clarity, directness, and ability to land complex ideas concisely.',
-  },
-];
-
-function buildUntrackedGenericRequisition(): Requisition {
-  const reqId = UNTRACKED_GENERIC_REQ_ID;
-  const roundId = UNTRACKED_GENERIC_ROUND_ID;
-  const round: Round = {
-    id: roundId,
-    requisition_id: reqId,
-    round_number: 1,
-    name: 'Untracked interview',
-    category: 'panel',
-    duration_minutes: 45,
-    description:
-      'Calendar-detected interview captured by OpenRecruiting without a linked role. Re-process by linking to an existing role, or convert it into a new role.',
-    skills: [],
-    guidelines: [],
-    feedback_questions: UNTRACKED_GENERIC_QUESTIONS.map((q, i) => ({
-      id: `${roundId}_q${i + 1}`,
-      round_id: roundId,
-      question_number: i + 1,
-      heading: q.heading,
-      description: q.description,
-    })),
-    created_at: NOW,
-    updated_at: NOW,
-  };
-  return {
-    id: reqId,
-    organization_id: ORG_ID,
-    role_title: 'Untracked interview',
-    role_location: '—',
-    department: '—',
-    created_by: 'system',
-    created_by_name: 'OpenRecruiting',
-    experience_min_years: 0,
-    experience_max_years: null,
-    status: 'closed',
-    intake_notes: '',
-    job_description: '',
-    must_have_skills: [],
-    good_to_have_skills: [],
-    rounds: [round],
-    created_at: NOW,
-    updated_at: NOW,
-  };
-}
-
-function buildUntrackedTranscript(candidateName: string): TranscriptSegment[] {
-  const first = candidateName.split(' ')[0] ?? candidateName;
-  return [
-    {
-      start_seconds: 0,
-      end_seconds: 18,
-      speaker: 'Interviewer',
-      text: `Thanks for making time today. Want to start by walking me through the project you led most recently?`,
-    },
-    {
-      start_seconds: 18,
-      end_seconds: 92,
-      speaker: first,
-      text: `Sure. I led an end-to-end activation overhaul last quarter — we instrumented the funnel, shipped 4 experiments, and ended up with a 30% lift in week-one activation. I owned scoping, ran the readouts, and pushed back on a tempting metric we almost shipped against.`,
-    },
-    {
-      start_seconds: 92,
-      end_seconds: 110,
-      speaker: 'Interviewer',
-      text: `What was the hardest tradeoff in that work?`,
-    },
-    {
-      start_seconds: 110,
-      end_seconds: 184,
-      speaker: first,
-      text: `Speed versus blast radius. We had a working fix in week one but only a 40% confidence interval on the impact estimate. Shipping it would have prevented us from learning whether the deeper variant — which we eventually landed on — was actually better. I lost a week of velocity but kept the experiment clean.`,
-    },
-    {
-      start_seconds: 184,
-      end_seconds: 210,
-      speaker: 'Interviewer',
-      text: `How did your team react to that call?`,
-    },
-    {
-      start_seconds: 210,
-      end_seconds: 268,
-      speaker: first,
-      text: `Mixed at first. I wrote a one-pager arguing the tradeoff, talked through it with my PM and the staff engineer, and got buy-in. After it landed I think people internalized it as the right call.`,
-    },
-  ];
-}
-
-function buildUntrackedSynthetics(untracked: UntrackedInterview[]): {
-  req: Requisition;
-  candidates: Candidate[];
-  rounds: CandidateRound[];
-  feedback_entries: FeedbackEntry[];
-  recordings: RoundRecording[];
-} {
-  const req = buildUntrackedGenericRequisition();
-  const round = req.rounds[0];
-  if (!round) throw new Error('untracked generic req must have a round');
-  const candidates: Candidate[] = [];
-  const rounds: CandidateRound[] = [];
-  const feedback_entries: FeedbackEntry[] = [];
-  const recordings: RoundRecording[] = [];
-
-  untracked.forEach((u, idx) => {
-    const candId = untrackedCandidateId(u.id);
-    const crId = untrackedCandidateRoundId(u.id);
-    const rating: CandidateRound['rating'] = idx % 2 === 0 ? 'yes' : 'maybe';
-
-    candidates.push({
-      id: candId,
-      requisition_id: req.id,
-      name: u.candidate_name,
-      email: u.candidate_email,
-      phone: null,
-      resume_url: null,
-      avatar_initials: u.candidate_name
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((p) => p[0]?.toUpperCase() ?? '')
-        .join(''),
-      avatar_color: '#EADFD4',
-      status: 'active',
-      final_verdict: null,
-      current_round_id: round.id,
-      tags: [],
-      source: 'untracked_capture',
-      created_at: u.detected_at,
-      updated_at: u.detected_at,
-    });
-
-    const questionSummaries: Record<string, string> = {};
-    round.feedback_questions.forEach((q) => {
-      questionSummaries[String(q.question_number)] = synthesizeQuestionSummary(
-        u.candidate_name,
-        q.heading,
-        rating,
-      );
-    });
-
-    rounds.push({
-      id: crId,
-      candidate_id: candId,
-      round_id: round.id,
-      status: 'completed',
-      scorecard_status: 'complete',
-      rating,
-      summary: synthesizeRoundSummary(u.candidate_name, round.name, rating),
-      question_summaries: questionSummaries,
-      authenticity_signals: null,
-      feedback_approved_at: null,
-      feedback_approved_by_email: null,
-      scheduled_at: u.event_start,
-      scheduling_timezone: null,
-      completed_at: u.event_start,
-      interviewer_email: u.interviewer_email,
-      interviewer_name: u.interviewer_email.split('@')[0]?.replace(/\./g, ' ') ?? null,
-      meeting_url: null,
-      scorecard: [],
-    });
-
-    round.feedback_questions.forEach((q, qIdx) => {
-      const seedNum = candId.charCodeAt(2) + qIdx;
-      const variants = pickPointVariants(rating, seedNum);
-      variants.forEach((status, pIdx) => {
-        feedback_entries.push({
-          id: `fb_${crId}_${q.id}_${pIdx}`,
-          candidate_round_id: crId,
-          feedback_question_id: q.id,
-          feedback_text: synthesizePointText(u.candidate_name, q.heading, status, pIdx),
-          evidence_status: status,
-          evidence: synthesizeEvidence(q.heading, status, pIdx),
-          source: 'bot',
-          created_at: u.event_start,
-        });
-      });
-    });
-
-    const transcript = buildUntrackedTranscript(u.candidate_name);
-    recordings.push({
-      candidate_round_id: crId,
-      recording_url: `https://example.com/recording/${crId}.mp4`,
-      transcript_excerpt: transcript[1]?.text ?? '',
-      transcript_segments: transcript,
-      duration_seconds: 268,
-      feedback_start_seconds: null,
-      available: true,
-    });
-  });
-
-  return { req, candidates, rounds, feedback_entries, recordings };
 }
 
 function buildFeedbackEntries(
@@ -734,19 +469,12 @@ export function buildSeed(): MockDb {
   const realReqs = buildRequisitions();
   const { candidates, candidate_rounds } = buildCandidatesAndRounds(realReqs);
   const feedback_entries = buildFeedbackEntries(realReqs, candidates, candidate_rounds);
-  const untracked = buildUntracked();
-  const utSynth = buildUntrackedSynthetics(untracked);
-  // The generic untracked requisition holds candidate_rounds backing the
-  // feedback packet for each detected interview. It's filtered out of the
-  // public role list / candidates list by id prefix (`req_ut_*`) — see
-  // services/requisitions.ts and services/candidates.ts.
-  const requisitions = [...realReqs, utSynth.req];
   return {
-    requisitions,
-    candidates: [...candidates, ...utSynth.candidates],
-    candidate_rounds: [...candidate_rounds, ...utSynth.rounds],
-    feedback_entries: [...feedback_entries, ...utSynth.feedback_entries],
-    recordings: [...utSynth.recordings],
+    requisitions: realReqs,
+    candidates,
+    candidate_rounds,
+    feedback_entries,
+    recordings: [],
     team_members: [
       {
         id: 'tm_1',
@@ -804,7 +532,6 @@ export function buildSeed(): MockDb {
         created_at: NOW,
       },
     ],
-    untracked,
     _meta: { seeded_at: NOW, version: 1 },
   };
 }

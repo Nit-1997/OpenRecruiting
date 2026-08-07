@@ -45,7 +45,6 @@ afterAll(() => clearDb());
 let packetSpy: ReturnType<typeof spyOn> | null = null;
 let reqSpy: ReturnType<typeof spyOn> | null = null;
 let recordingSpy: ReturnType<typeof spyOn> | null = null;
-let untrackedSpy: ReturnType<typeof spyOn> | null = null;
 
 function asyncState<T>(data: T) {
   return { data, loading: false, error: null, refetch: () => {} } as unknown as ReturnType<
@@ -64,14 +63,12 @@ beforeEach(() => {
     asyncState({ role_title: 'Staff PM · Sunnyvale' }),
   );
   recordingSpy = spyOn(services, 'useRecording').mockReturnValue(asyncState(null));
-  untrackedSpy = spyOn(services, 'useUntrackedPacket').mockReturnValue(asyncState(null));
 });
 
 afterEach(() => {
   packetSpy?.mockRestore();
   reqSpy?.mockRestore();
   recordingSpy?.mockRestore();
-  untrackedSpy?.mockRestore();
   cleanup();
 });
 

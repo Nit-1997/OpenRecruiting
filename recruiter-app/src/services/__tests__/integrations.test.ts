@@ -13,8 +13,9 @@ afterEach(() => clearDb());
 
 describe('integrations service', () => {
   test('connect flips status to connected', async () => {
-    await integrations.connect('untracked_bot');
-    const status = await integrations.getStatus('untracked_bot');
+    await integrations.disconnect('recall');
+    await integrations.connect('recall');
+    const status = await integrations.getStatus('recall');
     expect(status.status).toBe('connected');
     expect(status.connected_at).toBeTruthy();
   });

@@ -22,8 +22,7 @@ export type ServiceEventName =
   | 'integration:updated'
   | 'profile:updated'
   | 'notification_prefs:updated'
-  | 'activity:created'
-  | 'untracked:updated';
+  | 'activity:created';
 
 type Listener = (payload?: unknown) => void;
 

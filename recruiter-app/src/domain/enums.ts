@@ -51,7 +51,7 @@ export type OrgRole = 'owner' | 'admin' | 'recruiter' | 'viewer';
 
 export type PlanTier = 'starter' | 'growth' | 'scale' | 'enterprise';
 
-export type IntegrationProvider = 'recall' | 'untracked_bot';
+export type IntegrationProvider = 'recall';
 
 export type IntegrationStatus = 'connected' | 'available' | 'error' | 'disabled';
 
@@ -71,8 +71,6 @@ export type ActivityEventType =
   | 'billing:credits_toppedup'
   | 'integration:connected'
   | 'integration:disconnected';
-
-export type UntrackedStatus = 'available' | 'imported' | 'dismissed';
 
 // Backend canonical: candidates.final_verdict CHECK ('strong_hire','hire','no_hire','strong_no_hire'),
 // NULL allowed. UI should treat null as "no verdict yet".

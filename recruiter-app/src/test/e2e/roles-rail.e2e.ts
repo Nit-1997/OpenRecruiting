@@ -1,14 +1,14 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('P2 roles rail view', () => {
-  test('/view/roles renders title + 4 tabs + search + table', async ({ page }) => {
+  test('/view/roles renders title + 3 tabs + search + table', async ({ page }) => {
     await page.goto('/view/roles');
 
     await expect(page.locator('#roles-view')).toBeVisible();
     await expect(page.locator('#roles-view-title')).toContainText('Roles');
     await expect(page.locator('#roles-view-new-btn')).toBeVisible();
 
-    for (const tab of ['open', 'pending', 'closed', 'untracked']) {
+    for (const tab of ['open', 'pending', 'closed']) {
       await expect(page.locator(`#roles-view-tab-${tab}`)).toBeVisible();
     }
 
@@ -23,16 +23,6 @@ test.describe('P2 roles rail view', () => {
     await expect(page.locator('#roles-view-row-ds-rem')).toBeVisible();
     await expect(page.locator('#roles-view-row-fin-rem')).toBeVisible();
     await expect(page.locator('#roles-view-row-pm-sfo')).toHaveCount(0);
-  });
-
-  test('tab switch to Untracked shows 4 fixture cards', async ({ page }) => {
-    await page.goto('/view/roles');
-    await page.locator('#roles-view-tab-untracked').click();
-
-    await expect(page.locator('#roles-view-untracked-card-ut-1')).toBeVisible();
-    await expect(page.locator('#roles-view-untracked-card-ut-2')).toBeVisible();
-    await expect(page.locator('#roles-view-untracked-card-ut-3')).toBeVisible();
-    await expect(page.locator('#roles-view-untracked-card-ut-4')).toBeVisible();
   });
 
   test('row click navigates to detail view with breadcrumb', async ({ page }) => {

@@ -192,33 +192,6 @@ export async function requestFeedback(
   return { sent: true };
 }
 
-/**
- * Send a feedback request directly by candidate_round id. The untracked-merge
- * flow already holds the target round id from the link response, so it skips the
- * packet round-trip that `requestFeedback` does.
- */
-export async function requestFeedbackByCrId(
-  candidateRoundId: string,
-  input: FeedbackRequestInput,
-): Promise<{ sent: true }> {
-  if (isV2ApiEnabled()) {
-    await v2Client.post<{ sent: true; request_id?: string }>(
-      `/api/v2/candidate-rounds/${candidateRoundId}/request-feedback`,
-      input,
-    );
-    emit('feedback:requested');
-    return { sent: true };
-  }
-  await simulate();
-  if (!EMAIL_RE.test(input.interviewer_email)) {
-    throw new ServiceError('validation', 'interviewer_email must be valid', {
-      field: 'interviewer_email',
-    });
-  }
-  emit('feedback:requested');
-  return { sent: true };
-}
-
 // Fetch only the pre-signed URL — lazy path used on Play click. v2 spec §7.
 export async function getRecordingUrl(
   candidateRoundId: string,

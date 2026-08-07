@@ -24,7 +24,6 @@ afterEach(cleanup);
 let packetSpy: ReturnType<typeof spyOn> | null = null;
 let reqSpy: ReturnType<typeof spyOn> | null = null;
 let recordingSpy: ReturnType<typeof spyOn> | null = null;
-let untrackedSpy: ReturnType<typeof spyOn> | null = null;
 
 beforeEach(() => {
   packetSpy = spyOn(services, 'usePacket').mockReturnValue({
@@ -45,19 +44,12 @@ beforeEach(() => {
     error: null,
     refetch: () => {},
   } as unknown as ReturnType<typeof services.useRecording>);
-  untrackedSpy = spyOn(services, 'useUntrackedPacket').mockReturnValue({
-    data: null,
-    loading: false,
-    error: null,
-    refetch: () => {},
-  } as unknown as ReturnType<typeof services.useUntrackedPacket>);
 });
 
 afterEach(() => {
   packetSpy?.mockRestore();
   reqSpy?.mockRestore();
   recordingSpy?.mockRestore();
-  untrackedSpy?.mockRestore();
 });
 
 describe('PacketDrawer — render states', () => {
@@ -106,26 +98,7 @@ describe('PacketDrawer — render states', () => {
         />
       </ConfirmDialogProvider>,
     );
-    // No untracked id passed → useUntrackedPacket called with nulls. View-only
-    // is the captured-interview mode used in /view/untracked-interviews.
     expect(document.getElementById('pd3')).not.toBeNull();
-  });
-
-  test('untracked mode uses the dedicated useUntrackedPacket hook', () => {
-    render(
-      <ConfirmDialogProvider>
-        <PacketDrawer
-          id="pd4"
-          reqId="ignored"
-          candidateId="ignored"
-          initialRoundId={null}
-          untrackedId="untracked-1"
-          viewOnly
-          onClose={() => {}}
-        />
-      </ConfirmDialogProvider>,
-    );
-    expect(document.getElementById('pd4')).not.toBeNull();
   });
 });
 

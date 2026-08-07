@@ -8,4 +8,3 @@ export * from './integrations';
 export * from './profile';
 export * from './requisition';
 export * from './team';
-export * from './untracked';

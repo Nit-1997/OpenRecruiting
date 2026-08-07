@@ -11,7 +11,6 @@ import type {
   Requisition,
   RoundRecording,
   TeamMember,
-  UntrackedInterview,
 } from '@/domain';
 
 export interface MockDb {
@@ -27,7 +26,6 @@ export interface MockDb {
   profile: Profile;
   notification_prefs: NotificationPreferences;
   activity: ActivityEvent[];
-  untracked: UntrackedInterview[];
   _meta: { seeded_at: string; version: number };
 }
 
@@ -204,7 +202,6 @@ function emptyDb(): MockDb {
       email_weekly_digest: false,
     },
     activity: [],
-    untracked: [],
     _meta: { seeded_at: new Date(0).toISOString(), version: 1 },
   };
 }

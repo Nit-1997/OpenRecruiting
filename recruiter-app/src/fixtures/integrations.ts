@@ -15,7 +15,6 @@ export interface AvailableIntegrationFixture {
 
 export interface WorkspacePreferencesFixture {
   timezone: string;
-  auto_join_untracked: boolean;
 }
 
 export const COMMON_TIMEZONES = [
@@ -75,7 +74,6 @@ export const INTEGRATIONS = {
 
 export const WORKSPACE_PREFERENCES: WorkspacePreferencesFixture = {
   timezone: 'America/Los_Angeles',
-  auto_join_untracked: false,
 };
 
 export function findAvailableIntegration(id: string): AvailableIntegrationFixture | undefined {
