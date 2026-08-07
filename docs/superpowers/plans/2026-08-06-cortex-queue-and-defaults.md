@@ -931,6 +931,104 @@ unaffected: it runs through recall_service and the Recall webhook handlers."
 
 ---
 
+### Task 5.5: Delete the untracked-interview surface
+
+Added during execution. Task 5 deleted calendar intelligence, which removed both
+writers of `calendar_event_detections` (`untracked_capture_service` and
+`calendar_intelligence_worker`). What remains is a live API, its router, and
+three recruiter-app surfaces backing a table nothing can populate.
+
+**Confirmed dead, not merely unused:**
+- `calendar_event_detections` — **0 rows**
+- `candidate_rounds` with a `source_type` — 8 rows, **all `standard`**; zero
+  `untracked_generic`, zero `untracked_copy`
+- The only writer left is `untracked_service.py:862`, which copies an
+  *already-existing* untracked round — and none exist
+
+So this cannot remove live functionality. It was already unreachable before Task
+5 (`CALENDAR_INTELLIGENCE_ENABLED=False` plus blank Google credentials); Task 5
+removed the last theoretical path.
+
+**Files — 44 total.**
+
+*Backend app (10):* `api/v2/routers/untracked.py`, `api/v2/schemas/untracked.py`,
+`api/v2/services/untracked_service.py` (1,493 lines) deleted outright; references
+removed from `api/v2/__init__.py` (import + `include_router`),
+`api/v2/services/recording_service.py`, `api/v2/services/role_service.py`,
+`models/organization.py`, `models/requisitions.py`, `services/_supabase_rows.py`,
+`services/requisition_service.py`.
+
+*Backend tests (9):* `api/v2/test_untracked_read.py`,
+`services/test_untracked_{conflict,link_reprocess,multi_attempt,service_helpers}.py`
+deleted; references removed from `api/v2/admin/test_requisitions.py`,
+`services/test_recording_service.py`, `services/test_requisition_service.py`,
+`services/test_supabase_rows.py`.
+
+*recruiter-app (25):* `services/untracked.ts` and
+`services/__tests__/untracked.test.ts` deleted; the `link-picker/` trio
+(`config-step.tsx`, `link-to-existing-picker.tsx`, `select-linkable-roles.ts`),
+`packet-drawer/drawer.tsx` (+ its two tests), `rail-views/roles/view.tsx` (+
+test), `domain/enums.ts`, `domain/index.ts`, `services/index.ts`,
+`services/events.ts`, `services/feedback.ts`, `services/mock-db.ts`,
+`services/seed.ts`, `services/requisitions.ts`, `hooks/use-services.ts`,
+`fixtures/integrations.ts`, `test/a11y.test.tsx`, `test/e2e/roles-rail.e2e.ts`,
+and three further `services/__tests__/` files.
+
+- [ ] **Step 1: Delete the backend surface and its references**
+
+Remove the three backend files outright, then strip every reference in the seven
+remaining app files. Drop the `untracked` import and `include_router` from
+`api/v2/__init__.py`.
+
+- [ ] **Step 2: Delete the backend tests**
+
+Remove the five dedicated test files; strip untracked cases from the other four.
+
+- [ ] **Step 3: Run the backend suite**
+
+Run: `make test`
+Expected: PASS. The count drops from 2323 by however many the deleted tests held.
+**Failures are not expected** — a failure means something outside the untracked
+surface depended on it. Investigate; do not delete the failing test.
+
+- [ ] **Step 4: Delete the recruiter-app surface**
+
+The three UI surfaces are the link-picker, the packet drawer's untracked branch,
+and the roles rail's untracked entry. `domain/enums.ts` and `services/index.ts`
+are registry files — remove the member, not the file. Check for orphaned
+identifiers after each removal, the way Task 5 did for `admin-app`.
+
+- [ ] **Step 5: Run the recruiter-app tests**
+
+Run directory slices, never a bare `bun test` — the full suite is known to hang:
+`bun test src/components src/services src/domain src/hooks`
+Expected: PASS, with the count down by the deleted tests only.
+
+- [ ] **Step 6: Verify nothing dangles**
+
+Run: `grep -rn "untracked" backend/app recruiter-app/src | grep -v '\.pyc'`
+Expected: no output. Then rebuild `backend` and `recruiter-app` and confirm
+`/health` and a 200 from `localhost:3005`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add -A backend/ recruiter-app/
+git commit -m "refactor: delete the untracked-interview surface
+
+Its two writers went with calendar intelligence, leaving a live API and three
+recruiter-app surfaces over a table nothing can populate:
+calendar_event_detections holds 0 rows, and all candidate_rounds carrying a
+source_type are 'standard' - no untracked_generic, no untracked_copy. The only
+remaining writer copies an already-existing untracked round, and none exist.
+
+Already unreachable before this branch (CALENDAR_INTELLIGENCE_ENABLED=False plus
+blank Google credentials); deleting calendar intelligence removed the last
+theoretical path."
+```
+
+---
+
 ### Task 6: Delete the Slack assistant
 
 **Files:**
@@ -1004,6 +1102,22 @@ In `backend/app/services/requisition_service.py`, delete the whole
 - `.env.example`: remove `SLACK_*`.
 - `backend/tests/services/test_requisition_service.py:536-560`: delete the two tests that monkeypatch `sqs_publisher.publish_event`.
 - `backend/tests/api/v2/test_webhooks_feedback.py`: its docstring names the SQS event; remove that test case and fix the docstring.
+
+**The privacy policy goes stale with this deletion — four claims, carried forward
+from Task 5's review.** `landing/src/app/privacy/page.tsx`:
+
+1. **§4 Encryption bullet must be deleted outright, not edited.** It survived Task
+   5 because the Fernet claim was still half true — Slack tokens genuinely are
+   encrypted under `SLACK_ENCRYPTION_KEY`. But `slack_service.py` is the **only**
+   Fernet consumer anywhere in the repo, so once Slack goes there is no at-rest
+   symmetric token encryption left to declare.
+2. **§1.3 Slack bullet** — workspace identity, user ID, messages.
+3. **§2** — "Process Slack messages and deliver agent responses".
+4. **§3** — "Power the conversational Slack agent for recruiting operations".
+
+Leave the "Google Authentication" bullet alone: that is Supabase Auth sign-in via
+`signInWithOAuth({ provider: 'google' })` with no `scopes` option, still live, and
+removing it would make the policy *under*-declare.
 
 - [ ] **Step 4: Find anything left behind**
 
