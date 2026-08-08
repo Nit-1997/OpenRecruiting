@@ -975,6 +975,18 @@ def get_client() -> LLMClient:
     return _client
 ```
 
+The package exposes a module-level `llm` singleton, but it must be **lazy**. A plain
+`llm = LLMClient()` at module scope would construct `AsyncOpenAI` and read settings at
+import time, breaking test collection and any process importing the package without
+gateway env vars. Use a module `__getattr__` in `llm_core/__init__.py`:
+
+```python
+def __getattr__(name: str):
+    if name == "llm":
+        return get_client()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+```
+
 Replace `llm-core/llm_core/__init__.py` with:
 
 ```python
