@@ -1001,7 +1001,17 @@ __all__ = [
     "ToolCall",
     "ToolEmulationError",
     "get_client",
+    "llm",
 ]
+
+
+def __getattr__(name: str):
+    # Lazy: a module-scope `llm = LLMClient()` would construct AsyncOpenAI and read
+    # settings at import time, breaking test collection and any process that imports
+    # llm_core without gateway env vars set.
+    if name == "llm":
+        return get_client()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
