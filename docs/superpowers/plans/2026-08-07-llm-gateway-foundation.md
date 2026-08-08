@@ -668,6 +668,17 @@ git commit -m "feat(llm-core): JSON-schema tool emulation for models without nat
 
 `system` is a convenience: when given it is prepended as a `{"role": "system"}` message. This exists because 11 backend call sites currently pass Anthropic's separate `system=` argument.
 
+**Carried forward from the Task 2 review — this task must also close it.** Task 2 correctly
+stopped memoizing failed capability probes, but the retry now happens inside
+`CapabilityCache._lock` while the gateway is down, so N concurrent callers cost
+O(N x LLM_TIMEOUT_SECONDS) rather than one round-trip each. Add a short negative-cache
+window to `llm_core/capabilities.py`: on probe failure, record the failure time and skip
+re-probing for `_FAILURE_BACKOFF_SECONDS = 30`, returning the fail-open `{}` immediately
+during that window. This must not re-introduce permanent stickiness -- after the window
+elapses the next call probes again. Cover it with a test that a second call inside the
+window does not re-probe, and a third call after the window (via a monkeypatched clock)
+does.
+
 - [ ] **Step 1: Write the failing test**
 
 Create `llm-core/tests/test_client_complete.py`:
