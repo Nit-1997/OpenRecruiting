@@ -39,12 +39,29 @@ Go to **Project Settings → API keys** and fill these into your `.env`:
 | Supabase value | `.env` keys |
 |---|---|
 | Project URL | `SUPABASE_URL` **and** `NEXT_PUBLIC_SUPABASE_URL` |
-| `anon` / publishable key | `SUPABASE_ANON_KEY` **and** `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
-| `service_role` / secret key | `SUPABASE_SERVICE_ROLE_KEY` |
+| `anon` / publishable key | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` **and** `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
+| `service_role` / secret key | `SUPABASE_SECRET_KEY` |
+| JWT Secret (**API → JWT Settings**) | `SUPABASE_JWT_SECRET` |
+
+`SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `SUPABASE_JWT_SECRET` are the three values the
+backend has no default for — leave any of them blank and the API refuses to start.
+
+The browser-safe key has two names because Supabase renamed it: newer projects call it
+"publishable", older ones "anon". They are the same string, and you set **both** variables
+to it — the landing app reads the publishable name, the recruiter app accepts either, and
+`docker-compose.yml` passes both to every frontend image as build args. There is no
+backend `SUPABASE_ANON_KEY`; nothing server-side reads that key.
 
 The `service_role` key bypasses row-level security entirely. It belongs to the backend
-only. Never put it in a `NEXT_PUBLIC_*` variable — those are compiled into the browser
-bundle and are readable by anyone who loads the page.
+only, under the name `SUPABASE_SECRET_KEY`. Never put it in a `NEXT_PUBLIC_*` variable —
+those are compiled into the browser bundle and are readable by anyone who loads the page.
+
+`SUPABASE_JWT_SECRET` is required, but not for the reason its name suggests. This
+project's Supabase issues **ES256** access tokens, which the backend verifies against
+your project's public JWKS — the shared secret plays no part in checking a user login.
+It signs the backend's *own* HS256 tokens: screening sessions, OTP codes and public
+feedback links. Any long random string works if you would rather not reuse the
+dashboard's value.
 
 ## 4. Configure auth URLs
 

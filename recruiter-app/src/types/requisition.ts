@@ -1,4 +1,7 @@
-export type RequisitionStatus = 'intake_pending' | 'planned' | 'closed';
+// Mirrors the DB constraint requisitions_status_check ('draft', 'intake_pending',
+// 'planned', 'closed') and the canonical copy in src/domain/enums.ts. 'draft' is the
+// intake canvas's pre-submit working copy, and real rows carry it.
+export type RequisitionStatus = 'draft' | 'intake_pending' | 'planned' | 'closed';
 
 export type IntakeProcessingStatus = 'processing' | 'completed' | 'failed';
 
