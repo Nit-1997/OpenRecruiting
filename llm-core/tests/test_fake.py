@@ -7,12 +7,13 @@ client lets a migrated test pass against something production can never produce.
 The signature-parity tests below exist to make that drift fail loudly.
 """
 
+import asyncio
 import inspect
 
 import pytest
 
 from llm_core.client import LLMClient
-from llm_core.errors import LLMError
+from llm_core.errors import LLMError, ToolEmulationError
 from llm_core.fake import FakeLLM
 from llm_core.types import LLMReply, ToolCall
 
@@ -55,12 +56,17 @@ async def test_queued_error_is_raised():
 
 
 async def test_stream_turn_replays_queued_text_then_done():
+    # DEVIATION from the brief, which asserted `("text", "hi there") in events`.
+    # queue_text now streams multiple deltas so consumers cannot assume one text
+    # event per turn (the real client yields once per content chunk), which makes
+    # that assertion false by construction. Asserting on the concatenation is the
+    # stronger claim anyway: it holds whatever the split.
     fake = FakeLLM()
     fake.queue_text("hi there")
 
     events = [e async for e in fake.stream_turn(model="debrief-chat", messages=[])]
 
-    assert ("text", "hi there") in events
+    assert "".join(payload for kind, payload in events if kind == "text") == "hi there"
     assert events[-1][0] == "done"
     assert events[-1][1]["text"] == "hi there"
 
@@ -81,8 +87,31 @@ async def test_running_dry_raises_a_clear_error():
 # costs a 26-file migration written against a lie.
 
 
-@pytest.mark.parametrize("method", ["complete", "stream_turn"])
+def _public_methods_of_the_real_client() -> list[str]:
+    """The parity list is DERIVED, never hardcoded.
+
+    A hardcoded ["complete", "stream_turn"] silently declines to check any method
+    added later — the pair could ship with mismatched signatures and this file
+    would stay green.
+    """
+    return sorted(
+        name
+        for name, _ in inspect.getmembers(LLMClient, inspect.isfunction)
+        if not name.startswith("_")
+    )
+
+
+def test_the_parity_list_is_not_empty():
+    """If introspection ever returns nothing, every parametrized parity test
+    below vacuously passes. Fail loudly instead."""
+    assert _public_methods_of_the_real_client(), "found no public methods on LLMClient"
+
+
+@pytest.mark.parametrize("method", _public_methods_of_the_real_client())
 def test_fake_signature_matches_the_real_client(method):
+    assert hasattr(FakeLLM, method), (
+        f"LLMClient exposes {method!r}, which FakeLLM does not implement"
+    )
     real = inspect.signature(getattr(LLMClient, method))
     fake = inspect.signature(getattr(FakeLLM, method))
 
@@ -95,6 +124,28 @@ def test_fake_signature_matches_the_real_client(method):
     )
 
 
+@pytest.mark.parametrize("method", _public_methods_of_the_real_client())
+def test_fake_awaitability_matches_the_real_client(method):
+    """inspect.signature is BLIND to async-ness.
+
+    `inspect.signature(async def f(x))` equals `inspect.signature(def f(x))`, so
+    signature parity alone would pass a sync fake standing in for an async client
+    method — and every migrated test would await something that is not awaitable
+    only once it ran against the real thing.
+    """
+    real = getattr(LLMClient, method)
+    fake = getattr(FakeLLM, method)
+
+    assert inspect.iscoroutinefunction(fake) == inspect.iscoroutinefunction(real), (
+        f"FakeLLM.{method} coroutine-ness differs from LLMClient.{method}: "
+        f"real={inspect.iscoroutinefunction(real)}, fake={inspect.iscoroutinefunction(fake)}"
+    )
+    assert inspect.isasyncgenfunction(fake) == inspect.isasyncgenfunction(real), (
+        f"FakeLLM.{method} async-generator-ness differs from LLMClient.{method}: "
+        f"real={inspect.isasyncgenfunction(real)}, fake={inspect.isasyncgenfunction(fake)}"
+    )
+
+
 def test_fake_covers_every_public_method_of_the_real_client():
     """Catches a method ADDED to LLMClient that the fake never grew.
 
@@ -102,13 +153,7 @@ def test_fake_covers_every_public_method_of_the_real_client():
     `LLMClient.embed()` would sail past it and only fail once a service tried to
     substitute the fake for the client.
     """
-    public = {
-        name
-        for name, _ in inspect.getmembers(LLMClient, inspect.isfunction)
-        if not name.startswith("_")
-    }
-
-    missing = public - set(dir(FakeLLM))
+    missing = set(_public_methods_of_the_real_client()) - set(dir(FakeLLM))
 
     assert not missing, f"LLMClient exposes {sorted(missing)}, which FakeLLM does not implement"
 
@@ -238,3 +283,267 @@ async def test_stream_turn_rejects_a_queued_nameless_tool_call():
 
     with pytest.raises(LLMError, match="no function name"):
         [e async for e in fake.stream_turn(model="intake-jd", messages=[])]
+
+
+# --- recorded calls are snapshots, not references -------------------------
+#
+# The real client does `outgoing = list(messages)` before it touches anything.
+# `calls` is this double's entire assertion surface, and multi-turn tool loops —
+# the dominant pattern across the five migrating services — mutate the very list
+# they passed in. Storing the reference would let a turn-1 assertion read turn-N
+# state and pass against a lie.
+
+
+async def test_recorded_messages_are_not_the_callers_list():
+    fake = FakeLLM()
+    fake.queue_text("ok")
+    messages = [{"role": "user", "content": "hi"}]
+
+    await fake.complete(model="intake-jd", messages=messages)
+    messages.append({"role": "assistant", "content": "turn 2"})
+    messages.append({"role": "user", "content": "turn 3"})
+
+    assert fake.calls[0]["messages"] == [{"role": "user", "content": "hi"}]
+    assert fake.calls[0]["messages"] is not messages
+
+
+async def test_recorded_tools_are_not_the_callers_list():
+    fake = FakeLLM()
+    fake.queue_text("ok")
+    tools = [{"type": "function", "function": {"name": "a"}}]
+
+    await fake.complete(model="intake-jd", messages=[], tools=tools)
+    tools.append({"type": "function", "function": {"name": "b"}})
+
+    assert len(fake.calls[0]["tools"]) == 1
+    assert fake.calls[0]["tools"] is not tools
+
+
+async def test_an_agent_loop_records_each_turn_separately():
+    """The exact multi-turn shape the five services use."""
+    fake = FakeLLM()
+    fake.queue_tool_call("emit_job_description", {"title": "SRE"})
+    fake.queue_text("done")
+    messages = [{"role": "user", "content": "write a JD"}]
+
+    await fake.complete(model="intake-jd", messages=messages, tools=[])
+    messages.append({"role": "assistant", "content": "calling tool"})
+    messages.append({"role": "user", "content": "tool result"})
+    await fake.complete(model="intake-jd", messages=messages, tools=[])
+
+    assert len(fake.calls[0]["messages"]) == 1
+    assert len(fake.calls[1]["messages"]) == 3
+    assert fake.calls[0]["messages"] is not fake.calls[1]["messages"]
+
+
+async def test_stream_turn_also_snapshots_its_messages():
+    fake = FakeLLM()
+    fake.queue_text("ok")
+    messages = [{"role": "user", "content": "hi"}]
+
+    [e async for e in fake.stream_turn(model="debrief-chat", messages=messages)]
+    messages.append({"role": "assistant", "content": "later"})
+
+    assert len(fake.calls[0]["messages"]) == 1
+
+
+async def test_recorded_tools_stay_none_when_none_was_passed():
+    """None and [] are different things to the real client; keep the distinction."""
+    fake = FakeLLM()
+    fake.queue_text("ok")
+
+    await fake.complete(model="intake-jd", messages=[])
+
+    assert fake.calls[0]["tools"] is None
+
+
+# --- the reply carries the alias, never "fake" ----------------------------
+
+
+async def test_reply_model_is_the_alias_the_caller_passed():
+    """The real client stamps the reply with the alias it was called with. A
+    reply left saying "fake" makes `reply.model` untestable for any consumer
+    that logs or routes on it."""
+    fake = FakeLLM()
+    fake.queue_text("hello")
+
+    reply = await fake.complete(model="intake-jd", messages=[])
+
+    assert reply.model == "intake-jd"
+
+
+async def test_tool_call_reply_also_carries_the_alias():
+    fake = FakeLLM()
+    fake.queue_tool_call("emit_job_description", {"title": "SRE"})
+
+    reply = await fake.complete(model="debrief-chat", messages=[], tools=[])
+
+    assert reply.model == "debrief-chat"
+
+
+async def test_queue_reply_is_restamped_with_the_alias():
+    fake = FakeLLM()
+    fake.queue_reply(LLMReply(text="x", model="whatever-the-test-wrote", finish_reason="stop"))
+
+    reply = await fake.complete(model="intake-jd", messages=[])
+
+    assert reply.model == "intake-jd"
+
+
+async def test_the_same_alias_reaches_both_the_reply_and_the_record():
+    fake = FakeLLM()
+    fake.queue_text("hello")
+
+    reply = await fake.complete(model="intake-jd", messages=[])
+
+    assert reply.model == fake.calls[0]["model"]
+
+
+# --- multi-delta streaming ------------------------------------------------
+
+
+async def test_queue_text_streams_more_than_one_delta():
+    """The whole point: a consumer cannot assume a single text event, because
+    the real client yields once per content chunk the provider sends."""
+    fake = FakeLLM()
+    fake.queue_text("one two three four")
+
+    events = [e async for e in fake.stream_turn(model="debrief-chat", messages=[])]
+    text_events = [payload for kind, payload in events if kind == "text"]
+
+    assert len(text_events) > 1
+    assert "".join(text_events) == "one two three four"
+
+
+async def test_queue_text_deltas_streams_exactly_the_given_parts():
+    fake = FakeLLM()
+    fake.queue_text_deltas("Hel", "lo, ", "wor", "ld")
+
+    events = [e async for e in fake.stream_turn(model="debrief-chat", messages=[])]
+
+    assert [p for k, p in events if k == "text"] == ["Hel", "lo, ", "wor", "ld"]
+    assert events[-1] == ("done", {"text": "Hello, world", "stop_reason": "stop"})
+
+
+async def test_queue_text_deltas_reassembles_for_complete():
+    """The same queued outcome must read as one whole reply through complete()."""
+    fake = FakeLLM()
+    fake.queue_text_deltas("Hel", "lo, ", "wor", "ld")
+
+    reply = await fake.complete(model="intake-jd", messages=[])
+
+    assert reply.text == "Hello, world"
+
+
+async def test_deltas_concatenate_to_the_done_text_exactly():
+    fake = FakeLLM()
+    fake.queue_text("  leading and trailing  ")
+
+    events = [e async for e in fake.stream_turn(model="debrief-chat", messages=[])]
+
+    joined = "".join(p for k, p in events if k == "text")
+    assert joined == "  leading and trailing  "
+    assert events[-1][1]["text"] == joined
+
+
+async def test_empty_delta_parts_are_not_emitted():
+    """The real client yields only on a truthy content delta."""
+    fake = FakeLLM()
+    fake.queue_text_deltas("a", "", "b")
+
+    events = [e async for e in fake.stream_turn(model="debrief-chat", messages=[])]
+
+    assert [p for k, p in events if k == "text"] == ["a", "b"]
+
+
+async def test_deltas_precede_tool_calls_which_precede_done():
+    fake = FakeLLM()
+    fake.queue_reply(
+        LLMReply(
+            text="thinking out loud",
+            model="fake",
+            tool_calls=[ToolCall(id="c1", name="emit_job_description", arguments={})],
+            finish_reason="tool_calls",
+        )
+    )
+
+    events = [e async for e in fake.stream_turn(model="intake-jd", messages=[])]
+    kinds = [k for k, _ in events]
+
+    assert kinds.count("done") == 1
+    assert kinds[-1] == "done"
+    assert kinds.index("tool_call") > max(i for i, k in enumerate(kinds) if k == "text")
+
+
+# --- queued errors are the type production can actually raise -------------
+
+
+async def test_a_plain_exception_is_coerced_to_llmerror():
+    """Both real methods normalize every provider failure to LLMError, so a
+    migrated test must not be able to write `except ValueError` around a call
+    site that can only ever see LLMError."""
+    fake = FakeLLM()
+    fake.queue_error(ValueError("bad json"))
+
+    with pytest.raises(LLMError, match="bad json"):
+        await fake.complete(model="intake-jd", messages=[])
+
+
+async def test_coercion_keeps_the_original_exception_as_the_cause():
+    fake = FakeLLM()
+    original = ValueError("bad json")
+    fake.queue_error(original)
+
+    with pytest.raises(LLMError) as caught:
+        await fake.complete(model="intake-jd", messages=[])
+
+    assert caught.value.__cause__ is original
+
+
+async def test_a_queued_llmerror_passes_through_untouched():
+    fake = FakeLLM()
+    original = LLMError("gateway down", alias="intake-jd", status=503)
+    fake.queue_error(original)
+
+    with pytest.raises(LLMError) as caught:
+        await fake.complete(model="intake-jd", messages=[])
+
+    assert caught.value is original
+    assert caught.value.status == 503
+
+
+async def test_an_llmerror_subclass_is_not_flattened():
+    fake = FakeLLM()
+    fake.queue_error(ToolEmulationError("model returned prose"))
+
+    with pytest.raises(ToolEmulationError):
+        await fake.complete(model="intake-jd", messages=[])
+
+
+async def test_cancellation_propagates_untouched():
+    """CancelledError is a BaseException, not an Exception. The real client lets
+    it through rather than normalizing it, and so must the fake — coercing it
+    would make a cooperative-cancellation test impossible to write."""
+    fake = FakeLLM()
+    fake.queue_error(asyncio.CancelledError())
+
+    with pytest.raises(asyncio.CancelledError):
+        await fake.complete(model="intake-jd", messages=[])
+
+
+async def test_keyboardinterrupt_propagates_untouched():
+    fake = FakeLLM()
+    fake.queue_error(KeyboardInterrupt())
+
+    with pytest.raises(KeyboardInterrupt):
+        await fake.complete(model="intake-jd", messages=[])
+
+
+async def test_a_messageless_exception_still_yields_a_readable_error():
+    """errors.py exists because the Anthropic-era invoker logged 'Failed to
+    trigger job: ' with an empty message."""
+    fake = FakeLLM()
+    fake.queue_error(ValueError())
+
+    with pytest.raises(LLMError, match="ValueError"):
+        await fake.complete(model="intake-jd", messages=[])
