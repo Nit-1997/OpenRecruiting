@@ -1727,8 +1727,13 @@ verify-local-llm: ## Prove the gateway reaches a local Ollama model
 
 ```bash
 # Generate a key if .env has none yet, then start the gateway.
-grep -q '^LITELLM_MASTER_KEY=.\+' .env || echo "LITELLM_MASTER_KEY=$(openssl rand -hex 32)" >> .env
-grep -q '^OLLAMA_API_BASE=' .env || echo "OLLAMA_API_BASE=http://host.docker.internal:11434" >> .env
+#
+# NOTE: `>>` onto a file with no trailing newline CONCATENATES onto the last line.
+# This exact idiom destroyed VOICE_DEEPGRAM_API_KEY during the Task 7 run. Always
+# normalise the trailing newline first.
+[ -s .env ] && [ -n "$(tail -c 1 .env)" ] && printf '\n' >> .env
+grep -q '^LITELLM_MASTER_KEY=.\+' .env || printf 'LITELLM_MASTER_KEY=%s\n' "$(openssl rand -hex 32)" >> .env
+grep -q '^OLLAMA_API_BASE=' .env || printf 'OLLAMA_API_BASE=%s\n' "http://host.docker.internal:11434" >> .env
 docker compose up -d --build litellm
 docker compose logs --tail 30 litellm
 make verify
@@ -1744,7 +1749,7 @@ curl -fsS http://localhost:4000/model/info -H "Authorization: Bearer $LITELLM_MA
   | python3 -c "import sys,json; [print(m['model_name'], m.get('model_info',{}).get('supports_function_calling')) for m in json.load(sys.stdin)['data']]"
 ```
 
-Expected: 15 aliases listed, `intake-jd-local` and `gemma-local` reporting `False`.
+Expected: 18 aliases listed, with `intake-jd-local`, `smoke-local` and `gemma-local` reporting `False`.
 
 - [ ] **Step 6: Commit**
 
