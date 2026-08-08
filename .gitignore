@@ -17,6 +17,7 @@ ENV/
 .pytest_cache/
 .coverage
 htmlcov/
+*.egg-info/
 
 # Node / Next / bun
 node_modules/

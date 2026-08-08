@@ -1,0 +1,28 @@
+[project]
+name = "llm-core"
+version = "0.1.0"
+description = "Provider-agnostic LLM access shared across OpenRecruiting services"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.40,<2.0",
+    "httpx>=0.27,<1.0",
+    "structlog>=24.1,<26.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0,<9.0",
+    "pytest-asyncio>=0.23,<1.0",
+    "pytest-mock>=3.12",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["llm_core*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
