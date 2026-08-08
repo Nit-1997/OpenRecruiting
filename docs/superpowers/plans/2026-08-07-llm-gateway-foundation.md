@@ -426,9 +426,12 @@ class CapabilityCache:
             try:
                 payload = await self._http_get("/model/info")
             except Exception as exc:  # noqa: BLE001 — never block a call on discovery
+                # Do NOT memoize a failure. Caching {} here would combine with the
+                # fail-open default below to report every alias tool-capable for the
+                # rest of the process, which would send real tool definitions to the
+                # Ollama aliases forever and permanently bypass emulation.
                 logger.warning("llm_capability_probe_failed", error=str(exc))
-                self._map = {}
-                return self._map
+                return {}
 
             table: dict[str, bool] = {}
             for entry in payload.get("data", []) or []:
@@ -436,7 +439,11 @@ class CapabilityCache:
                 if not name:
                     continue
                 info = entry.get("model_info") or {}
-                table[name] = bool(info.get("supports_function_calling", True))
+                # Explicit True/False only. bool() would coerce a quoted YAML
+                # "false" to True (unsafe) and an explicit null to False (defeats
+                # the documented default).
+                flag = info.get("supports_function_calling")
+                table[name] = flag if isinstance(flag, bool) else True
             self._map = table
             logger.info("llm_capabilities_loaded", aliases=len(table))
             return self._map
