@@ -6,8 +6,9 @@ gateway resolves to real providers, so provider choice is configuration.
 
 from __future__ import annotations
 
+import inspect
 import json
-from typing import Any
+from typing import Any, AsyncIterator
 
 import httpx
 import structlog
@@ -73,6 +74,48 @@ def _message_text(choice: Any, alias: str) -> str:
             alias=alias,
         )
     return content
+
+
+def _slot_key(raw: Any, pending: dict[Any, Any]) -> Any:
+    """Which in-flight tool call a streamed delta belongs to.
+
+    `index` is what the OpenAI wire format uses and is all a compliant gateway
+    needs. Not every gateway echoes it, though, and reading it as an attribute
+    unconditionally turns that omission into a dead turn. The fallbacks keep the
+    call assembling: a delta that names an id starts (or continues) that call,
+    and an anonymous continuation delta appends to the most recent call — which
+    is what it is, since a stream only ever fills one call at a time when it is
+    not bothering to index them.
+    """
+    index = getattr(raw, "index", None)
+    if isinstance(index, int):
+        return index
+    call_id = getattr(raw, "id", None)
+    if call_id:
+        return f"id:{call_id}"
+    if pending:
+        return next(reversed(pending))
+    return "unindexed"
+
+
+async def _close_stream(stream: Any) -> None:
+    """Best-effort release of the provider's HTTP response.
+
+    A consumer that stops reading part-way — an SSE client disconnecting mid-answer
+    is the normal case, not the exceptional one — otherwise leaves the upstream
+    response open until the garbage collector gets to it. Failures closing it are
+    of no interest to the caller and must never mask the exception already
+    unwinding the generator.
+    """
+    close = getattr(stream, "close", None)
+    if close is None:
+        return
+    try:
+        result = close()
+        if inspect.isawaitable(result):
+            await result
+    except Exception:  # noqa: BLE001 — the events are already delivered
+        logger.debug("llm_stream_close_failed", exc_info=True)
 
 
 class LLMClient:
@@ -158,6 +201,162 @@ class LLMClient:
                 f"could not read the provider response: {exc or type(exc).__name__}",
                 alias=model,
             ) from exc
+
+    async def stream_turn(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        system: str | None = None,
+        max_tokens: int = 2048,
+    ) -> AsyncIterator[tuple[str, Any]]:
+        """Stream one assistant turn as tagged events.
+
+        ('text', str)        — incremental prose
+        ('tool_call', {...}) — a completed call: {id, name, input}
+        ('done', {...})      — {text, stop_reason}
+
+        Contract copied from the Anthropic-era wrapper so consumers do not change.
+        Tool calls are emitted only once their argument JSON is fully assembled.
+
+        stop_reason is the provider's finish_reason passed through untouched, so it
+        speaks OpenAI's vocabulary ("stop", "tool_calls", "length"), not Anthropic's
+        ("end_turn", "tool_use"). Consumers that branch on the value need a mapping.
+
+        On a model without native tool support the tool schema is pushed into a
+        system message, but the reply is NOT parsed back into tool_call events —
+        the emulated JSON arrives as ('text', ...) like any other prose. Streaming
+        and emulated tools do not compose; use complete() when you need both.
+        """
+        payload: dict[str, Any] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+
+        outgoing = list(messages)
+        if tools:
+            # Guarded: build_emulation_instruction raises on an empty tool list.
+            if await self._caps.supports_tools(model):
+                payload["tools"] = tools
+            else:
+                outgoing = [
+                    {"role": "system", "content": build_emulation_instruction(tools)},
+                    *outgoing,
+                ]
+        if system:
+            outgoing = [{"role": "system", "content": system}, *outgoing]
+        payload["messages"] = outgoing
+
+        try:
+            stream = await self._client.chat.completions.create(**payload)
+        except Exception as exc:  # noqa: BLE001 — normalize every provider failure
+            raise LLMError(
+                str(exc), alias=model, status=getattr(exc, "status_code", None)
+            ) from exc
+
+        text_parts: list[str] = []
+        pending: dict[Any, dict[str, Any]] = {}
+        stop_reason: str | None = None
+
+        # Everything from here to the end of the loop is normalized to LLMError.
+        # A stream that dies mid-response surfaces inside the consumer's `async
+        # for`, and a raw ConnectionResetError there sails straight past the
+        # `except LLMError` that every call site is written around.
+        try:
+            async for chunk in stream:
+                choices = getattr(chunk, "choices", None)
+                if not choices:
+                    # Keepalive and usage-only frames carry no choices.
+                    continue
+                choice = choices[0]
+
+                finish_reason = getattr(choice, "finish_reason", None)
+                if finish_reason:
+                    stop_reason = finish_reason
+
+                delta = getattr(choice, "delta", None)
+                if delta is None:
+                    continue
+
+                content = getattr(delta, "content", None)
+                if content:
+                    if not isinstance(content, str):
+                        raise LLMError(
+                            "provider streamed a content delta of type "
+                            f"{type(content).__name__}, expected a string",
+                            alias=model,
+                        )
+                    text_parts.append(content)
+                    yield ("text", content)
+
+                for raw in getattr(delta, "tool_calls", None) or []:
+                    slot = pending.setdefault(
+                        _slot_key(raw, pending),
+                        {"id": None, "name": None, "buf": "", "decoded": None},
+                    )
+                    if getattr(raw, "id", None):
+                        slot["id"] = raw.id
+                    fn = getattr(raw, "function", None)
+                    if fn is None:
+                        continue
+                    if getattr(fn, "name", None):
+                        slot["name"] = fn.name
+                    arguments = getattr(fn, "arguments", None)
+                    if not arguments:
+                        continue
+                    if isinstance(arguments, str):
+                        slot["buf"] += arguments
+                    else:
+                        # Some gateways hand the arguments back already decoded.
+                        # Concatenating that would be a TypeError, and the whole
+                        # turn would die over a payload that arrived intact.
+                        slot["decoded"] = arguments
+        except LLMError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — normalize every provider failure
+            raise LLMError(
+                f"the stream failed mid-response: {exc or type(exc).__name__}",
+                alias=model,
+                status=getattr(exc, "status_code", None),
+            ) from exc
+        finally:
+            await _close_stream(stream)
+
+        # Insertion order, not sorted(): slot keys are ints only while the gateway
+        # indexes its deltas, and sorting a mix of int and str keys is a TypeError.
+        for slot in pending.values():
+            if slot["decoded"] is not None:
+                parsed: Any = slot["decoded"]
+            else:
+                try:
+                    parsed = json.loads(slot["buf"]) if slot["buf"] else {}
+                except json.JSONDecodeError:
+                    # A truncated or invalid buffer is the model's fault, not the
+                    # transport's, and an empty input lets the caller's own
+                    # validation produce the error message. The buffer itself is
+                    # model output — in this product it carries candidate names and
+                    # hiring signals — so only its shape may reach a log line, and
+                    # only as type+length: its keys are model-generated too.
+                    logger.warning(
+                        "llm_stream_tool_json_invalid",
+                        alias=model,
+                        name=slot["name"],
+                        arguments=_redacted_shape(slot["buf"]),
+                    )
+                    parsed = {}
+            if not isinstance(parsed, dict):
+                logger.warning(
+                    "llm_stream_tool_arguments_not_an_object",
+                    alias=model,
+                    name=slot["name"],
+                    arguments=_redacted_shape(parsed),
+                )
+                parsed = {}
+            yield ("tool_call", {"id": slot["id"], "name": slot["name"], "input": parsed})
+
+        yield ("done", {"text": "".join(text_parts), "stop_reason": stop_reason})
 
     def _to_reply(
         self,
