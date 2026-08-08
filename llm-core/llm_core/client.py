@@ -21,6 +21,26 @@ from llm_core.types import LLMReply, ToolCall
 
 logger = structlog.get_logger(__name__)
 
+_MAX_LOGGED_KEYS = 10
+
+
+def _redacted_shape(value: Any) -> dict[str, Any]:
+    """Describe model-generated arguments without reproducing any of their values.
+
+    Tool arguments in this product carry candidate names, interview feedback and
+    hiring signals, so the payload itself must never reach a log line. Key names
+    come from the tool schema rather than the model's prose, which makes them safe
+    and enough to debug a malformed reply.
+    """
+    if isinstance(value, dict):
+        return {
+            "keys": sorted(str(key) for key in value)[:_MAX_LOGGED_KEYS],
+            "size": len(value),
+        }
+    if isinstance(value, (str, bytes, list, tuple)):
+        return {"type": type(value).__name__, "length": len(value)}
+    return {"type": type(value).__name__}
+
 
 def _first_choice(response: Any, alias: str) -> Any:
     """Pull choices[0] without ever raising IndexError or AttributeError.
@@ -123,6 +143,30 @@ class LLMClient:
                 str(exc), alias=model, status=getattr(exc, "status_code", None)
             ) from exc
 
+        # Every shape error in here becomes an LLMError. Five services migrate onto
+        # `except LLMError`, so a TypeError from an unexpected gateway body would
+        # otherwise land as an unhandled 500 rather than a handled provider failure.
+        # BaseException (CancelledError, KeyboardInterrupt) deliberately passes through.
+        try:
+            return self._to_reply(
+                response=response, model=model, tools=tools, emulate=emulate
+            )
+        except LLMError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — normalize every malformed body
+            raise LLMError(
+                f"could not read the provider response: {exc or type(exc).__name__}",
+                alias=model,
+            ) from exc
+
+    def _to_reply(
+        self,
+        *,
+        response: Any,
+        model: str,
+        tools: list[dict[str, Any]] | None,
+        emulate: bool,
+    ) -> LLMReply:
         choice = _first_choice(response, model)
         text = _message_text(choice, model)
         finish_reason = getattr(choice, "finish_reason", None)
@@ -146,27 +190,33 @@ class LLMClient:
                     "provider returned a tool call with no function name", alias=model
                 )
             arguments = getattr(function, "arguments", None) or "{}"
-            try:
-                args = json.loads(arguments)
-            except (json.JSONDecodeError, TypeError):
-                # Malformed arguments are the model's fault, not the transport's.
-                # An empty dict lets the caller's own validation produce the error
-                # message, which is more useful than one raised from in here.
-                logger.warning(
-                    "llm_tool_arguments_invalid",
-                    alias=model,
-                    name=name,
-                    raw=str(arguments)[:300],
-                )
-                args = {}
-            if not isinstance(args, dict):
-                logger.warning(
-                    "llm_tool_arguments_not_an_object",
-                    alias=model,
-                    name=name,
-                    raw=str(arguments)[:300],
-                )
-                args = {}
+            if isinstance(arguments, dict):
+                # Some gateways hand the arguments back already decoded. Parsing is
+                # then both unnecessary and lossy — json.loads would raise TypeError
+                # and discard a perfectly good payload.
+                args: dict[str, Any] = arguments
+            else:
+                try:
+                    args = json.loads(arguments)
+                except (json.JSONDecodeError, TypeError):
+                    # Malformed arguments are the model's fault, not the transport's.
+                    # An empty dict lets the caller's own validation produce the error
+                    # message, which is more useful than one raised from in here.
+                    logger.warning(
+                        "llm_tool_arguments_invalid",
+                        alias=model,
+                        name=name,
+                        arguments=_redacted_shape(arguments),
+                    )
+                    args = {}
+                if not isinstance(args, dict):
+                    logger.warning(
+                        "llm_tool_arguments_not_an_object",
+                        alias=model,
+                        name=name,
+                        arguments=_redacted_shape(args),
+                    )
+                    args = {}
             calls.append(ToolCall(id=getattr(raw, "id", None) or "", name=name, arguments=args))
 
         return LLMReply(

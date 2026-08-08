@@ -1,9 +1,11 @@
+import asyncio
 import json
 from types import SimpleNamespace
 
 import httpx
 import openai
 import pytest
+import structlog
 
 from llm_core.client import LLMClient
 from llm_core.errors import LLMError
@@ -296,6 +298,114 @@ async def test_emulation_parse_failure_surfaces_as_llmerror():
         await client.complete(
             model="intake-jd-local", messages=[{"role": "user", "content": "hi"}], tools=[TOOL]
         )
+
+
+def _tool_call_response(arguments, name="emit_job_description"):
+    call = SimpleNamespace(id="call_1", function=SimpleNamespace(name=name, arguments=arguments))
+    message = SimpleNamespace(content=None, tool_calls=[call])
+    return _raw_response(
+        choices=[SimpleNamespace(message=message, finish_reason="tool_calls")], model="x"
+    )
+
+
+async def test_already_parsed_tool_arguments_are_used_not_discarded():
+    """Some gateways hand back `arguments` already decoded. Dropping it on the floor
+    would turn a crash into silent data loss, which is strictly worse."""
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_tool_call_response({"title": "SRE"}), sent),
+        capabilities=FakeCaps(),
+    )
+
+    reply = await client.complete(
+        model="intake-jd", messages=[{"role": "user", "content": "hi"}], tools=[TOOL]
+    )
+
+    assert reply.tool_call_named("emit_job_description").arguments == {"title": "SRE"}
+
+
+async def test_non_iterable_tool_calls_raises_llmerror():
+    sent = []
+    message = SimpleNamespace(content=None, tool_calls=7)
+    bad = _raw_response(
+        choices=[SimpleNamespace(message=message, finish_reason="tool_calls")], model="x"
+    )
+    client = LLMClient(openai_client=_openai_stub(bad, sent), capabilities=FakeCaps())
+
+    with pytest.raises(LLMError) as exc:
+        await client.complete(
+            model="intake-jd", messages=[{"role": "user", "content": "hi"}], tools=[TOOL]
+        )
+
+    assert "intake-jd" in str(exc.value)
+
+
+async def test_non_subscriptable_choices_raises_llmerror():
+    sent = []
+    # Truthy, so the `not choices` guard passes, but choices[0] is a TypeError.
+    bad = _raw_response(choices=SimpleNamespace(), model="x")
+    client = LLMClient(openai_client=_openai_stub(bad, sent), capabilities=FakeCaps())
+
+    with pytest.raises(LLMError) as exc:
+        await client.complete(model="intake-jd", messages=[{"role": "user", "content": "hi"}])
+
+    assert "intake-jd" in str(exc.value)
+
+
+async def test_cancellation_is_never_swallowed():
+    """CancelledError is a BaseException and must survive the normalization layer,
+    or a cancelled request turns into a bogus LLMError instead of unwinding."""
+
+    class Cancelling:
+        async def create(self, **kwargs):
+            raise asyncio.CancelledError()
+
+    client = LLMClient(
+        openai_client=SimpleNamespace(chat=SimpleNamespace(completions=Cancelling())),
+        capabilities=FakeCaps(),
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await client.complete(model="intake-jd", messages=[{"role": "user", "content": "hi"}])
+
+
+async def test_invalid_tool_arguments_are_never_logged_verbatim():
+    """Tool arguments carry candidate names, feedback and hiring signals. Only the
+    shape of the payload may reach a log line."""
+    sent = []
+    leaky = '{"candidate_name": "Ada Lovelace", "feedback": "strong hire, ship it"'
+    client = LLMClient(
+        openai_client=_openai_stub(_tool_call_response(leaky), sent), capabilities=FakeCaps()
+    )
+
+    with structlog.testing.capture_logs() as logs:
+        reply = await client.complete(
+            model="intake-jd", messages=[{"role": "user", "content": "hi"}], tools=[TOOL]
+        )
+
+    rendered = json.dumps(logs)
+    assert logs, "the malformed payload should still be reported"
+    assert "Ada Lovelace" not in rendered
+    assert "strong hire" not in rendered
+    assert reply.tool_call_named("emit_job_description").arguments == {}
+
+
+async def test_non_object_tool_arguments_are_never_logged_verbatim():
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_tool_call_response('["Ada Lovelace"]'), sent),
+        capabilities=FakeCaps(),
+    )
+
+    with structlog.testing.capture_logs() as logs:
+        reply = await client.complete(
+            model="intake-jd", messages=[{"role": "user", "content": "hi"}], tools=[TOOL]
+        )
+
+    rendered = json.dumps(logs)
+    assert logs
+    assert "Ada Lovelace" not in rendered
+    assert reply.tool_call_named("emit_job_description").arguments == {}
 
 
 async def test_empty_tool_list_is_treated_as_no_tools():
