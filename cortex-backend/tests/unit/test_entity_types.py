@@ -50,3 +50,29 @@ def test_market_entity_with_category(v):
 
 def test_market_entity_accepts_any_category(v):
     v.validate_node("Market", {"name": "x", "category": "fintech_vertical"})
+
+
+# The four below are exactly requisitions_status_check in schema.sql. Adding a
+# value the DB rejects, or dropping one it stores, parks real events at the
+# attempt cap — so these assert the pair stays in lockstep, not just that the
+# model works.
+@pytest.mark.parametrize(
+    "status", ["draft", "intake_pending", "planned", "closed"]
+)
+def test_requisition_status_accepts_every_db_allowed_value(v, status):
+    v.validate_node("Requisition", {"role_title": "Staff AI Engineer", "status": status})
+
+
+def test_requisition_status_rejects_active(v):
+    # 'active' is not in the DB constraint, so no row can ever carry it.
+    with pytest.raises(OntologyValidationError, match="Invalid attributes"):
+        v.validate_node("Requisition", {"role_title": "X", "status": "active"})
+
+
+def test_requisition_status_literals_match_db_constraint():
+    from typing import get_args
+    from src.ontology.entity_types import RequisitionEntity
+
+    annotation = RequisitionEntity.model_fields["status"].annotation
+    literal = next(a for a in get_args(annotation) if a is not type(None))
+    assert set(get_args(literal)) == {"draft", "intake_pending", "planned", "closed"}

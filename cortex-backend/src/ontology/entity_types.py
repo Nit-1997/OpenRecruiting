@@ -11,7 +11,10 @@ class SkillEntity(BaseModel):
 
 class RequisitionEntity(BaseModel):
     role_title: str
-    status: Optional[Literal["intake_pending", "planned", "active", "closed"]] = None
+    # Mirrors requisitions_status_check in schema.sql — the DB constraint is the
+    # authority. A value it cannot store ("active") only parks events at the
+    # attempt cap; a value it does store ("draft") must be accepted here.
+    status: Optional[Literal["draft", "intake_pending", "planned", "closed"]] = None
     experience_min_years: Optional[int] = None
     experience_max_years: Optional[int] = None
     role_location: Optional[str] = None

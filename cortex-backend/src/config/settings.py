@@ -2,8 +2,11 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
+import structlog
 import yaml
 from pydantic import BaseModel
+
+logger = structlog.get_logger(__name__)
 
 
 class AppConfig(BaseModel):
@@ -99,13 +102,22 @@ def get_settings() -> Settings:
         settings.logging.level = log_level
     if supabase_url := os.environ.get("SUPABASE_URL"):
         settings.supabase.url = supabase_url
-    # SUPABASE_SECRET_KEY (sb_secret_...) is what the rest of the stack ships in
-    # .env; reading only the older name left every Supabase call unauthenticated.
-    if supabase_key := (
-        os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        or os.environ.get("SUPABASE_SECRET_KEY")
-    ):
-        settings.supabase.service_role_key = supabase_key
+    # SUPABASE_SECRET_KEY (sb_secret_...) is the canonical name across backend/,
+    # cortex-mcp/, workers/ and voice-agent/, so it wins; SUPABASE_SERVICE_ROLE_KEY
+    # is a legacy alias only cortex's own scripts still set, and a stale value
+    # there must not silently outrank the key the rest of the stack ships.
+    # Truthiness (not presence) decides: docker-compose.yml injects the legacy name
+    # as "" when the operator has not exported it, and "" must fall through.
+    for key_var in ("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
+        if supabase_key := os.environ.get(key_var):
+            settings.supabase.service_role_key = supabase_key
+            logger.info("supabase_key_resolved", env_var=key_var)
+            break
+    else:
+        logger.warning(
+            "supabase_key_missing",
+            checked=["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
+        )
     if openai_key := os.environ.get("OPENAI_API_KEY"):
         settings.openai.api_key = openai_key
     if internal_secret := os.environ.get("INTERNAL_SECRET"):
