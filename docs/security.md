@@ -12,7 +12,7 @@ as an honest description of the state of the code, not a guarantee.
 
 | Boundary | Enforced by |
 |---|---|
-| Browser → backend | Supabase JWT, verified per request against `SUPABASE_JWT_SECRET` |
+| Browser → backend | Supabase JWT, verified per request — ES256 against your project's JWKS, HS256 against `SUPABASE_JWT_SECRET` |
 | Browser → database | Row-level security, scoped to the caller's organization |
 | Backend → database | `service_role` key, which **bypasses RLS by design** |
 | Service → service | `INTERNAL_API_SECRET` in an `X-Internal-Secret` header |
