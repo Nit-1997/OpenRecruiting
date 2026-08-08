@@ -14,7 +14,7 @@
 
 - Python `>=3.11` for all packages, matching `intake-core/pyproject.toml`.
 - `llm-core` is a **new sibling package** at repo root, installed from the repo-root build context exactly as `intake-core` is (`backend/Dockerfile:14`).
-- `llm-core` must NOT depend on `anthropic`, `litellm`, or any provider SDK. Its only HTTP client dependency is `openai>=1.40,<2.0`.
+- `llm-core` must NOT depend on `anthropic`, `litellm`, or any other provider SDK. Its only permitted HTTP dependencies are `openai>=1.40,<2.0` (chat completions) and `httpx>=0.27,<1.0` (the gateway's `/model/info` probe).
 - Every HTML element added anywhere in this project must carry a unique `id`. (No UI is added by this plan; the rule is stated because it is project-wide.)
 - Secrets live in the root `.env`, never in committed files. `.env.example` documents names with empty values only.
 - No API keys, secrets, certs, or `.env` files may be committed.
