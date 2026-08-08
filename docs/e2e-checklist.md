@@ -3,10 +3,13 @@
 What was verified before release, how, and — just as importantly — what was
 **not**, so you know which parts are proven and which you are the first to try.
 
-Verified on macOS (Apple Silicon), Docker Desktop 29.3.1, against a local
-Supabase for the schema work. No cloud Supabase project was available in the
-build environment, so anything requiring a real sign-in is marked **UNVERIFIED**
-rather than assumed.
+Verified on macOS (Apple Silicon), Docker Desktop 29.3.1.
+
+The infrastructure and wiring rows below were first verified against a local
+Supabase. The authenticated golden path was re-verified on **2026-08-07** against a
+real cloud Supabase project, which closed most of what this document previously
+listed as UNVERIFIED. What remains unproven is now limited to the legs that need a
+live third-party call or dashboard configuration — see the table at the bottom.
 
 ## Infrastructure
 
@@ -54,34 +57,66 @@ rather than assumed.
 
 ## Tests
 
-| Suite | Result |
-|---|---|
-| backend (pytest, Python 3.11) | **2908 passed**, 5 skipped |
-| recruiter-app (bun, directory slices) | **1269 passed** |
-| landing (vitest) | **31 passed** |
-| cortex-mcp (pytest) | **152 passed**, 8 skipped |
+All five suites re-run 2026-08-07.
+
+| Suite | Command | Result |
+|---|---|---|
+| backend (pytest, Python 3.11) | `make test` | **2105 passed**, 5 skipped (2110 collected) |
+| cortex-backend (pytest) | `make test-cortex` | **486 passed**, 2 deselected |
+| recruiter-app (bun, directory slices) | see below | **1224 passed**, 0 failed |
+| landing (vitest) | `npx vitest run` | **31 passed** |
+| cortex-mcp (pytest) | `python -m pytest -q` | **152 passed**, 8 skipped |
 
 Never run a bare `bun test` in `recruiter-app` — the full suite is known to hang.
-Run directory slices, as `docs/` and the CI config do.
+Run directory slices. The nine that cover every unit test file:
 
-## UNVERIFIED — needs a cloud Supabase project
+```
+src/services  src/stores  src/hooks  src/lib  src/domain
+src/components  src/app  src/types  src/fixtures
+```
 
-These are the steps a first-time user should expect to shake out. Everything they
-depend on is verified above; what is unproven is the round trip through a real
-Supabase project.
+`src/test/e2e` is deliberately excluded: those specs need live infrastructure, and
+`tsconfig.json` excludes the directory too.
+
+### Typecheck
+
+`npx tsc --noEmit` in `recruiter-app` reports **46 errors, all of them in test
+files** — 0 in shipped code. No app sets `ignoreBuildErrors`, so `next build`
+typechecks the production graph and passes. The test-file errors are real debt but
+gate nothing.
+
+## The golden path
+
+Verified 2026-08-07 against a real cloud Supabase project, by driving the HTTP API
+directly with a real user's access token.
+
+| # | Step | Result |
+|---|---|---|
+| 30 | Password sign-in against Supabase | **PASS** — returns an access token |
+| 31 | `/api/v2/auth/me` accepts that token | **PASS** — 200 with `organization_id` and `is_staff` |
+| 32 | Requisitions readable for the org | **PASS** — 6 rows for the demo org |
+| 33 | Staff admin API reachable | **PASS** — `/api/v2/admin/organizations` returns 5 |
+| 34 | AI intake session creation | **PASS** — 201 in ~1.1s; dispatch is fire-and-forget, so the response no longer waits on the worker |
+| 35 | Graph prefill runs | **PASS** — `intake-context-builder` invoked, session reaches `status: ready` with 9 answer slots |
+| 36 | Live LLM intake conversation | **PASS** — `POST /text/opening` streams a real response in ~3.2s |
+
+Sign-in is `signInWithPassword`; there is no self-serve signup (`/signup` redirects
+to `/login`). Create users through the Supabase Auth admin API.
+
+## Still unverified
 
 | # | Step | Status |
 |---|---|---|
-| 30 | Sign up / sign in on landing | **UNVERIFIED** |
-| 31 | Cookie handoff lands you authenticated in the dashboard | **UNVERIFIED** — the redirect leg is verified; the authenticated leg is not |
-| 32 | Create a requisition and see `source = native` | **UNVERIFIED** — the schema default and CHECK are verified |
-| 33 | Run AI intake end to end (needs `ANTHROPIC_API_KEY`) | **UNVERIFIED** |
-| 34 | Capture a live interview via Recall (needs a key + tunnel) | **UNVERIFIED** |
-| 35 | AI feedback appears on a completed round | **UNVERIFIED** |
+| 37 | Capture a live interview via Recall | **UNVERIFIED** — needs a key plus a tunnel reachable from Recall |
+| 38 | AI feedback appears on a completed round | **UNVERIFIED** — depends on 37 |
+| 39 | Google OAuth sign-in | **UNVERIFIED** — the code is complete; the Supabase dashboard provider is not configured |
 
-If you run these, the order above is the golden path. Step 31 is the one most
-likely to bite: if you land back on the login page, check the Supabase redirect
-URL allow-list (`docs/setup/supabase.md` step 4) before anything else.
+`WEBHOOK_BASE_URL` must point at a live tunnel for 37. If it is an ngrok free URL it
+changes on every ngrok restart, which is the first thing to check when webhooks go
+quiet.
+
+If the browser leg lands you back on the login page, check the Supabase redirect URL
+allow-list (`docs/setup/supabase.md` step 4) before anything else.
 
 ## Reproducing
 

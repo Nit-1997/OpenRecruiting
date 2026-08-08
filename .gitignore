@@ -46,8 +46,8 @@ workers/feedback-agent/evals/runs/
 # Local performance audit output
 lighthouse-*.json
 
-docs/
-
+# MCP server config — machine-local, and a likely place for access tokens.
+.mcp.json
 
 # Subagent-driven-development scratch (ledgers, briefs, review packages)
 .superpowers/
