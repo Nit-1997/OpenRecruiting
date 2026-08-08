@@ -67,7 +67,11 @@ changes.
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `ToolCall(id: str, name: str, arguments: dict[str, Any])`; `LLMReply(text: str, tool_calls: list[ToolCall], finish_reason: str | None, model: str, emulated_tools: bool)`; `LLMReply.tool_call_named(name: str) -> ToolCall | None`; exceptions `LLMError(message, *, alias=None, status=None, provider=None)` and `ToolEmulationError(LLMError)`.
+- Produces: `ToolCall(*, id: str, name: str, arguments: dict[str, Any])`; `LLMReply(*, text: str, model: str, tool_calls: list[ToolCall] = [], finish_reason: str | None = None, emulated_tools: bool = False)`; `LLMReply.tool_call_named(name: str) -> ToolCall | None`; exceptions `LLMError(message, *, alias=None, status=None, provider=None)` and `ToolEmulationError(LLMError)`.
+
+Both dataclasses are `kw_only=True`. Construct them by keyword everywhere — positional
+construction is rejected at runtime by design, so field order can never become a silent
+correctness bug in the five service migrations that build these types.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -198,14 +202,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class ToolCall:
     id: str
     name: str
     arguments: dict[str, Any]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class LLMReply:
     text: str
     model: str
@@ -350,7 +354,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class LLMSettings:
     gateway_url: str
     api_key: str
