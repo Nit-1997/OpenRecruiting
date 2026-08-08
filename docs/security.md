@@ -71,16 +71,33 @@ guards run on the **call** path, not merely at discovery:
 
 Both are covered by regression tests in `cortex-mcp/tests/`.
 
+## The staff admin portal
+
+`admin-app` (:3001) is part of this release and runs as a compose service. It is
+gated entirely on `profiles.is_staff`, which is effectively superuser across
+every organization in the instance — see [setup/supabase.md](setup/supabase.md).
+
+**Known issue: the staff-gate pre-check can be bypassed with a forged cookie.**
+`admin-app/middleware.ts` skips the `is_staff` lookup whenever the request
+carries `openrecruiting-staff-verified=true`. That cookie is a 5-minute cache,
+unsigned and not bound to the session; `httpOnly` stops browser JavaScript from
+writing it, not an attacker's HTTP client from sending it.
+
+It is defense-in-depth only, and the layer beneath it holds: `admin-app` talks to
+Supabase with the publishable key and the caller's own session — it never holds
+the service-role key — and every admin table is row-level-security gated on
+`public.is_admin()`, a `SECURITY DEFINER` server-side read of `profiles.is_staff`.
+`AuthGuard` also re-checks per page. Forging the cookie therefore yields the UI
+shell with its data denied, not the data. Fix it before exposing the portal
+beyond localhost: bind the cache to the session, or drop it and take the lookup
+on every request.
+
 ## What is not shipped here
 
-The staff admin portal and the Slack agent are **not part of this release**. Two
-issues from the original security review live in those components:
-
-- an admin staff-gate cookie bypass (admin portal), and
-- an IDOR in the Slack agent's entity lookup.
-
-Neither is reachable in this repo because neither component is present. If you
-port them in from elsewhere, review those paths first.
+The Slack agent is **not part of this release** — its backend was removed, and
+the agent service it called was never in this repo. An IDOR in that agent's
+entity lookup, from the original security review, is therefore unreachable here.
+If you port it in from elsewhere, review that path first.
 
 ## Your responsibilities
 
