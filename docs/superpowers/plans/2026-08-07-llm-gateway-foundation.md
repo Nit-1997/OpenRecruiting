@@ -1486,91 +1486,110 @@ Create `litellm-config.yaml` at the repo root:
 model_list:
   - model_name: intake-jd
     litellm_params:
-      model: anthropic/claude-haiku-4-5-20251001
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: intake-jd-local
     litellm_params:
-      model: ollama/gemma3
+      model: ollama_chat/gemma4:latest
       api_base: os.environ/OLLAMA_API_BASE
     model_info: {supports_function_calling: false}
 
   - model_name: debrief-chat
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: screening-generator
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: screening-assessor
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: persona-reduce
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: route-intent
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: signal-extract
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: resume-extract
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: candidate-detect
     litellm_params:
-      model: anthropic/claude-3-5-haiku-latest
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: end-state
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: voice-intake
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: feedback-condense
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
   - model_name: context-synthesize
     litellm_params:
-      model: anthropic/claude-sonnet-4-6
+      model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
+  # --- Smoke-test aliases: one per provider, used by the cross-provider suite ---
+  - model_name: smoke-anthropic
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: smoke-openai
+    litellm_params:
+      model: openai/gpt-5.6-terra
+      api_key: os.environ/OPENAI_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: smoke-local
+    litellm_params:
+      model: ollama_chat/gemma4:latest
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info: {supports_function_calling: false}
+
   - model_name: gemma-local
     litellm_params:
-      model: ollama/gemma3
+      model: ollama_chat/gemma4:latest
       api_base: os.environ/OLLAMA_API_BASE
     model_info: {supports_function_calling: false}
 
@@ -1812,7 +1831,7 @@ Expected: PASS, 31 passed, 4 deselected
 ```bash
 docker compose up -d litellm
 ollama serve &            # if not already running
-ollama pull gemma3
+ollama pull gemma4
 cd llm-core && LLM_GATEWAY_URL=http://localhost:4000 python -m pytest tests/integration -m live_gateway -v
 ```
 
