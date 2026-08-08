@@ -241,6 +241,16 @@ class LLMClient:
             if await self._caps.supports_tools(model):
                 payload["tools"] = tools
             else:
+                # Streaming and emulated tools do not compose: the reply arrives as
+                # ('text', ...) prose and no tool_call event is ever emitted. A
+                # caller expecting a tool call gets none, so say so where an
+                # operator can see it. Alias and count only — no model values, and
+                # no tool schema.
+                logger.warning(
+                    "llm_stream_tools_emulated",
+                    alias=model,
+                    tools=len(tools),
+                )
                 outgoing = [
                     {"role": "system", "content": build_emulation_instruction(tools)},
                     *outgoing,
@@ -327,6 +337,20 @@ class LLMClient:
         # Insertion order, not sorted(): slot keys are ints only while the gateway
         # indexes its deltas, and sorting a mix of int and str keys is a TypeError.
         for slot in pending.values():
+            if not slot["name"]:
+                if not slot["id"] and not slot["buf"] and slot["decoded"] is None:
+                    # A delta that was nothing but an index sentinel. It opened a
+                    # slot and filled none of it, so there is no call here at all —
+                    # emitting one would invent a call the model never made.
+                    continue
+                # Something was assembled but the name never arrived, so it can
+                # never be dispatched. complete() raises on exactly this shape;
+                # skipping instead would drop a tool call the model did make and
+                # leave the user watching an intake answer silently not get saved.
+                # The arguments are model output and stay out of the message.
+                raise LLMError(
+                    "provider streamed a tool call with no function name", alias=model
+                )
             if slot["decoded"] is not None:
                 parsed: Any = slot["decoded"]
             else:

@@ -423,6 +423,92 @@ async def test_non_object_tool_arguments_degrade_to_empty_input_without_logging_
     assert "Ada Lovelace" not in json.dumps(logs)
 
 
+async def test_nameless_tool_call_carrying_arguments_raises_llmerror():
+    """complete() rejects a tool call with no function name; streaming must too.
+
+    text_runner indexes tc["id"] and tc["name"] straight into an Anthropic
+    tool_use block, so emitting {"id": None, "name": None} buys a 400 on the very
+    next turn — one turn away from the delta that actually caused it.
+    """
+    sent = []
+    nameless = [SimpleNamespace(index=0, id=None, function=SimpleNamespace(name=None, arguments='{"qid": "q1"}'))]
+    chunks = [_chunk(tool=nameless), _chunk(finish="tool_calls")]
+    client = LLMClient(openai_client=_stub_returning(FakeStream(chunks), sent), capabilities=FakeCaps())
+
+    with pytest.raises(LLMError) as exc:
+        await _collect(
+            client.stream_turn(model="debrief-chat", messages=[{"role": "user", "content": "hi"}])
+        )
+
+    assert "debrief-chat" in str(exc.value)
+    assert "name" in str(exc.value)
+
+
+async def test_nameless_tool_call_error_never_quotes_the_arguments():
+    sent = []
+    leaky = '{"candidate_name": "Ada Lovelace"}'
+    nameless = [SimpleNamespace(index=0, id=None, function=SimpleNamespace(name=None, arguments=leaky))]
+    chunks = [_chunk(tool=nameless), _chunk(finish="tool_calls")]
+    client = LLMClient(openai_client=_stub_returning(FakeStream(chunks), sent), capabilities=FakeCaps())
+
+    with structlog.testing.capture_logs() as logs:
+        with pytest.raises(LLMError) as exc:
+            await _collect(
+                client.stream_turn(model="debrief-chat", messages=[{"role": "user", "content": "hi"}])
+            )
+
+    assert "Ada Lovelace" not in str(exc.value)
+    assert "Ada Lovelace" not in json.dumps(logs)
+
+
+async def test_bare_sentinel_delta_never_manufactures_a_phantom_tool_call():
+    """A delta that is nothing but {"index": 0} opens a slot and fills nothing.
+    Emitting it invents a call the model never made."""
+    sent = []
+    chunks = [_chunk(tool=[SimpleNamespace(index=0)]), _chunk(content="thinking"), _chunk(finish="stop")]
+    client = LLMClient(openai_client=_stub_returning(FakeStream(chunks), sent), capabilities=FakeCaps())
+
+    events = await _collect(
+        client.stream_turn(model="debrief-chat", messages=[{"role": "user", "content": "hi"}])
+    )
+
+    assert [e for e in events if e[0] == "tool_call"] == []
+    assert events[-1] == ("done", {"text": "thinking", "stop_reason": "stop"})
+
+
+async def test_a_sentinel_delta_does_not_suppress_a_real_call_beside_it():
+    sent = []
+    chunks = [
+        _chunk(tool=_tool_delta(0, call_id="call_a", name="update_answer", args='{"qid": "q1"}')),
+        _chunk(tool=[SimpleNamespace(index=1)]),
+        _chunk(finish="tool_calls"),
+    ]
+    client = LLMClient(openai_client=_stub_returning(FakeStream(chunks), sent), capabilities=FakeCaps())
+
+    events = await _collect(
+        client.stream_turn(model="debrief-chat", messages=[{"role": "user", "content": "hi"}])
+    )
+
+    assert [p for k, p in events if k == "tool_call"] == [
+        {"id": "call_a", "name": "update_answer", "input": {"qid": "q1"}}
+    ]
+
+
+async def test_a_named_tool_call_with_no_arguments_still_emits():
+    """A tool that takes no parameters is legitimate — an empty input is not a phantom."""
+    sent = []
+    chunks = [_chunk(tool=_tool_delta(0, call_id="call_1", name="mark_status")), _chunk(finish="tool_calls")]
+    client = LLMClient(openai_client=_stub_returning(FakeStream(chunks), sent), capabilities=FakeCaps())
+
+    events = await _collect(
+        client.stream_turn(model="debrief-chat", messages=[{"role": "user", "content": "hi"}])
+    )
+
+    assert [p for k, p in events if k == "tool_call"] == [
+        {"id": "call_1", "name": "mark_status", "input": {}}
+    ]
+
+
 # --- Tool routing ------------------------------------------------------------
 
 
@@ -460,6 +546,43 @@ async def test_emulation_instruction_is_prepended_below_the_system_message():
     assert messages[0] == {"role": "system", "content": "be terse"}
     assert "update_answer" in messages[1]["content"]
     assert messages[2] == {"role": "user", "content": "hi"}
+
+
+async def test_degrading_to_emulated_tools_is_logged():
+    """Streaming plus emulated tools yields the JSON as prose and never a
+    tool_call. A caller expecting one gets nothing, so the degradation has to be
+    visible in production rather than only in the docstring."""
+    sent = []
+    caps = RecordingCaps(supported=False)
+    client = LLMClient(openai_client=_stub_returning(FakeStream([_chunk(finish="stop")]), sent), capabilities=caps)
+
+    with structlog.testing.capture_logs() as logs:
+        await _collect(
+            client.stream_turn(
+                model="debrief-local", messages=[{"role": "user", "content": "hi"}], tools=[TOOL]
+            )
+        )
+
+    degraded = [entry for entry in logs if entry["event"] == "llm_stream_tools_emulated"]
+    assert len(degraded) == 1
+    assert degraded[0]["alias"] == "debrief-local"
+    assert degraded[0]["tools"] == 1
+    assert degraded[0]["log_level"] == "warning"
+
+
+async def test_native_tool_support_logs_no_degradation_warning():
+    sent = []
+    caps = RecordingCaps(supported=True)
+    client = LLMClient(openai_client=_stub_returning(FakeStream([_chunk(finish="stop")]), sent), capabilities=caps)
+
+    with structlog.testing.capture_logs() as logs:
+        await _collect(
+            client.stream_turn(
+                model="debrief-chat", messages=[{"role": "user", "content": "hi"}], tools=[TOOL]
+            )
+        )
+
+    assert [entry for entry in logs if entry["event"] == "llm_stream_tools_emulated"] == []
 
 
 async def test_empty_tool_list_is_treated_as_no_tools():
