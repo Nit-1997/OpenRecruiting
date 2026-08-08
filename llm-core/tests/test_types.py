@@ -1,3 +1,5 @@
+import pytest
+
 from llm_core.types import LLMReply, ToolCall
 
 
@@ -31,3 +33,17 @@ def test_reply_defaults_are_safe():
     assert reply.tool_calls == []
     assert reply.finish_reason is None
     assert reply.emulated_tools is False
+
+
+def test_construction_is_keyword_only():
+    """Positional construction must raise rather than silently mis-assign fields.
+
+    Declared field order puts `model` second, but callers reading the interface
+    spec would write LLMReply("hi", [], "stop", "gpt-4o") and land model=[] with
+    no error at all.
+    """
+    with pytest.raises(TypeError):
+        LLMReply("hi", [], "stop", "gpt-4o")
+
+    with pytest.raises(TypeError):
+        ToolCall("c1", "mark_status", {"status": "done"})

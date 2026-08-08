@@ -6,14 +6,18 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-@dataclass(frozen=True)
+# Construction is keyword-only: fields carrying defaults force `model` ahead of
+# `tool_calls` in declared order, so a positional call would bind the wrong values
+# to the wrong fields and raise nothing at all. Keyword-only makes field order
+# unable to become a silent correctness bug for downstream callers.
+@dataclass(frozen=True, kw_only=True)
 class ToolCall:
     id: str
     name: str
     arguments: dict[str, Any]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class LLMReply:
     text: str
     model: str
