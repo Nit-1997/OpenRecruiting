@@ -64,6 +64,7 @@ changes.
 - Create: `llm-core/llm_core/types.py`
 - Create: `llm-core/llm_core/errors.py`
 - Test: `llm-core/tests/test_types.py`
+- Test: `llm-core/tests/test_errors.py`
 
 **Interfaces:**
 - Consumes: nothing.
