@@ -1,4 +1,4 @@
-.PHONY: up down logs ps verify build test test-cortex
+.PHONY: up down logs ps verify build test test-cortex verify-local-llm
 
 up:            ## Start the whole stack
 	docker compose up -d --build
@@ -18,6 +18,7 @@ ps:            ## Show service status
 verify:        ## Health-check every service and print the URL map
 	@echo "Services"
 	@curl -fsS --max-time 5 http://localhost:8004/health        >/dev/null 2>&1 && echo "  ok    backend         http://localhost:8004"        || echo "  DOWN  backend         http://localhost:8004"
+	@curl -fsS --max-time 5 http://localhost:4000/health/liveliness >/dev/null 2>&1 && echo "  ok    litellm         http://localhost:4000"        || echo "  DOWN  litellm         http://localhost:4000  (needs LITELLM_MASTER_KEY)"
 	@curl -fsS --max-time 5 http://localhost:3000               >/dev/null 2>&1 && echo "  ok    landing         http://localhost:3000"        || echo "  DOWN  landing         http://localhost:3000  (needs NEXT_PUBLIC_SUPABASE_* set)"
 	@curl -fsS --max-time 5 http://localhost:3005               >/dev/null 2>&1 && echo "  ok    recruiter-app   http://localhost:3005"        || echo "  DOWN  recruiter-app   http://localhost:3005"
 	@curl -fsS --max-time 5 http://localhost:3001               >/dev/null 2>&1 && echo "  ok    admin-app       http://localhost:3001  (staff only)" || echo "  DOWN  admin-app       http://localhost:3001"
@@ -43,3 +44,16 @@ test:          ## Run the backend suite (Python 3.11 in Docker)
 test-cortex:   ## Run the cortex-backend unit + integration suite (Python 3.11 in Docker)
 	docker build -f cortex-backend/Dockerfile.test -t openrecruiting-cortex-backend-test cortex-backend
 	docker run --rm -e ENV=test -v "$(PWD)/cortex-backend:/app" -w /app openrecruiting-cortex-backend-test python -m pytest -q -m "not live_infra" tests/unit tests/integration
+
+verify-local-llm: ## Prove the gateway reaches a local Ollama model
+	@echo "Checking Ollama is up on the host..."
+	@curl -fsS --max-time 5 http://localhost:11434/api/tags >/dev/null 2>&1 \
+		&& echo "  ok    ollama          http://localhost:11434" \
+		|| { echo "  DOWN  ollama — start it with: ollama serve"; exit 1; }
+	@echo "Asking the gateway for gemma-local..."
+	@KEY=$$(grep '^LITELLM_MASTER_KEY=' .env | cut -d= -f2-); \
+	curl -fsS --max-time 120 http://localhost:4000/v1/chat/completions \
+		-H "Authorization: Bearer $$KEY" \
+		-H "Content-Type: application/json" \
+		-d '{"model":"gemma-local","messages":[{"role":"user","content":"Reply with the single word: ready"}],"max_tokens":16}' \
+		| python3 -c "import sys,json; d=json.load(sys.stdin); print('  reply:', d['choices'][0]['message']['content'].strip())"

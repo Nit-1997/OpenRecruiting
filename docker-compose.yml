@@ -121,6 +121,25 @@ services:
     env_file: [.env]
     restart: unless-stopped
 
+  # Single egress point for text generation. Applications send an alias; this
+  # resolves it to a provider. See litellm-config.yaml.
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml:ro
+    ports: ["4000:4000"]
+    env_file: [.env]
+    # Lets the container reach an Ollama server running on the host.
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:4000/health/liveliness')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -129,7 +148,7 @@ services:
     env_file: [.env]
     # Lets the container reach services running on the host (e.g. a tunnel).
     extra_hosts: ["host.docker.internal:host-gateway"]
-    depends_on: [feedback-agent, intake-agent, intake-context-builder]
+    depends_on: [feedback-agent, intake-agent, intake-context-builder, litellm]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8004/health')"]
       interval: 30s

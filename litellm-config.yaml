@@ -1,0 +1,126 @@
+# Alias -> provider map for the LiteLLM gateway.
+#
+# Applications only ever send an alias. To move a workload onto a different
+# provider, change litellm_params here and restart this service — no app rebuild.
+#
+# IMPORTANT: two entries sharing a model_name is NOT an override, it declares a
+# load-balancing group and requests will round-robin between them. Local variants
+# therefore use a distinct '-local' alias.
+
+model_list:
+  - model_name: intake-jd
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: intake-jd-local
+    litellm_params:
+      model: ollama_chat/gemma4:latest
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info: {supports_function_calling: false}
+
+  - model_name: debrief-chat
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: screening-generator
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: screening-assessor
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: persona-reduce
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: route-intent
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: signal-extract
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: resume-extract
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: candidate-detect
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: end-state
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: voice-intake
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: feedback-condense
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: context-synthesize
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  # --- Smoke-test aliases: one per provider, used by the cross-provider suite ---
+  - model_name: smoke-anthropic
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: smoke-openai
+    litellm_params:
+      model: openai/gpt-5.6-terra
+      api_key: os.environ/OPENAI_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: smoke-local
+    litellm_params:
+      model: ollama_chat/gemma4:latest
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info: {supports_function_calling: false}
+
+  - model_name: gemma-local
+    litellm_params:
+      model: ollama_chat/gemma4:latest
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info: {supports_function_calling: false}
+
+litellm_settings:
+  drop_params: true        # silently drop params a provider does not accept
+  num_retries: 2
+  request_timeout: 120
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
