@@ -9,6 +9,7 @@ The signature-parity tests below exist to make that drift fail loudly.
 
 import asyncio
 import inspect
+from types import SimpleNamespace
 
 import pytest
 
@@ -547,3 +548,227 @@ async def test_a_messageless_exception_still_yields_a_readable_error():
 
     with pytest.raises(LLMError, match="ValueError"):
         await fake.complete(model="intake-jd", messages=[])
+
+
+# --- tool shape is rejected here exactly as it is on the real client ----------
+#
+# The real client validates tool shape before dispatch, so an Anthropic-shaped
+# spec never leaves the process. A fake that stored the same spec verbatim would
+# let a migrating call site forget the translation and still pass its whole
+# suite — the bug would surface only against the gateway, which is precisely the
+# failure the guard was added to prevent, relocated into the test seam.
+
+
+ANTHROPIC_TOOL = {
+    "name": "emit_job_description",
+    "description": "Return the structured job description.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"],
+    },
+}
+
+OPENAI_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "emit_job_description",
+        "description": "Return the structured job description.",
+        "parameters": {
+            "type": "object",
+            "properties": {"title": {"type": "string"}},
+            "required": ["title"],
+        },
+    },
+}
+
+
+class _Caps:
+    def __init__(self, supported=True):
+        self.supported = supported
+        self.asked = []
+
+    async def supports_tools(self, alias):
+        self.asked.append(alias)
+        return self.supported
+
+
+class _Stream:
+    def __init__(self, chunks):
+        self._chunks = chunks
+
+    def __aiter__(self):
+        return self._gen()
+
+    async def _gen(self):
+        for chunk in self._chunks:
+            yield chunk
+
+
+class _Completions:
+    """One gateway stand-in serving both entry points, so a single real client
+    can be compared against the fake on complete() and stream_turn() alike."""
+
+    def __init__(self):
+        self.sent = []
+
+    async def create(self, **kwargs):
+        self.sent.append(kwargs)
+        if kwargs.get("stream"):
+            delta = SimpleNamespace(content="hello", tool_calls=None)
+            return _Stream([SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason="stop")])])
+        message = SimpleNamespace(content="hello", tool_calls=None)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason="stop")])
+
+
+def _real_client():
+    completions = _Completions()
+    client = LLMClient(
+        openai_client=SimpleNamespace(chat=SimpleNamespace(completions=completions)),
+        capabilities=_Caps(),
+    )
+    return client, completions
+
+
+async def _error_from_complete(client, tools):
+    try:
+        await client.complete(
+            model="intake-jd", messages=[{"role": "user", "content": "hi"}], tools=tools
+        )
+    except Exception as exc:  # noqa: BLE001 — the type is what the test asserts on
+        return exc
+    return None
+
+
+async def _error_from_stream(client, tools):
+    try:
+        async for _ in client.stream_turn(
+            model="intake-jd", messages=[{"role": "user", "content": "hi"}], tools=tools
+        ):
+            pass
+    except Exception as exc:  # noqa: BLE001 — the type is what the test asserts on
+        return exc
+    return None
+
+
+async def test_complete_rejects_an_anthropic_shaped_tool():
+    fake = FakeLLM()
+    fake.queue_text("must not be returned")
+
+    with pytest.raises(ToolEmulationError) as caught:
+        await fake.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[ANTHROPIC_TOOL],
+        )
+
+    message = str(caught.value)
+    assert "input_schema" in message
+    assert "emit_job_description" in message
+    assert fake.calls == [], "a rejected call must not be recorded"
+
+    # The queued reply survived, which is how we know the guard ran before the
+    # queue was consumed — same ordering as the real client, which dispatches
+    # nothing when validation fails.
+    reply = await fake.complete(model="intake-jd", messages=[], tools=[OPENAI_TOOL])
+    assert reply.text == "must not be returned"
+
+
+async def test_stream_turn_rejects_an_anthropic_shaped_tool():
+    fake = FakeLLM()
+    fake.queue_text("must not be returned")
+
+    with pytest.raises(ToolEmulationError) as caught:
+        async for _ in fake.stream_turn(
+            model="debrief-chat",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[ANTHROPIC_TOOL],
+        ):
+            pass
+
+    message = str(caught.value)
+    assert "input_schema" in message
+    assert "emit_job_description" in message
+    assert fake.calls == [], "a rejected call must not be recorded"
+
+    events = [
+        event
+        async for event in fake.stream_turn(model="debrief-chat", messages=[], tools=[OPENAI_TOOL])
+    ]
+    assert ("done", {"text": "must not be returned", "stop_reason": "stop"}) in events
+
+
+async def test_complete_still_accepts_an_openai_shaped_tool():
+    """The guard must reject malformed specs only, not narrow what tools mean."""
+    fake = FakeLLM()
+    fake.queue_tool_call("emit_job_description", {"title": "SRE"})
+
+    reply = await fake.complete(model="intake-jd", messages=[], tools=[OPENAI_TOOL])
+
+    assert reply.tool_call_named("emit_job_description").arguments == {"title": "SRE"}
+    assert fake.calls[0]["tools"] == [OPENAI_TOOL]
+
+
+async def test_stream_turn_still_accepts_an_openai_shaped_tool():
+    fake = FakeLLM()
+    fake.queue_tool_call("emit_job_description", {"title": "SRE"})
+
+    events = [
+        event
+        async for event in fake.stream_turn(model="debrief-chat", messages=[], tools=[OPENAI_TOOL])
+    ]
+
+    assert (
+        "tool_call",
+        {"id": "fake-emit_job_description", "name": "emit_job_description", "input": {"title": "SRE"}},
+    ) in events
+    assert fake.calls[0]["tools"] == [OPENAI_TOOL]
+
+
+async def test_a_tool_spec_that_is_not_a_dict_is_rejected_too():
+    fake = FakeLLM()
+    fake.queue_text("must not be returned")
+
+    with pytest.raises(ToolEmulationError):
+        await fake.complete(model="intake-jd", messages=[], tools=["emit_job_description"])
+
+    assert fake.calls == []
+
+
+async def test_the_fake_and_the_real_client_reject_an_anthropic_tool_identically():
+    """The anti-drift test.
+
+    Two implementations of the same guard would pass every test above and still
+    diverge later. Both must reach the same `validate_tool_shape`, so both must
+    raise the same type with the same wording, from both entry points.
+    """
+    fake = FakeLLM()
+    real, gateway = _real_client()
+
+    for entry in (_error_from_complete, _error_from_stream):
+        fake_error = await entry(fake, [ANTHROPIC_TOOL])
+        real_error = await entry(real, [ANTHROPIC_TOOL])
+
+        assert type(fake_error) is ToolEmulationError, f"{entry.__name__}: {fake_error!r}"
+        assert type(real_error) is type(fake_error), (
+            f"{entry.__name__}: real client raised {real_error!r}, fake raised {fake_error!r}"
+        )
+        assert str(real_error) == str(fake_error)
+
+    assert gateway.sent == [], "a malformed tool spec must never reach the gateway"
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("tools", [None, []])
+async def test_a_falsy_tool_list_is_validated_by_neither(tools):
+    """Both guards sit behind `if tools:`. None and [] must stay non-events —
+    `tools=[]` in particular is already how a dozen tests call the fake."""
+    fake = FakeLLM()
+    fake.queue_text("ok")
+    fake.queue_text("ok")
+    real, _ = _real_client()
+
+    assert await _error_from_complete(fake, tools) is None
+    assert await _error_from_complete(real, tools) is None
+    assert await _error_from_stream(fake, tools) is None
+    assert await _error_from_stream(real, tools) is None

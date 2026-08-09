@@ -22,6 +22,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
+from llm_core.emulation import validate_tool_shape
 from llm_core.errors import LLMError
 from llm_core.types import LLMReply, ToolCall
 
@@ -176,6 +177,16 @@ class FakeLLM:
         max_tokens: int = 2048,
         temperature: float | None = None,
     ) -> LLMReply:
+        # Same guard as the real client's complete(), in the same position: before
+        # anything is recorded and before a queued reply is consumed. The real
+        # client raises here on an Anthropic-shaped spec ({'name', 'input_schema'});
+        # a fake that stored it verbatim would let a migrated call site forget the
+        # translation and still pass the whole suite, failing only in production —
+        # which relocates the exact bug the guard exists to catch into the test
+        # seam. `if tools:` matches the real client's truthiness check, so None and
+        # [] are validated by neither.
+        if tools:
+            validate_tool_shape(tools)
         return self._next(
             {
                 # Snapshotted, matching `outgoing = list(messages)` in the real
@@ -210,7 +221,13 @@ class FakeLLM:
                                the real client too.
         ('done', {...})      — {text, stop_reason}. `text` is always the full
                                concatenation of the deltas, however they split.
+
+        Tool shape is validated exactly as in complete(). Both this method and the
+        real client's stream_turn are async generators, so the rejection surfaces
+        on the first `__anext__`, not at the call — same for both, as it must be.
         """
+        if tools:
+            validate_tool_shape(tools)
         queued = self._next(
             {
                 "model": model,
