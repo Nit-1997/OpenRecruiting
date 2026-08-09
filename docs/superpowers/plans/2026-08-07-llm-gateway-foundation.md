@@ -1038,7 +1038,9 @@ git commit -m "feat(llm-core): complete() with native and emulated tool calling"
 - Consumes: everything from Task 4.
 - Produces: `LLMClient.stream_turn(*, model, messages, tools=None, system=None, max_tokens=2048) -> AsyncIterator[tuple[str, Any]]` yielding `('text', str)`, `('tool_call', {"id", "name", "input"})`, `('done', {"text", "stop_reason"})`.
 
-This contract is copied deliberately from `backend/app/services/intake/anthropic_stream.py:25-33` so `text_runner` and its tests need no change when the backend migrates in a later phase. Tool calls are emitted only once their argument JSON is fully assembled.
+This contract is copied deliberately from `backend/app/services/intake/anthropic_stream.py:25-33` so the *event shape* consumers read is unchanged when the backend migrates. Tool calls are emitted only once their argument JSON is fully assembled.
+
+That is not the same as `text_runner` needing no change — an earlier revision of this plan claimed it was, and it is false. `stop_reason` inside the `done` event is the provider's `finish_reason` passed through untouched, so it says `"tool_calls"` where Anthropic said `"tool_use"`, and `text_runner` also builds Anthropic-shaped *request* history that OpenAI cannot accept. See "Migration hazards found during phase 1" at the end of this plan; `text_runner.py` and `debrief_chat/runner.py` are both phase-3 rewrites.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1914,17 +1916,80 @@ git commit -m "test(llm-core): live gateway proof for hosted and local models"
 
 ## Phase map — what follows this plan
 
-This plan delivers phase 1 of six. The remaining phases each migrate one service
+This plan delivers phase 1 of seven. The remaining phases each migrate one service
 onto `llm_core` and each gets its own plan, written once this foundation's API is
 real and proven by Task 8:
 
 | Phase | Service | Scale |
 |---|---|---|
 | 2 | `backend` non-streaming | 11 call sites, 17 test files |
-| 3 | `backend` streaming | `anthropic_stream.py` → `llm_stream.py`; `text_runner` untouched |
+| 3 | `backend` streaming | `anthropic_stream.py` → `llm_stream.py`; **plus a full rewrite of `text_runner.py` and `debrief_chat/runner.py`** — see the hazards below |
 | 4 | `intake-core` + `intake-context-builder` | 3 call sites, 7 test files, tool schemas to OpenAI shape |
 | 5 | `feedback-agent` | repoint the hand-rolled httpx client; 0 test files |
-| 6 | `voice-agent` | pipecat `OpenAILLMService` swap; 2 test files; loses prompt caching |
+| 6 | `intake-agent` | repoint a near-identical hand-rolled httpx client (`src/clients/anthropic.py:14`); the surface the spec first missed |
+| 7 | `voice-agent` | pipecat `OpenAILLMService` swap; 2 test files; loses prompt caching |
+
+### Migration hazards found during phase 1
+
+These are not theoretical. Each was found by reading the code this foundation will
+replace, and each breaks *silently* — no exception, no failing request, just a
+degraded answer. A later phase that skips them ships a working-looking regression.
+
+**1. `text_runner.py` must be rewritten, not wrapped (phase 3).** An earlier
+revision of this plan said "`text_runner` untouched". That was wrong and it was the
+most expensive finding of phase 1. Three independent breakages:
+
+- `backend/app/services/intake/text_runner.py:290` is
+  `if final_stop_reason != "tool_use": break`. `stream_turn` passes the provider's
+  `finish_reason` through untouched, so OpenAI-shaped streams say `"tool_calls"`.
+  The comparison fails on the first tool-using turn and the agent loop exits after
+  one iteration having executed nothing.
+- `:280-286` appends Anthropic `{"type": "tool_use", ...}` blocks to `messages`
+  *before* that check. Fixing only the comparison still leaves phantom
+  Anthropic-shaped blocks in the replayed history.
+- `:274-288` and `:318-342` build **request** history in Anthropic content-block
+  form: `{"type": "tool_result", "tool_use_id": ...}` entries inside a
+  `{"role": "user"}` message at `:342`. OpenAI Chat Completions cannot accept that
+  shape at all; tool results must be `{"role": "tool", "tool_call_id": ...}`.
+
+The third item is why wrapping cannot work. A shim between `stream_turn` and
+`text_runner` sees only the events flowing *out*; `messages` is constructed inside
+`text_runner` and never passes through the shim. The response side and the request
+side must be rewritten together, with the tests.
+
+**2. `debrief_chat/runner.py` has the same silent blocker, and it degrades
+differently (phase 3).** `backend/app/services/debrief_chat/runner.py:132` is
+`if stop_reason != "tool_use" or not read_calls: break` — a second instance of the
+`"tool_use"` vs `"tool_calls"` mismatch, in a different service, missed because the
+review was looking at `text_runner`. It fails in a distinct way: here the `break`
+*precedes* history construction, so no phantom `tool_use` block is written, but the
+read-tool loop exits after one iteration and the debrief answers the recruiter with
+no data retrieved — a confidently wrong answer rather than an error. This service
+also carries 12 tools, making it the worst case for JSON emulation on a local model
+(see the emulation risk in the spec). Phase 3 scope must include it.
+
+**3. Voice transcript filters break CROSS-MODALITY, not just phase 7.**
+`voice-agent/src/pipeline/turn_persist.py:99` and `:162` filter Anthropic
+`tool_use` / `tool_result` content blocks out of persisted transcripts by matching
+`block.get("type") == "text"` on a content-block list. `OpenAILLMService` emits
+OpenAI-shaped turns — string content plus a separate `tool_calls` field, and
+`role: "tool"` messages — so those filters stop matching and tool traffic leaks
+into stored transcripts. The blast radius is larger than voice: `text_runner`
+replays voice-written history into the text intake chat, so a polluted transcript
+corrupts the *text* agent's context too. Whichever of phases 3 and 7 lands second
+must verify the other's replay path, and `turn_persist` needs OpenAI-shaped
+filtering regardless of which phase touches it first.
+
+**4. Gateway retries cannot land inside the client budget (config, not code).**
+`litellm-config.yaml` sets `request_timeout: 120` with `num_retries: 2`, while the
+client default is 60s (`LLM_TIMEOUT_SECONDS`, `llm_core/settings.py`). The client
+gives up at 60s, so the gateway's retry budget — up to three attempts at 120s each
+— can never be spent: attempt one is still in flight when the caller has already
+timed out, and no retry the gateway performs is ever observed. Values are
+deliberately left as they are in phase 1; a later phase should either raise
+`LLM_TIMEOUT_SECONDS` above `request_timeout * (num_retries + 1)` or lower
+`request_timeout` so a full retry cycle fits inside the client budget. Until then,
+treat `num_retries` as inert for any call using the default timeout.
 
 They are deliberately not written yet. Their tasks consist of rewriting exact call
 sites against `llm.complete()` and `llm.stream_turn()`, and writing those before
@@ -1940,5 +2005,14 @@ against an unvalidated interface.
 - `make verify-local-llm` prints a reply from the local model.
 - No existing suite regresses: backend 2105, cortex-backend 486, recruiter-app 1224,
   landing 31, cortex-mcp 152.
-- No provider SDK added to any application image; `anthropic` pins remain untouched
-  until phase 2, so this phase is purely additive and safely revertible.
+- `llm-core` is installed into `backend/Dockerfile` and
+  `workers/intake-context-builder/Dockerfile` the same way `intake-core` is
+  (repo-root build context, `COPY llm-core /tmp/llm-core` then `pip install`).
+  Nothing imports it yet; it ships first so phase 2 does not open by importing a
+  package the image has never contained.
+- No *provider-specific* SDK is added to any application image. The `openai`
+  package does arrive in those two images as an `llm-core` dependency, but it is
+  used purely as the OpenAI-shaped HTTP client for the gateway and never talks to
+  api.openai.com — which is the architecture, not an exception to it. `anthropic`
+  pins remain untouched until phase 2, so this phase stays additive and safely
+  revertible.

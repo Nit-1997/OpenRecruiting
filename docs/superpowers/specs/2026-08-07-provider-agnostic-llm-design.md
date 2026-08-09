@@ -4,7 +4,7 @@ Status: approved 2026-08-07. Supersedes nothing.
 
 ## Problem
 
-Every text-generation path in OpenRecruiting is bound to Anthropic, through four
+Every text-generation path in OpenRecruiting is bound to Anthropic, through five
 separate client implementations that share no code:
 
 | Surface | Binding | Call sites |
@@ -13,7 +13,14 @@ separate client implementations that share no code:
 | `intake-core` | `anthropic>=0.40,<1.0`, injected client | 1, plus the tool schemas everything else reuses |
 | `workers/intake-context-builder` | own `src/clients/anthropic.py` | 2 |
 | `workers/feedback-agent` | hand-rolled httpx client posting to `api.anthropic.com/v1/messages` | its own module |
+| `workers/intake-agent` | hand-rolled httpx client posting to `api.anthropic.com/v1/messages` (`src/clients/anthropic.py:14`) | `pipeline.py:100`, `pipeline.py:120`, via `call_haiku`/`call_sonnet` |
 | `voice-agent` | `pipecat-ai[anthropic]` `AnthropicLLMService`, plus a raw `AsyncAnthropic` | `pipeline/services.py:39`, `main.py:2172` |
+
+`workers/intake-agent` was missed by the first revision of this spec. It is
+architecturally identical to `feedback-agent`'s client — the same hand-rolled httpx
+POST, the same haiku/sonnet switch at `src/clients/anthropic.py:41-43`, the same
+retry loop — it is a running service (`docker-compose.yml:183`) and a `depends_on`
+of `backend`. It is **six** surfaces, not five.
 
 The consequence is that a model cannot be changed without a code change, and no
 non-Anthropic model can be evaluated at all. The immediate goal is to run the system
@@ -24,7 +31,7 @@ configuration.
 
 Settled during brainstorming on 2026-08-07:
 
-1. **Scope**: all five Anthropic-coupled surfaces in one effort.
+1. **Scope**: all six Anthropic-coupled surfaces in one effort.
 2. **Client shape**: call sites move to the OpenAI-shaped request/response LiteLLM
    speaks natively. No Anthropic-shaped compatibility facade.
 3. **Tool fallback**: when a model lacks native function calling, the shared client
@@ -33,7 +40,7 @@ Settled during brainstorming on 2026-08-07:
 4. **Local model**: Ollama.
 5. **Deployment**: LiteLLM runs as a **proxy container**, not an in-process SDK. This
    is the only option that also covers pipecat, and it keeps provider configuration
-   in one file instead of five.
+   in one file instead of six.
 6. **Shared code home**: a new `llm-core` package (see Risks for why not `intake_core`).
 7. **Voice prompt caching**: its loss is accepted rather than blocking the migration.
 
@@ -46,6 +53,7 @@ application imports a provider SDK.
 backend                ┐
 intake-context-builder ┤
 feedback-agent         ┤──►  litellm:4000  ──►  anthropic / ollama(gemma) / openai / …
+intake-agent           ┤
 voice-agent (pipecat)  ┘            │
                                     └── litellm-config.yaml: aliases, keys, fallbacks
 ```
@@ -160,8 +168,32 @@ of the turn rather than mid-stream, which the existing tagged contract already a
 `backend/app/services/intake/anthropic_stream.py` is rewritten internally to consume
 OpenAI-shaped deltas (`choices[0].delta.content`, incremental
 `tool_calls[].function.arguments`) and renamed to `llm_stream.py`. Its tagged event
-contract is unchanged, so `text_runner` and its tests are untouched. The file already
-performs the normalization this design depends on; only its input format changes.
+contract is unchanged. The file already performs the normalization this design
+depends on; only its input format changes.
+
+**`text_runner` is NOT untouched.** Earlier revisions of this spec claimed the
+unchanged tagged contract left `backend/app/services/intake/text_runner.py` alone.
+That is false, and it is the most expensive error phase 1 found. `text_runner.py`
+must be **rewritten** in phase 3, not wrapped, for three independent reasons:
+
+1. `:290` is `if final_stop_reason != "tool_use": break`. `stream_turn` passes the
+   provider's `finish_reason` through untouched, so an OpenAI-shaped stream emits
+   `"tool_calls"`. The comparison fails on the first tool-using turn and the loop
+   exits silently after one iteration — no error, no tool ever executed.
+2. `:280-286` appends Anthropic `{"type": "tool_use", "id", "name", "input"}` blocks
+   to `messages` *before* that check runs. Even a corrected stop-reason comparison
+   leaves phantom Anthropic-shaped blocks in the history the next request replays.
+3. `:274-288` and `:318-342` construct **request** history in Anthropic content-block
+   form — `{"type": "tool_result", "tool_use_id": ...}` entries inside a
+   `{"role": "user"}` message (`:342`). OpenAI's Chat Completions schema cannot
+   accept that; tool results belong in `{"role": "tool", "tool_call_id": ...}`
+   messages.
+
+Reason 3 is why a wrapper cannot rescue this. A shim sitting between `stream_turn`
+and `text_runner` only ever sees *events flowing out*; it never sees `messages`
+being built inside `text_runner`. Translating the response side while the request
+side still emits Anthropic content blocks fixes nothing. Phase 3 rewrites the loop
+and its history construction together, and rewrites its tests with it.
 
 ## Per-service migration
 
@@ -170,7 +202,8 @@ performs the normalization this design depends on; only its input format changes
 | `backend` | Delete `get_anthropic_async_client` (`dependencies.py:211-227`). Rewrite 11 call sites to `llm.complete`. Rewrite the streaming wrapper. Translate tool schemas from `input_schema` to `function.parameters`. |
 | `intake-core` | Drop the `anthropic` dependency. `coverage_tracker.py:81` moves to `llm.complete`; `tools/schemas.py` and `screening/tools.py` emit OpenAI tool shape. |
 | `workers/intake-context-builder` | Delete `src/clients/anthropic.py`. `parse_jd.py:24` and `synthesize.py:65` move to `llm.complete`; both stop reading `response.content[0].text`. |
-| `workers/feedback-agent` | Repoint the existing httpx client at the proxy with an OpenAI-shaped payload. Smallest change of the five. |
+| `workers/feedback-agent` | Repoint the existing httpx client at the proxy with an OpenAI-shaped payload. `call_haiku` → `feedback-haiku`, `call_sonnet` → `feedback-sonnet`. |
+| `workers/intake-agent` | Same change as `feedback-agent`, on a near-identical file. `src/clients/anthropic.py:41-43` stops choosing a model id; `call_haiku` → `intake-agent-haiku`, `call_sonnet` → `intake-agent-sonnet`. |
 | `voice-agent` | `pipeline/services.py:39` swaps `AnthropicLLMService` for `OpenAILLMService(base_url=...)`. The raw `AsyncAnthropic` at `main.py:2172` migrates with the coverage tracker. |
 
 ## Configuration
@@ -201,11 +234,13 @@ on this project once.
 
 ## Testing
 
-26 test files reference the Anthropic client or its response shape and must be
+29 test files reference the Anthropic client or its response shape and must be
 rewritten. There is no shared fixture, so they are independent and can be migrated in
 parallel: `backend/tests` (17), `workers/intake-context-builder/tests` (5),
-`intake-core/tests` (2), `voice-agent/tests` (2). `workers/feedback-agent/tests` has
-none, because that client is hand-rolled and its tests mock httpx instead.
+`intake-core/tests` (2), `voice-agent/tests` (2), `workers/intake-agent/tests` (3 —
+`test_pipeline.py`, `test_handler_warm.py`, `test_screenable_flag.py`, all of which
+stub `AnthropicClient`). `workers/feedback-agent/tests` has none, because that client
+is hand-rolled and its tests mock httpx instead.
 
 The `fake_llm` fixture from `llm-core` replaces per-file mocks.
 
@@ -220,14 +255,16 @@ Acceptance:
 
 ## Rollout
 
-Six phases, each independently shippable with suites green:
+Seven phases, each independently shippable with suites green:
 
 1. `litellm` container, `litellm-config.yaml`, `llm-core` package with `fake_llm`.
 2. `backend` non-streaming call sites (11).
-3. `backend` streaming wrapper.
+3. `backend` streaming: `anthropic_stream.py` → `llm_stream.py`, **plus the rewrite
+   of `text_runner.py` and `debrief_chat/runner.py`** (see Streaming above).
 4. `intake-core` and `intake-context-builder`.
 5. `feedback-agent`.
-6. `voice-agent`.
+6. `intake-agent` — same shape as phase 5, on the surface this spec first missed.
+7. `voice-agent`.
 
 ## Risks
 
@@ -240,7 +277,7 @@ kept on tool-capable models in config.
 **Voice loses prompt caching.** `enable_prompt_caching=True` at
 `voice-agent/src/pipeline/services.py:43` is Anthropic-specific and does not survive
 the swap to `OpenAILLMService`. Expect higher token spend and somewhat higher
-first-token latency. Accepted rather than blocking; worth measuring after phase 6.
+first-token latency. Accepted rather than blocking; worth measuring after phase 7.
 
 **Voice gains a network hop.** It is the only realtime path. If added latency proves
 unacceptable, voice-agent can point at Ollama or Anthropic directly while keeping the

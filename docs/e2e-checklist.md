@@ -118,7 +118,7 @@ something the test suite asserts. Applications only ever send an alias;
 
 | # | Check | Result |
 |---|---|---|
-| 40 | `litellm` gateway healthy and resolving aliases | **PASS** — `make verify` prints `ok litellm`; `/model/info` returns 18 aliases |
+| 40 | `litellm` gateway healthy and resolving aliases | **PASS** — `make verify` prints `ok litellm`; `/model/info` returns 23 aliases |
 | 41 | Hosted text, native tools, streaming, multi-tool routing | **PASS** — `smoke-anthropic` (`claude-sonnet-5`) and `smoke-openai` (`gpt-5.6-terra`) |
 | 42 | Local text and emulated tools | **PASS** — `smoke-local` (`ollama_chat/gemma4:latest`), `emulated_tools is True` |
 | 43 | Capability detection drives emulation | **PASS** — `/model/info` returns real JSON booleans; the `false` on the local alias is what routes it to JSON emulation |
