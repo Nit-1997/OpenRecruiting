@@ -29,3 +29,9 @@ llm_core = "llm_core.pytest_plugin"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = ["live_gateway: needs a running LiteLLM gateway (and Ollama for local models)"]
+# The default run is hermetic: the live suite spends real money, so it is opted
+# into, never inherited. An explicit `-m` on the command line replaces this one,
+# which is how the live suite is selected:
+#   python -m pytest tests/integration -m live_gateway
+addopts = ["-m", "not live_gateway"]

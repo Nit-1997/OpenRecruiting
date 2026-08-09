@@ -57,7 +57,7 @@ live third-party call or dashboard configuration — see the table at the bottom
 
 ## Tests
 
-All five suites re-run 2026-08-07.
+The first five suites were re-run 2026-08-07; `llm-core` was added 2026-08-08.
 
 | Suite | Command | Result |
 |---|---|---|
@@ -66,6 +66,11 @@ All five suites re-run 2026-08-07.
 | recruiter-app (bun, directory slices) | see below | **1224 passed**, 0 failed |
 | landing (vitest) | `npx vitest run` | **31 passed** |
 | cortex-mcp (pytest) | `python -m pytest -q` | **152 passed**, 8 skipped |
+| llm-core (pytest) | `python -m pytest` | **151 passed**, 12 deselected |
+
+The `llm-core` default run is hermetic — no network, no gateway, no keys. The 12
+deselected tests are the live gateway suite, which spends real money and is opted
+into explicitly; see the LLM gateway section below.
 
 Never run a bare `bun test` in `recruiter-app` — the full suite is known to hang.
 Run directory slices. The nine that cover every unit test file:
@@ -103,6 +108,39 @@ directly with a real user's access token.
 Sign-in is `signInWithPassword`; there is no self-serve signup (`/signup` redirects
 to `/login`). Create users through the Supabase Auth admin API.
 
+## LLM gateway
+
+Verified **2026-08-08** by `llm-core/tests/integration/test_gateway_live.py`, run
+against the live gateway. Twelve real model calls across three providers.
+Applications only ever send an alias; `litellm-config.yaml` maps it to a provider.
+
+| # | Check | Result |
+|---|---|---|
+| 40 | `litellm` gateway healthy and resolving aliases | **PASS** — 18 aliases via `/model/info`; `make verify` prints `ok litellm` |
+| 41 | Hosted text, native tools, streaming, multi-tool routing | **PASS** — `smoke-anthropic` (`claude-sonnet-5`) and `smoke-openai` (`gpt-5.6-terra`) |
+| 42 | Local text and emulated tools | **PASS** — `smoke-local` (`ollama_chat/gemma4:latest`), `emulated_tools is True` |
+| 43 | Capability detection drives emulation | **PASS** — `/model/info` returns real JSON booleans; the `false` on the local alias is what routes it to JSON emulation |
+
+Run it with:
+
+```bash
+docker compose up -d litellm          # plus `ollama serve` for the local alias
+cd llm-core
+LITELLM_MASTER_KEY=$(grep '^LITELLM_MASTER_KEY=' ../.env | cut -d= -f2-) \
+LLM_GATEWAY_URL=http://localhost:4000 \
+  python -m pytest tests/integration -m live_gateway -v
+```
+
+Only the gateway key is needed — provider keys stay inside the `litellm`
+container. Do not `source .env`: it holds a multi-line PEM the shell chokes on.
+
+**Known limitation: streaming and emulated tools do not compose.** On a model
+without native tool support, `stream_turn` pushes the tool schema into a system
+message but never parses the reply back, so the JSON arrives as `('text', ...)`
+and no `('tool_call', ...)` is ever emitted. Use `complete()` when you need both.
+This is asserted, not merely documented — see
+`test_streaming_with_emulated_tools_yields_text_not_tool_calls`.
+
 ## Still unverified
 
 | # | Step | Status |
@@ -110,6 +148,7 @@ to `/login`). Create users through the Supabase Auth admin API.
 | 37 | Capture a live interview via Recall | **UNVERIFIED** — needs a key plus a tunnel reachable from Recall |
 | 38 | AI feedback appears on a completed round | **UNVERIFIED** — depends on 37 |
 | 39 | Google OAuth sign-in | **UNVERIFIED** — the code is complete; the Supabase dashboard provider is not configured |
+| 44 | Emulated tool calling under real intake prompts | **UNVERIFIED** — `gemma4` was 20/20 on a short, unambiguous prompt with one obvious tool. That is not evidence it holds for long transcripts or overlapping schemas. Treat the local path as a development convenience, not a production scoring path. |
 
 `WEBHOOK_BASE_URL` must point at a live tunnel for 37. If it is an ngrok free URL it
 changes on every ngrok restart, which is the first thing to check when webhooks go
