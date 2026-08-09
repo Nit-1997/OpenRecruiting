@@ -176,8 +176,10 @@ class Settings(BaseSettings):
     VOICE_ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
     VOICE_TTS_VOICE: str = "aura-2-helena-en"
 
-    # Intake JD extract pipeline (sanitize -> injection guardrail -> parse). Haiku.
-    INTAKE_JD_MODEL: str = "claude-haiku-4-5-20251001"
+    # Intake JD extract pipeline (sanitize -> injection guardrail -> parse).
+    # A GATEWAY ALIAS, not a provider model id — litellm-config.yaml maps it
+    # (haiku today). Both the guardrail and the parser call use this one alias.
+    INTAKE_JD_MODEL: str = "intake-jd"
 
     # Ask-Anything intent router (browse_roles | intake_call | out_of_scope). Sonnet.
     ASSISTANT_INTENT_MODEL: str = "claude-sonnet-4-6"

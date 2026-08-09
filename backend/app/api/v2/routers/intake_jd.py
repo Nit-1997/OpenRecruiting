@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from app.api.v2.core.dependencies import CurrentUserWithOrg, get_current_user_with_org
 from app.api.v2.schemas.intake_jd import JdExtractResponse
 from app.config import get_settings
-from app.dependencies import get_anthropic_async_client
+from app.dependencies import get_llm_client
 from app.services.intake.jd_extract_service import extract_jd
 from app.services.intake.jd_fetch import (
     FileTooLargeError,
@@ -33,7 +33,7 @@ async def post_jd_extract(
     file: UploadFile | None = File(default=None),
     text: str | None = Form(default=None),
     current: CurrentUserWithOrg = Depends(get_current_user_with_org),
-    client=Depends(get_anthropic_async_client),
+    llm=Depends(get_llm_client),
 ) -> JdExtractResponse:
     """One box: `text` (URL auto-detected + fetched) and/or an uploaded `file`."""
     has_text = bool(text and text.strip())
@@ -46,7 +46,7 @@ async def post_jd_extract(
         if file is not None:
             file_arg = (file.filename, file.content_type, await file.read())
         result = await extract_jd(
-            client=client,
+            llm=llm,
             model=model,
             text=text if has_text else None,
             file=file_arg,

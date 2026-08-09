@@ -1,4 +1,4 @@
-"""Parse sanitized JD text into structured fields + a formatted markdown JD (Haiku).
+"""Parse sanitized JD text into structured fields + a formatted markdown JD (via the LLM gateway).
 
 Only reached AFTER the guardrail clears the text. The JD is still treated strictly
 as DATA, never instructions. On any LLM error returns None so the caller degrades
@@ -13,31 +13,34 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 _TOOL = {
-    "name": "emit_job_description",
-    "description": (
-        "Extract the structured job description from the provided text. Use ONLY information "
-        "present in the text; omit any field that is absent rather than inventing it."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string", "description": "Job title, if stated."},
-            "location": {"type": "string", "description": "Location / work arrangement, if stated."},
-            "summary": {"type": "string", "description": "1-2 sentence overview of the role."},
-            "responsibilities": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Key responsibilities / what the person will own.",
-            },
-            "must_haves": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Required skills / experience.",
-            },
-            "nice_to_haves": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Preferred / bonus skills.",
+    "type": "function",
+    "function": {
+        "name": "emit_job_description",
+        "description": (
+            "Extract the structured job description from the provided text. Use ONLY information "
+            "present in the text; omit any field that is absent rather than inventing it."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Job title, if stated."},
+                "location": {"type": "string", "description": "Location / work arrangement, if stated."},
+                "summary": {"type": "string", "description": "1-2 sentence overview of the role."},
+                "responsibilities": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Key responsibilities / what the person will own.",
+                },
+                "must_haves": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Required skills / experience.",
+                },
+                "nice_to_haves": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Preferred / bonus skills.",
+                },
             },
         },
     },
@@ -56,15 +59,21 @@ def _str_list(value: Any) -> list[str]:
     return [str(v).strip() for v in value if str(v).strip()]
 
 
-async def parse_jd(client: Any, model: str, text: str) -> dict[str, Any] | None:
-    """Return structured dict (title/location/summary/responsibilities/must_haves/nice_to_haves) or None."""
+async def parse_jd(llm: Any, model: str, text: str) -> dict[str, Any] | None:
+    """Return structured dict (title/location/summary/responsibilities/must_haves/nice_to_haves) or None.
+
+    `model` is a gateway alias, not a provider model id. There is no tool_choice
+    on llm_core.complete(): _SYSTEM already ends with "Respond ONLY by calling
+    emit_job_description", and a reply carrying no call yields an all-empty
+    structured dict — exactly what an Anthropic message with no tool_use block
+    produced — which the caller degrades to 'empty'.
+    """
     try:
-        msg = await client.messages.create(
+        reply = await llm.complete(
             model=model,
             max_tokens=1500,
             system=_SYSTEM,
             tools=[_TOOL],
-            tool_choice={"type": "tool", "name": "emit_job_description"},
             messages=[
                 {
                     "role": "user",
@@ -76,11 +85,8 @@ async def parse_jd(client: Any, model: str, text: str) -> dict[str, Any] | None:
         logger.warning("jd_parse_llm_failed", error=str(exc))
         return None
 
-    args: dict[str, Any] = {}
-    for block in getattr(msg, "content", []) or []:
-        if getattr(block, "type", None) == "tool_use" and getattr(block, "name", None) == "emit_job_description":
-            args = getattr(block, "input", {}) or {}
-            break
+    call = reply.tool_call_named("emit_job_description")
+    args: dict[str, Any] = call.arguments if call else {}
 
     return {
         "title": (args.get("title") or "").strip() or None,

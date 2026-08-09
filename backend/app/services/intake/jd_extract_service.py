@@ -2,8 +2,8 @@
 
 acquire  — URL (SSRF-guarded) / file / pasted text  →  raw text
 sanitize — deterministic cleanup (no LLM)
-guardrail — Haiku injection check; trips → quarantine (status 'rejected')
-parse     — Haiku structured extraction + formatted markdown
+guardrail — injection check; trips → quarantine (status 'rejected')
+parse     — structured extraction + formatted markdown
 
 Returns a plain dict the router maps to the response schema. Fetch/parse errors
 propagate as JdFetchError subtypes for the router to translate to HTTP codes.
@@ -41,7 +41,7 @@ def _empty(source: str, truncated: bool = False) -> dict[str, Any]:
 
 async def extract_jd(
     *,
-    client: Any,
+    llm: Any,
     model: str,
     text: str | None = None,
     file: tuple[str | None, str | None, bytes] | None = None,
@@ -86,7 +86,7 @@ async def extract_jd(
         return _empty(source, truncated)
 
     # 3. guardrail — quarantine on a positive injection verdict
-    guard = await check_injection(client, model, clean)
+    guard = await check_injection(llm, model, clean)
     if guard["injection_detected"]:
         logger.warning("jd_injection_quarantined", source=source, reason=guard.get("reason"))
         return {
@@ -102,7 +102,7 @@ async def extract_jd(
         }
 
     # 4. parse → structured + formatted
-    structured = await parse_jd(client, model, clean)
+    structured = await parse_jd(llm, model, clean)
     if not structured:
         return _empty(source, truncated)
     formatted = format_jd(structured)
