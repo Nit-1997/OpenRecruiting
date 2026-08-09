@@ -116,7 +116,10 @@ model_list:
   # sonnet per call (`call_haiku` / `call_sonnet`, model switch at
   # src/clients/anthropic.py:41-43). One alias per service cannot express that,
   # so each gets a pair and the caller picks the alias where it used to pick a
-  # model id. Tiers mirror each service's config/settings.py defaults exactly.
+  # model id. HAIKU tiers mirror each service's config/settings.py defaults exactly.
+  # SONNET tiers deliberately do not: the operator specified claude-sonnet-5, so
+  # every sonnet alias here is a conscious upgrade from the claude-sonnet-4-6 the
+  # replaced code used. That is intended, not drift.
   - model_name: feedback-haiku
     litellm_params:
       model: anthropic/claude-haiku-4-5-20251001
