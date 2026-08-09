@@ -6,11 +6,18 @@
 # IMPORTANT: two entries sharing a model_name is NOT an override, it declares a
 # load-balancing group and requests will round-robin between them. Local variants
 # therefore use a distinct '-local' alias.
+#
+# MODEL TIER IS PART OF THE CONTRACT. An alias must resolve to the same tier the
+# call site uses today, or the migration silently re-prices and re-times a
+# workload while claiming to be a no-op. Three workloads run on haiku today and
+# are marked below with the setting they mirror. Do not "simplify" them onto the
+# sonnet default.
 
 model_list:
+  # Haiku today: backend/app/config.py:180 INTAKE_JD_MODEL.
   - model_name: intake-jd
     litellm_params:
-      model: anthropic/claude-sonnet-5
+      model: anthropic/claude-haiku-4-5-20251001
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
@@ -62,9 +69,21 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
+  # Haiku today: backend/app/config.py:124 CANDIDATE_DETECT_MODEL, whose current
+  # value is claude-3-5-haiku-latest. Pinned to the same haiku tier as the other
+  # two rather than to a floating '-latest' tag, so the alias is reproducible.
   - model_name: candidate-detect
     litellm_params:
-      model: anthropic/claude-sonnet-5
+      model: anthropic/claude-haiku-4-5-20251001
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  # Haiku today: backend/app/services/intake/parse_intent_service.py:103, where
+  # the model id is hardcoded rather than read from settings. It had no alias at
+  # all until this entry; without one, phase 2 has nowhere to point it.
+  - model_name: parse-role-intent
+    litellm_params:
+      model: anthropic/claude-haiku-4-5-20251001
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
@@ -87,6 +106,36 @@ model_list:
     model_info: {supports_function_calling: true}
 
   - model_name: context-synthesize
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  # --- Per-call tier aliases for the two hand-rolled httpx clients ------------
+  # workers/feedback-agent and workers/intake-agent each choose between haiku and
+  # sonnet per call (`call_haiku` / `call_sonnet`, model switch at
+  # src/clients/anthropic.py:41-43). One alias per service cannot express that,
+  # so each gets a pair and the caller picks the alias where it used to pick a
+  # model id. Tiers mirror each service's config/settings.py defaults exactly.
+  - model_name: feedback-haiku
+    litellm_params:
+      model: anthropic/claude-haiku-4-5-20251001
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: feedback-sonnet
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: intake-agent-haiku
+    litellm_params:
+      model: anthropic/claude-haiku-4-5-20251001
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: intake-agent-sonnet
     litellm_params:
       model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
