@@ -110,13 +110,15 @@ to `/login`). Create users through the Supabase Auth admin API.
 
 ## LLM gateway
 
-Verified **2026-08-08** by `llm-core/tests/integration/test_gateway_live.py`, run
-against the live gateway. Twelve real model calls across three providers.
-Applications only ever send an alias; `litellm-config.yaml` maps it to a provider.
+Verified **2026-08-08**. Rows 41-43 are proven by
+`llm-core/tests/integration/test_gateway_live.py` — twelve real model calls across
+three providers. Row 40 is `make verify` plus a direct `/model/info` read, not
+something the test suite asserts. Applications only ever send an alias;
+`litellm-config.yaml` maps it to a provider.
 
 | # | Check | Result |
 |---|---|---|
-| 40 | `litellm` gateway healthy and resolving aliases | **PASS** — 18 aliases via `/model/info`; `make verify` prints `ok litellm` |
+| 40 | `litellm` gateway healthy and resolving aliases | **PASS** — `make verify` prints `ok litellm`; `/model/info` returns 18 aliases |
 | 41 | Hosted text, native tools, streaming, multi-tool routing | **PASS** — `smoke-anthropic` (`claude-sonnet-5`) and `smoke-openai` (`gpt-5.6-terra`) |
 | 42 | Local text and emulated tools | **PASS** — `smoke-local` (`ollama_chat/gemma4:latest`), `emulated_tools is True` |
 | 43 | Capability detection drives emulation | **PASS** — `/model/info` returns real JSON booleans; the `false` on the local alias is what routes it to JSON emulation |
@@ -138,8 +140,20 @@ container. Do not `source .env`: it holds a multi-line PEM the shell chokes on.
 without native tool support, `stream_turn` pushes the tool schema into a system
 message but never parses the reply back, so the JSON arrives as `('text', ...)`
 and no `('tool_call', ...)` is ever emitted. Use `complete()` when you need both.
-This is asserted, not merely documented — see
-`test_streaming_with_emulated_tools_yields_text_not_tool_calls`.
+
+Both halves are asserted in
+`test_streaming_with_emulated_tools_yields_text_not_tool_calls`: that no
+`tool_call` event is emitted, and — the load-bearing half — that the streamed
+text round-trips through `parse_emulated_reply` into the expected `ToolCall`
+with a correctly extracted `title`. Without the second assertion a `stream_turn`
+that silently dropped the emulation injection would still pass.
+
+There is a second, subtler asymmetry behind this limitation: `complete()` sends
+`response_format={"type": "json_object"}` when emulating; `stream_turn` does not.
+The streaming path is therefore strictly less constrained, and `gemma4` was
+observed wrapping its streamed reply in a ```` ```json ```` fence at least once —
+harmless, because `parse_emulated_reply` strips fences, but a real difference in
+how hard the model is being held to JSON.
 
 ## Still unverified
 

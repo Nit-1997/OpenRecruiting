@@ -30,6 +30,7 @@ from typing import Iterator
 import pytest
 
 from llm_core.client import LLMClient
+from llm_core.emulation import parse_emulated_reply
 from llm_core.settings import get_settings
 
 pytestmark = pytest.mark.live_gateway
@@ -180,7 +181,16 @@ async def test_local_tool_call_is_emulated_and_carries_required_property(
 
     call = reply.tool_call_named("emit_job_description")
     assert call is not None
-    assert "title" in call.arguments
+    # Presence alone proves nothing here: parse_emulated_reply already raises when
+    # a required property is missing, and _to_reply always returns exactly one
+    # call, so `call is not None` and `"title" in call.arguments` are both
+    # structurally guaranteed the moment complete() returns. Emulation validation
+    # is presence-only by design, so {"title": null} and {"title": 42} would also
+    # satisfy the schema. Assert the same thing the hosted path asserts — that the
+    # local model actually extracted the role — or this test cannot tell a working
+    # local path from a model emitting a null.
+    assert isinstance(call.arguments.get("title"), str)
+    assert "SRE" in call.arguments["title"]
 
 
 # --------------------------------------------------------------------------
@@ -219,12 +229,20 @@ async def test_streaming_yields_text_deltas_and_a_terminal_done(
 async def test_streaming_with_emulated_tools_yields_text_not_tool_calls(
     client: LLMClient,
 ) -> None:
-    """Streaming and emulated tools do not compose. This pins that down.
+    """Streaming and emulated tools do not compose. This pins down both halves.
 
     `stream_turn` pushes the tool schema into a system message for a model with
     no native tool support, but never parses the reply back — the emulated JSON
     arrives as ('text', ...) prose and no ('tool_call', ...) is emitted. A caller
     needing both must use `complete()`. Documented in `LLMClient.stream_turn`.
+
+    The negative half (no tool_call) is cheap to assert and worth little on its
+    own: a `stream_turn` that silently dropped the emulation injection entirely
+    would pass it too, while returning unusable prose. So the positive half is
+    asserted as well, by feeding the streamed text to the very parser
+    `complete()` would have used. That it round-trips into the expected ToolCall
+    is what makes "the JSON arrives as text, only the parse is missing" a claim
+    rather than a hope.
     """
     events: list[tuple[str, object]] = []
     async for event in client.stream_turn(
@@ -244,6 +262,16 @@ async def test_streaming_with_emulated_tools_yields_text_not_tool_calls(
     assert isinstance(done, dict)
     _record(f"{LOCAL_ALIAS} stream done text", done["text"])
     assert done["text"].strip() != ""
+
+    # Note this is NOT a substring check for the tool name: with a single tool the
+    # emulation instruction names it in the prompt and asks for the bare arguments
+    # object back, so the reply legitimately never mentions `emit_job_description`.
+    # Round-tripping through the real parser is the assertion that holds.
+    recovered = parse_emulated_reply(done["text"], [JD_TOOL])
+    _record(f"{LOCAL_ALIAS} stream text reparsed", (recovered.name, recovered.arguments))
+    assert recovered.name == "emit_job_description"
+    assert isinstance(recovered.arguments.get("title"), str)
+    assert "SRE" in recovered.arguments["title"]
 
 
 # --------------------------------------------------------------------------
