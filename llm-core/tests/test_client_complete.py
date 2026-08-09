@@ -8,7 +8,7 @@ import pytest
 import structlog
 
 from llm_core.client import LLMClient
-from llm_core.errors import LLMError
+from llm_core.errors import LLMError, ToolEmulationError
 
 TOOL = {
     "type": "function",
@@ -422,3 +422,107 @@ async def test_empty_tool_list_is_treated_as_no_tools():
     assert reply.emulated_tools is False
     assert caps.asked == []
     assert "tools" not in sent[0]
+
+
+# --- Tool shape is validated on both dispatch paths --------------------------
+
+ANTHROPIC_TOOL = {
+    "name": "emit_job_description",
+    "description": "Return the structured job description.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"],
+    },
+}
+
+
+async def test_anthropic_shaped_tool_is_rejected_on_the_native_path():
+    """The regression this guard exists for.
+
+    A tool-capable alias used to skip validation entirely and put the spec into
+    payload["tools"] verbatim, so an Anthropic-shaped schema left the process and
+    came back as a provider 400. Nothing may be dispatched.
+    """
+    sent = []
+    caps = FakeCaps(supported=True)
+    client = LLMClient(openai_client=_openai_stub(_text_response("hi"), sent), capabilities=caps)
+
+    with pytest.raises(ToolEmulationError) as exc:
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[ANTHROPIC_TOOL],
+        )
+
+    message = str(exc.value)
+    assert "input_schema" in message
+    assert "emit_job_description" in message
+    assert sent == [], "a malformed tool spec must never reach the gateway"
+
+
+async def test_anthropic_shaped_tool_is_rejected_before_the_capability_probe():
+    """Validation must not depend on the probe, which can fail open to tool-capable."""
+    sent = []
+    caps = FakeCaps(supported=True)
+    client = LLMClient(openai_client=_openai_stub(_text_response("hi"), sent), capabilities=caps)
+
+    with pytest.raises(ToolEmulationError):
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[ANTHROPIC_TOOL],
+        )
+
+    assert caps.asked == []
+
+
+async def test_both_paths_reject_an_anthropic_shaped_tool_identically():
+    """Which alias is configured must not change whether the bug is caught."""
+    errors = []
+    for supported in (True, False):
+        sent = []
+        client = LLMClient(
+            openai_client=_openai_stub(_text_response("hi"), sent),
+            capabilities=FakeCaps(supported=supported),
+        )
+        with pytest.raises(ToolEmulationError) as exc:
+            await client.complete(
+                model="intake-jd",
+                messages=[{"role": "user", "content": "hi"}],
+                tools=[ANTHROPIC_TOOL],
+            )
+        errors.append(str(exc.value))
+        assert sent == []
+
+    assert errors[0] == errors[1]
+
+
+async def test_a_tool_spec_that_is_not_a_dict_is_rejected_on_the_native_path():
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_text_response("hi"), sent), capabilities=FakeCaps()
+    )
+
+    with pytest.raises(ToolEmulationError):
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=["emit_job_description"],
+        )
+
+    assert sent == []
+
+
+async def test_a_well_shaped_tool_still_reaches_the_gateway_untouched():
+    """The guard must reject only malformed specs, not narrow what native tools accept."""
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_text_response("hi"), sent), capabilities=FakeCaps()
+    )
+
+    await client.complete(
+        model="intake-jd", messages=[{"role": "user", "content": "hi"}], tools=[TOOL]
+    )
+
+    assert sent[0]["tools"] == [TOOL]

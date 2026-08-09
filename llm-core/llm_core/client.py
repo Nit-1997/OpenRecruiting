@@ -15,7 +15,11 @@ import structlog
 from openai import AsyncOpenAI
 
 from llm_core.capabilities import CapabilityCache
-from llm_core.emulation import build_emulation_instruction, parse_emulated_reply
+from llm_core.emulation import (
+    build_emulation_instruction,
+    parse_emulated_reply,
+    validate_tool_shape,
+)
 from llm_core.errors import LLMError
 from llm_core.settings import get_settings
 from llm_core.types import LLMReply, ToolCall
@@ -161,6 +165,16 @@ class LLMClient:
         emulate = False
 
         if tools:
+            # Shape is checked before the capability probe, so both dispatch paths
+            # fail in the same place with the same message. Without this the check
+            # ran only inside build_emulation_instruction, i.e. only when the alias
+            # could NOT do native tools; a tool-capable alias put the spec straight
+            # into payload["tools"] below and an Anthropic-shaped one reached the
+            # gateway and came back as an opaque provider 400 at runtime. Around
+            # fifty tool specs in this repo still carry `input_schema`, so during
+            # migration that is the likely mistake, and which alias happens to be
+            # configured must not decide whether it is caught.
+            validate_tool_shape(tools)
             emulate = not await self._caps.supports_tools(model)
             if emulate:
                 instruction = build_emulation_instruction(tools)
@@ -237,6 +251,10 @@ class LLMClient:
 
         outgoing = list(messages)
         if tools:
+            # Same guard as complete(), in the same position relative to the
+            # capability probe: an Anthropic-shaped spec must be rejected here
+            # rather than forwarded as payload["tools"] to 400 at the gateway.
+            validate_tool_shape(tools)
             # Guarded: build_emulation_instruction raises on an empty tool list.
             if await self._caps.supports_tools(model):
                 payload["tools"] = tools

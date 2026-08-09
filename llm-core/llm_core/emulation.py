@@ -18,6 +18,10 @@ Anthropic-shaped specs ({"name", "input_schema"}) are rejected rather than silen
 misread — a missing "function" key would otherwise yield a tool named "tool" with an
 empty schema, disabling the presence check and returning arguments under a name no
 dispatcher knows.
+
+`validate_tool_shape` is the one place that check lives, and it is deliberately not
+private to this module: `LLMClient` calls it on the native path too, so a
+malformed spec fails identically whether the alias emulates tools or not.
 """
 
 from __future__ import annotations
@@ -47,14 +51,23 @@ def _keys(payload: dict[str, Any]) -> list[str]:
     return sorted(payload.keys())[:_MAX_KEYS]
 
 
-def _tool_entries(tools: list[dict[str, Any]]) -> list[tuple[str, str, dict[str, Any]]]:
+def validate_tool_shape(tools: list[dict[str, Any]]) -> list[tuple[str, str, dict[str, Any]]]:
     """Validate OpenAI tool shape up front, returning (name, description, schema).
 
     Every rejection here is a caller bug that would otherwise degrade silently.
+
+    This runs on BOTH dispatch paths, not just the emulated one. `LLMClient`
+    calls it before it asks whether the alias supports tools, so an
+    Anthropic-shaped spec is rejected here with the same message whether it was
+    headed for native `tools` or for a prompt-rendered schema. It used to be
+    reachable only through emulation, which meant a tool-capable alias forwarded
+    the malformed spec to the gateway and failed as an opaque provider 400 at
+    runtime. Nearly fifty tool specs in this repo still carry `input_schema`, so
+    that is the expected mistake during migration, not an exotic one.
     """
     if not tools:
         raise ToolEmulationError(
-            "no tools supplied for emulation; at least one tool in OpenAI shape "
+            "no tools supplied; at least one tool in OpenAI shape "
             "{'type': 'function', 'function': {...}} is required"
         )
 
@@ -71,8 +84,9 @@ def _tool_entries(tools: list[dict[str, Any]]) -> list[tuple[str, str, dict[str,
             raise ToolEmulationError(
                 f"tool {label} is not in OpenAI shape: expected a 'function' key holding "
                 f"{{'name', 'description', 'parameters'}}, got keys {_keys(tool)}. "
-                "Anthropic-shaped specs using 'input_schema' must be converted before "
-                "emulation; llm_core does not translate them."
+                "Anthropic-shaped specs using 'input_schema' must be converted to "
+                "{'type': 'function', 'function': {'name', 'description', 'parameters'}} "
+                "before they reach llm_core, which does not translate them."
             )
 
         fn = tool.get("function") or {}
@@ -93,7 +107,7 @@ def _tool_entries(tools: list[dict[str, Any]]) -> list[tuple[str, str, dict[str,
 
 
 def build_emulation_instruction(tools: list[dict[str, Any]]) -> str:
-    entries = _tool_entries(tools)
+    entries = validate_tool_shape(tools)
 
     if len(entries) == 1:
         name, description, schema = entries[0]
@@ -147,7 +161,7 @@ def _extract_json(raw: str) -> Any:
 
 
 def parse_emulated_reply(raw: str, tools: list[dict[str, Any]]) -> ToolCall:
-    entries = _tool_entries(tools)
+    entries = validate_tool_shape(tools)
     by_name = {entry[0]: entry for entry in entries}
 
     parsed = _extract_json(raw)

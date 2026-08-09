@@ -7,7 +7,7 @@ import pytest
 import structlog
 
 from llm_core.client import LLMClient
-from llm_core.errors import LLMError
+from llm_core.errors import LLMError, ToolEmulationError
 
 
 class FakeCaps:
@@ -644,3 +644,128 @@ def test_stream_turn_annotations_resolve():
 
     assert hints["return"] is not None
     assert hints["max_tokens"] is int
+
+
+# --- Tool shape is validated on both dispatch paths --------------------------
+
+STREAM_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "emit_job_description",
+        "description": "Return the structured job description.",
+        "parameters": {
+            "type": "object",
+            "properties": {"title": {"type": "string"}},
+            "required": ["title"],
+        },
+    },
+}
+
+ANTHROPIC_TOOL = {
+    "name": "emit_job_description",
+    "description": "Return the structured job description.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"],
+    },
+}
+
+
+class RecordingCaps:
+    def __init__(self, supported=True):
+        self.supported = supported
+        self.asked = []
+
+    async def supports_tools(self, alias):
+        self.asked.append(alias)
+        return self.supported
+
+
+async def test_stream_rejects_an_anthropic_shaped_tool_on_the_native_path():
+    """stream_turn used to forward payload["tools"] unvalidated on a capable alias."""
+    sent = []
+    caps = RecordingCaps(supported=True)
+    client = LLMClient(openai_client=_openai_stub([_chunk(finish="stop")], sent), capabilities=caps)
+
+    with pytest.raises(ToolEmulationError) as exc:
+        await _collect(
+            client.stream_turn(
+                model="debrief-chat",
+                messages=[{"role": "user", "content": "hi"}],
+                tools=[ANTHROPIC_TOOL],
+            )
+        )
+
+    message = str(exc.value)
+    assert "input_schema" in message
+    assert "emit_job_description" in message
+    assert sent == [], "a malformed tool spec must never reach the gateway"
+    assert caps.asked == [], "shape must be checked before the capability probe"
+
+
+async def test_stream_rejects_an_anthropic_shaped_tool_on_the_emulated_path():
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub([_chunk(finish="stop")], sent),
+        capabilities=RecordingCaps(supported=False),
+    )
+
+    with pytest.raises(ToolEmulationError) as exc:
+        await _collect(
+            client.stream_turn(
+                model="debrief-chat",
+                messages=[{"role": "user", "content": "hi"}],
+                tools=[ANTHROPIC_TOOL],
+            )
+        )
+
+    assert "input_schema" in str(exc.value)
+    assert sent == []
+
+
+async def test_stream_and_complete_reject_an_anthropic_tool_with_the_same_message():
+    """One error, one wording, whichever entry point a migrating call site uses."""
+    stream_client = LLMClient(
+        openai_client=_openai_stub([_chunk(finish="stop")], []), capabilities=RecordingCaps()
+    )
+    with pytest.raises(ToolEmulationError) as stream_exc:
+        await _collect(
+            stream_client.stream_turn(
+                model="debrief-chat",
+                messages=[{"role": "user", "content": "hi"}],
+                tools=[ANTHROPIC_TOOL],
+            )
+        )
+
+    complete_stub = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=lambda **kw: None)
+        )
+    )
+    complete_client = LLMClient(openai_client=complete_stub, capabilities=RecordingCaps())
+    with pytest.raises(ToolEmulationError) as complete_exc:
+        await complete_client.complete(
+            model="debrief-chat",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[ANTHROPIC_TOOL],
+        )
+
+    assert str(stream_exc.value) == str(complete_exc.value)
+
+
+async def test_stream_still_forwards_a_well_shaped_tool():
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub([_chunk(finish="stop")], sent), capabilities=RecordingCaps()
+    )
+
+    await _collect(
+        client.stream_turn(
+            model="debrief-chat",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[STREAM_TOOL],
+        )
+    )
+
+    assert sent[0]["tools"] == [STREAM_TOOL]
