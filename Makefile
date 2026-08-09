@@ -18,7 +18,17 @@ ps:            ## Show service status
 verify:        ## Health-check every service and print the URL map
 	@echo "Services"
 	@curl -fsS --max-time 5 http://localhost:8004/health        >/dev/null 2>&1 && echo "  ok    backend         http://localhost:8004"        || echo "  DOWN  backend         http://localhost:8004"
-	@curl -fsS --max-time 5 http://localhost:4000/health/liveliness >/dev/null 2>&1 && echo "  ok    litellm         http://localhost:4000"        || echo "  DOWN  litellm         http://localhost:4000  (needs LITELLM_MASTER_KEY)"
+	@# /health/liveliness answers 200 with no key and with a wrong one, so it cannot
+	@# tell a working master key from a broken one. Probe an authenticated endpoint
+	@# instead, and fall back to liveliness only to tell "key is wrong" from "down".
+	@KEY=$$(grep '^LITELLM_MASTER_KEY=' .env 2>/dev/null | cut -d= -f2-); \
+	if curl -fsS --max-time 5 -H "Authorization: Bearer $$KEY" http://localhost:4000/model/info >/dev/null 2>&1; then \
+		echo "  ok    litellm         http://localhost:4000"; \
+	elif curl -fsS --max-time 5 http://localhost:4000/health/liveliness >/dev/null 2>&1; then \
+		echo "  WARN  litellm         http://localhost:4000  (up, but LITELLM_MASTER_KEY is missing or rejected)"; \
+	else \
+		echo "  DOWN  litellm         http://localhost:4000"; \
+	fi
 	@curl -fsS --max-time 5 http://localhost:3000               >/dev/null 2>&1 && echo "  ok    landing         http://localhost:3000"        || echo "  DOWN  landing         http://localhost:3000  (needs NEXT_PUBLIC_SUPABASE_* set)"
 	@curl -fsS --max-time 5 http://localhost:3005               >/dev/null 2>&1 && echo "  ok    recruiter-app   http://localhost:3005"        || echo "  DOWN  recruiter-app   http://localhost:3005"
 	@curl -fsS --max-time 5 http://localhost:3001               >/dev/null 2>&1 && echo "  ok    admin-app       http://localhost:3001  (staff only)" || echo "  DOWN  admin-app       http://localhost:3001"

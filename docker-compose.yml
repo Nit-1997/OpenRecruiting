@@ -124,7 +124,14 @@ services:
   # Single egress point for text generation. Applications send an alias; this
   # resolves it to a provider. See litellm-config.yaml.
   litellm:
-    image: ghcr.io/berriai/litellm:main-latest
+    # Pinned by digest, not to :main-latest. Every service's text generation
+    # egresses through this one container, so a floating tag would let an
+    # unrelated `docker compose pull` swap the gateway underneath the whole
+    # stack. This digest is the multi-arch index for :main-latest as of
+    # 2026-08-08. To bump it deliberately:
+    #   docker buildx imagetools inspect ghcr.io/berriai/litellm:main-latest
+    # then paste the reported Digest here and re-run `make verify`.
+    image: ghcr.io/berriai/litellm@sha256:76d036d18bb352ac3b4e0a84d5892b2cb2fe472e305bf2ac0619aef97fe6ced0
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     volumes:
       - ./litellm-config.yaml:/app/config.yaml:ro
