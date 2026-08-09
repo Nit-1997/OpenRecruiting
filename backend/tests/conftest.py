@@ -19,6 +19,8 @@ os.environ.update({
     "ENV": "test",
     "KNIT_API_KEY": "test-knit-key",
     "ATS_INTEGRATIONS_ENABLED": "true",
+    "LLM_GATEWAY_URL": "http://litellm.invalid:4000",
+    "LITELLM_MASTER_KEY": "test-litellm-key",
 })
 
 import pytest

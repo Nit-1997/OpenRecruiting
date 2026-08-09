@@ -6,8 +6,8 @@
 #   docker run --rm -e ENV=test -v "$PWD/backend:/app" -w /app \
 #     openrecruiting-backend-test python -m pytest -q
 #
-# intake-core is baked into the image, so rebuild after ANY intake-core/ change
-# or backend imports will resolve to a stale copy.
+# intake-core and llm-core are baked into the image, so rebuild after ANY change
+# under either or backend imports will resolve to a stale copy.
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -17,5 +17,12 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-test.txt
 
 COPY intake-core /tmp/intake-core
 RUN pip install --no-cache-dir /tmp/intake-core && rm -rf /tmp/intake-core
+
+# llm-core is the shared gateway client. It also carries a pytest11 entry point,
+# so installing it here is what makes the `fake_llm` fixture exist in this image.
+# backend/Dockerfile already installs it; the test image was missed, which would
+# have surfaced as a collection error rather than a readable failure.
+COPY llm-core /tmp/llm-core
+RUN pip install --no-cache-dir /tmp/llm-core && rm -rf /tmp/llm-core
 
 COPY backend/ /app/

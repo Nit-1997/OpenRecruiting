@@ -225,3 +225,23 @@ def get_anthropic_async_client() -> "_AsyncAnthropic":
         api_key = _os.environ["ANTHROPIC_API_KEY"]
         _anthropic_client = _AsyncAnthropic(api_key=api_key, max_retries=2)
     return _anthropic_client
+
+
+# LLM gateway client — the provider-agnostic path. Provider choice lives in
+# litellm-config.yaml, so nothing below this line names a provider.
+from llm_core import LLMClient as _LLMClient
+from llm_core import get_client as _get_llm_core_client
+
+
+def get_llm_client() -> "_LLMClient":
+    """FastAPI dependency returning the process-wide llm_core gateway client.
+
+    Deliberately a pass-through rather than `from llm_core import llm` at module
+    scope. `llm` is resolved by llm_core's module __getattr__, so that import form
+    constructs AsyncOpenAI at the IMPORTING module's import time — the exact
+    side effect llm_core/__init__.py's lazy singleton exists to avoid, and it
+    would fire once per migrated module during test collection. Keeping a
+    dependency callable also preserves app.dependency_overrides as the seam the
+    router tests already use.
+    """
+    return _get_llm_core_client()
