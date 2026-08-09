@@ -1,5 +1,5 @@
-# Backend image. Build with the REPO ROOT as context so intake-core is available
-# without a staging script:
+# Backend image. Build with the REPO ROOT as context so intake-core and llm-core
+# are available without a staging script:
 #   docker build -f backend/Dockerfile -t openrecruiting-backend .
 FROM python:3.11-slim
 
@@ -13,6 +13,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # stale published copy.
 COPY intake-core /tmp/intake-core
 RUN pip install --no-cache-dir /tmp/intake-core && rm -rf /tmp/intake-core
+
+# llm-core is the shared gateway client. Installed the same way and for the same
+# reason as intake-core. Nothing imports it yet — it lands here first so the
+# migration phases start with `import llm_core` already resolving inside the
+# image, rather than discovering on their first build that the package they were
+# written against was never installed.
+COPY llm-core /tmp/llm-core
+RUN pip install --no-cache-dir /tmp/llm-core && rm -rf /tmp/llm-core
 
 COPY backend/ /app/
 
