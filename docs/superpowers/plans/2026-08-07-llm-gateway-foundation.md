@@ -1998,9 +1998,9 @@ against an unvalidated interface.
 
 ## Definition of done for this plan
 
-- `llm-core` unit suite green: 31 passed.
-- `llm-core` live suite green: 4 passed, covering native tools on Claude and
-  emulated tools on Gemma.
+- `llm-core` hermetic suite green: 160 passed, 12 deselected.
+- `llm-core` live suite green: 12 passed, covering all three providers —
+  claude-sonnet-5, gpt-5.6-terra, and local ollama gemma4.
 - `make verify` shows `ok    litellm`.
 - `make verify-local-llm` prints a reply from the local model.
 - No existing suite regresses: backend 2105, cortex-backend 486, recruiter-app 1224,
