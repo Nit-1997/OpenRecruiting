@@ -60,10 +60,12 @@ verify-local-llm: ## Prove the gateway reaches a local Ollama model
 	@curl -fsS --max-time 5 http://localhost:11434/api/tags >/dev/null 2>&1 \
 		&& echo "  ok    ollama          http://localhost:11434" \
 		|| { echo "  DOWN  ollama — start it with: ollama serve"; exit 1; }
-	@echo "Asking the gateway for gemma-local..."
-	@KEY=$$(grep '^LITELLM_MASTER_KEY=' .env | cut -d= -f2-); \
-	curl -fsS --max-time 120 http://localhost:4000/v1/chat/completions \
-		-H "Authorization: Bearer $$KEY" \
-		-H "Content-Type: application/json" \
-		-d '{"model":"gemma-local","messages":[{"role":"user","content":"Reply with the single word: ready"}],"max_tokens":16}' \
-		| python3 -c "import sys,json; d=json.load(sys.stdin); print('  reply:', d['choices'][0]['message']['content'].strip())"
+	@# Runs INSIDE the backend container: it already has llm-core and the gateway
+	@# env, so this exercises the same client the application uses rather than a
+	@# hand-rolled curl that proves only that the proxy answers.
+	@#
+	@# Both dispatch paths, per spec acceptance #3. The emulated tool path is the
+	@# one that matters: the -local aliases declare supports_function_calling
+	@# false, so llm_core renders the schema into the prompt and parses the reply
+	@# back into a ToolCall. Nothing else in any gate runs that code.
+	@docker compose exec -T backend python /dev/stdin < scripts/verify_local_llm.py
