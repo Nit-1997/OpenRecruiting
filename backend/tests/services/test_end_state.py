@@ -165,39 +165,42 @@ def _fake_http_client(*, content_text=None, raise_status=None, post_exc=None):
 
 
 _SETTINGS = SimpleNamespace(
-    ANTHROPIC_API_KEY="test-key",
-    END_STATE_MODEL="claude-sonnet-4-6",
+    # A gateway alias since phase 8. No provider credential here any more: this
+    # site POSTed raw httpx to api.anthropic.com until then, which is why no
+    # Anthropic-surface test ever flagged it.
+    END_STATE_MODEL="end-state",
 )
 
 
 @pytest.mark.asyncio
-async def test_llm_judge_success_returns_parsed_dict(monkeypatch):
-    monkeypatch.setattr(
-        end_state.httpx, "AsyncClient",
-        _fake_http_client(content_text='{"phase": "ended", "confidence": 0.9, "is_no_show": true, "reasoning": "done"}'),
-    )
-    result = await end_state._llm_judge("prompt", _SETTINGS)
+async def test_llm_judge_success_returns_parsed_dict(fake_llm):
+    fake_llm.queue_text('{"phase": "ended", "confidence": 0.9, "is_no_show": true, "reasoning": "done"}')
+    result = await end_state._llm_judge("prompt", _SETTINGS, llm=fake_llm)
     assert result == {"phase": "ended", "confidence": 0.9, "is_no_show": True, "reasoning": "done"}
+    assert fake_llm.calls[0]["model"] == "end-state"
 
 
 @pytest.mark.asyncio
-async def test_llm_judge_bad_shape_missing_phase_returns_none(monkeypatch):
-    monkeypatch.setattr(
-        end_state.httpx, "AsyncClient",
-        _fake_http_client(content_text='{"confidence": 0.5, "is_no_show": false}'),  # no "phase"
-    )
-    assert await end_state._llm_judge("prompt", _SETTINGS) is None
+async def test_llm_judge_bad_shape_missing_phase_returns_none(fake_llm):
+    fake_llm.queue_text('{"confidence": 0.5, "is_no_show": false}')  # no "phase"
+    assert await end_state._llm_judge("prompt", _SETTINGS, llm=fake_llm) is None
 
 
 @pytest.mark.asyncio
-async def test_llm_judge_http_error_returns_none(monkeypatch):
-    import httpx
+async def test_llm_judge_empty_reply_returns_none(fake_llm):
+    """A degraded reply must not become a phase verdict. None is what the caller
+    already treats as "no decision", so the shape is right — but it now arrives
+    through the same path a real refusal does rather than an exception."""
+    fake_llm.queue_text("")
+    assert await end_state._llm_judge("prompt", _SETTINGS, llm=fake_llm) is None
 
-    monkeypatch.setattr(
-        end_state.httpx, "AsyncClient",
-        _fake_http_client(raise_status=httpx.HTTPStatusError("500", request=MagicMock(), response=MagicMock())),
-    )
-    assert await end_state._llm_judge("prompt", _SETTINGS) is None
+
+@pytest.mark.asyncio
+async def test_llm_judge_gateway_error_returns_none(fake_llm):
+    from llm_core.errors import LLMError
+
+    fake_llm.queue_error(LLMError("gateway 500", alias="end-state", status=500))
+    assert await end_state._llm_judge("prompt", _SETTINGS, llm=fake_llm) is None
 
 
 @pytest.mark.asyncio
@@ -210,12 +213,16 @@ async def test_llm_judge_post_exception_returns_none(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_evaluate_end_state_runs_real_llm_judge_path(monkeypatch):
-    # Exercise evaluate_end_state through the real _llm_judge (HTTP mocked) so
-    # the prompt-build + call + parse wiring is covered end to end.
-    monkeypatch.setattr(
-        end_state.httpx, "AsyncClient",
-        _fake_http_client(content_text='{"phase": "wrapping_up", "confidence": 0.8, "is_no_show": false, "reasoning": "closing"}'),
+async def test_evaluate_end_state_runs_real_llm_judge_path(monkeypatch, fake_llm):
+    # Exercise evaluate_end_state through the real _llm_judge so the
+    # prompt-build + call + parse wiring is covered end to end. _llm_judge
+    # resolves its client lazily via app.dependencies, so that is the seam —
+    # there is no `llm` argument to pass from this far up.
+    import app.dependencies as deps
+
+    monkeypatch.setattr(deps, "get_llm_client", lambda: fake_llm)
+    fake_llm.queue_text(
+        '{"phase": "wrapping_up", "confidence": 0.8, "is_no_show": false, "reasoning": "closing"}'
     )
     v = await evaluate_end_state(_bot(), [HOST, CAND], "Bob: thanks for your time", "candidate_drop")
     assert v.phase == "wrapping_up"

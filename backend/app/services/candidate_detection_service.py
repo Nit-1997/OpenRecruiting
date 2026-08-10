@@ -111,61 +111,61 @@ def tier2_platform_signals(participants: list[dict]) -> Optional[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Tier 3 — Claude Haiku
+# Tier 3 — the LLM gateway
 # ---------------------------------------------------------------------------
-
-
-_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 
 
 async def tier3_llm_detection(
     candidate_name: str,
     participants: list[dict],
     utterances: dict[str, str],
+    llm=None,
 ) -> Optional[dict]:
-    """Ask Claude Haiku to identify the candidate from utterance snippets."""
+    """Ask the model to identify the candidate from utterance snippets.
+
+    `llm` defaults to the gateway client and exists as a parameter so tests can
+    substitute llm-core's FakeLLM. This site POSTed raw httpx straight to the
+    provider's messages endpoint until phase 8 — it imported no SDK, so the
+    surface tests never saw it, and it was the reason the backend still read a
+    provider API key at all.
+    """
     settings = get_settings()
+
+    if llm is None:
+        from app.dependencies import get_llm_client
+
+        llm = get_llm_client()
 
     prompt = _build_detection_prompt(candidate_name, participants, utterances, settings)
 
     try:
-        # The pooled async client carries our X-Request-ID via httpx event
-        # hooks — same observability story as the rest of v2. We do NOT
-        # use it here because the Anthropic API has its own auth scheme
-        # and we don't want our request_id leaking to a third party. Use
-        # a one-shot client.
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            llm_start = time.monotonic()
-            response = await client.post(
-                _ANTHROPIC_URL,
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "content-type": "application/json",
-                    "anthropic-version": "2023-06-01",
-                },
-                json={
-                    "model": settings.CANDIDATE_DETECT_MODEL,
-                    "max_tokens": 256,
-                    "temperature": 0,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
+        llm_start = time.monotonic()
+        reply = await llm.complete(
+            model=settings.CANDIDATE_DETECT_MODEL,
+            max_tokens=256,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        content = reply.text or ""
+        logger.info(
+            "llm_response",
+            extra={
+                "event": "llm_response",
+                "model": settings.CANDIDATE_DETECT_MODEL,
+                "duration_ms": int((time.monotonic() - llm_start) * 1000),
+            },
+        )
+
+        if not content.strip():
+            # An empty completion parses to nothing and returns None, which the
+            # orchestrator reads as "this tier found no candidate" — identical to
+            # a confident negative. Named so the two are distinguishable.
+            logger.warning(
+                "candidate_detect_empty_reply",
+                extra={"event": "candidate_detect_empty_reply",
+                       "model": settings.CANDIDATE_DETECT_MODEL},
             )
-            response.raise_for_status()
-            resp_json = response.json()
-            content = resp_json["content"][0]["text"]
-            usage = resp_json.get("usage", {})
-            logger.info(
-                "llm_response",
-                extra={
-                    "event": "llm_response",
-                    "model": settings.CANDIDATE_DETECT_MODEL,
-                    "duration_ms": int((time.monotonic() - llm_start) * 1000),
-                    "input_tokens": usage.get("input_tokens", 0),
-                    "output_tokens": usage.get("output_tokens", 0),
-                    "cache_read_tokens": usage.get("cache_read_input_tokens", 0),
-                    "cache_creation_tokens": usage.get("cache_creation_input_tokens", 0),
-                },
-            )
+            return None
 
         result = parse_json_response(content)
         if not _is_valid_detection_result(result, content):

@@ -121,11 +121,15 @@ class Settings(BaseSettings):
     CANDIDATE_DETECT_CHAR_THRESHOLD: int = 200
     CANDIDATE_DETECT_MIN_PARTICIPANTS: int = 2
     CANDIDATE_DETECT_CONFIDENCE_THRESHOLD: float = 0.9
-    CANDIDATE_DETECT_MODEL: str = "claude-3-5-haiku-latest"
+    # A GATEWAY ALIAS, not a provider model id. litellm-config.yaml pins it to
+    # the same haiku tier the previous `claude-3-5-haiku-latest` resolved to,
+    # rather than to a floating '-latest' tag, so the workload is reproducible.
+    CANDIDATE_DETECT_MODEL: str = "candidate-detect"
 
     # Interview end-state detection (LLM-holistic, Sonnet)
     END_STATE_DETECT_ENABLED: bool = True
-    END_STATE_MODEL: str = "claude-sonnet-4-6"
+    # A GATEWAY ALIAS, not a provider model id — litellm-config.yaml maps it.
+    END_STATE_MODEL: str = "end-state"
     END_STATE_CONFIDENCE_THRESHOLD: float = 0.7
     END_STATE_GRACE_SECONDS: int = 60
 
@@ -216,7 +220,7 @@ class Settings(BaseSettings):
     # persona-reduce alias since phase 1 that nothing read. Giving it its own
     # setting is what lets the two workloads be repointed independently, and it
     # leaves the generator with exactly one reader so that setting can be flipped
-    # to an alias without dragging an unmigrated caller onto api.anthropic.com.
+    # to an alias without dragging an unmigrated caller onto the provider API.
     PERSONA_REDUCE_MODEL: str = "persona-reduce"
 
     # Screening agent assessor: authors the interviewer-style assessment from the

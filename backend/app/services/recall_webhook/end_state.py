@@ -31,7 +31,6 @@ from app.utils import parse_json_response
 
 logger = get_logger(__name__)
 
-_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 
 Phase = Literal["early", "mid", "wrapping_up", "ended"]
 Trigger = Literal["candidate_drop", "call_ended"]
@@ -212,38 +211,35 @@ def _build_prompt(
     )
 
 
-async def _llm_judge(prompt: str, settings) -> Optional[dict]:
-    """One-shot Sonnet call. Returns the parsed dict or None on any failure."""
+async def _llm_judge(prompt: str, settings, llm=None) -> Optional[dict]:
+    """One-shot gateway call. Returns the parsed dict or None on any failure.
+
+    `llm` defaults to the gateway client and is a parameter so tests can pass
+    llm-core's FakeLLM. This site POSTed raw httpx straight to the provider's
+    messages endpoint until phase 8; because it imported no SDK, every
+    provider-surface test passed while it was still egressing directly.
+    """
+    if llm is None:
+        from app.dependencies import get_llm_client
+
+        llm = get_llm_client()
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            started = time.monotonic()
-            response = await client.post(
-                _ANTHROPIC_URL,
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "content-type": "application/json",
-                    "anthropic-version": "2023-06-01",
-                },
-                json={
-                    "model": settings.END_STATE_MODEL,
-                    "max_tokens": 256,
-                    "temperature": 0,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-            )
-            response.raise_for_status()
-            resp_json = response.json()
-            content = resp_json["content"][0]["text"]
-            logger.info(
-                "llm_response",
-                extra={
-                    "event": "llm_response",
-                    "model": settings.END_STATE_MODEL,
-                    "duration_ms": int((time.monotonic() - started) * 1000),
-                    "input_tokens": resp_json.get("usage", {}).get("input_tokens", 0),
-                    "output_tokens": resp_json.get("usage", {}).get("output_tokens", 0),
-                },
-            )
+        started = time.monotonic()
+        reply = await llm.complete(
+            model=settings.END_STATE_MODEL,
+            max_tokens=256,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        content = reply.text or ""
+        logger.info(
+            "llm_response",
+            extra={
+                "event": "llm_response",
+                "model": settings.END_STATE_MODEL,
+                "duration_ms": int((time.monotonic() - started) * 1000),
+            },
+        )
         result = parse_json_response(content)
         if not isinstance(result, dict) or "phase" not in result:
             logger.warning(f"end-state: bad LLM shape: {content}")

@@ -163,7 +163,7 @@ def _settings(**overrides):
     s.CANDIDATE_DETECT_CHAR_THRESHOLD = 200
     s.CANDIDATE_DETECT_MIN_PARTICIPANTS = 2
     s.CANDIDATE_DETECT_CONFIDENCE_THRESHOLD = 0.9
-    s.CANDIDATE_DETECT_MODEL = "claude-3-5-haiku-latest"
+    s.CANDIDATE_DETECT_MODEL = "candidate-detect"   # a gateway alias since phase 8
     s.ANTHROPIC_API_KEY = "test-key"
     for k, v in overrides.items():
         setattr(s, k, v)
@@ -244,27 +244,36 @@ async def test_run_detection_tier3_runs_when_enough_talkers():
 # ---------------------------------------------------------------------------
 
 
-async def test_tier3_llm_detection_parses_result():
-    payload = {
-        "content": [{"text": '{"candidate_participant_id": 2, "confidence": 0.8, "reasoning": "r"}'}],
-        "usage": {},
-    }
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json = MagicMock(return_value=payload)
-
-    mock_client = AsyncMock()
-    mock_client.post = AsyncMock(return_value=mock_resp)
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=False)
+async def test_tier3_llm_detection_parses_result(fake_llm):
+    """Through the gateway since phase 8. This site POSTed raw httpx to
+    api.anthropic.com before that, which is why no Anthropic-surface test ever
+    flagged it."""
+    fake_llm.queue_text(
+        '{"candidate_participant_id": 2, "confidence": 0.8, "reasoning": "r"}'
+    )
 
     with patch.object(d, "get_settings", return_value=_settings()):
-        with patch.object(d.httpx, "AsyncClient", return_value=mock_client):
-            result = await d.tier3_llm_detection(
-                "Cand", [{"id": 2, "name": "Cand"}], {"2": "hello"}
-            )
+        result = await d.tier3_llm_detection(
+            "Cand", [{"id": 2, "name": "Cand"}], {"2": "hello"}, llm=fake_llm
+        )
+
     assert result["candidate_participant_id"] == 2
     assert result["confidence"] == 0.8
+    assert fake_llm.calls[0]["model"] == "candidate-detect"
+
+
+async def test_tier3_llm_detection_returns_none_on_an_empty_reply(fake_llm):
+    """An empty completion parses to nothing and returns None, which the
+    orchestrator reads as "this tier found no candidate" — identical to a
+    confident negative. The distinct log line is the only thing separating them."""
+    fake_llm.queue_text("")
+
+    with patch.object(d, "get_settings", return_value=_settings()):
+        result = await d.tier3_llm_detection(
+            "Cand", [{"id": 2, "name": "Cand"}], {"2": "hello"}, llm=fake_llm
+        )
+
+    assert result is None
 
 
 async def test_tier3_llm_detection_returns_none_on_exception():

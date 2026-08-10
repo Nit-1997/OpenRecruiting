@@ -10,11 +10,13 @@ These are SOURCE-TEXT assertions, not import checks, on purpose: a regression
 here is someone TYPING the old shape back into a module, and that has to fail in
 this suite rather than at runtime against a provider.
 
-Deliberately NOT asserted: that the string "anthropic" is absent from
-backend/app. candidate_detection_service.py and recall_webhook/end_state.py POST
-raw httpx to api.anthropic.com and read settings.ANTHROPIC_API_KEY. They import
-no SDK, they belong to no phase in the current rollout, and they are out of
-scope — see the spec's six-surface inventory, which does not list them.
+Phase 8 closed the last hole this file used to document as out of scope:
+candidate_detection_service.py and recall_webhook/end_state.py POSTed raw httpx
+straight to the provider. They imported no SDK, so every assertion here
+passed while the backend was still egressing to a provider directly — which is
+exactly why `test_no_module_posts_to_a_provider_endpoint` now exists. No phase in
+the spec's rollout covered them; phase 1 had created their aliases and nothing
+ever used them.
 """
 
 from pathlib import Path
@@ -93,3 +95,23 @@ def test_no_module_reads_a_tool_call_positionally():
     request returned [forced_tool, second_tool]. Every site therefore reads via
     LLMReply.tool_call_named or by matching the streamed event's `name`."""
     assert _modules_containing("tool_calls[") == set()
+
+
+def test_no_module_posts_to_a_provider_endpoint():
+    """The hole an SDK-import scan cannot see.
+
+    Two services reached the provider over raw httpx until phase 8, holding an
+    API key in a header. Nothing above would have caught it: they imported no
+    SDK, used no Anthropic tool shape, and named no provider model class. The
+    spec's goal is that ANTHROPIC_API_KEY is consumed only by the proxy, and this
+    is the assertion that actually enforces it.
+    """
+    assert _modules_containing("api.anthropic.com") == set()
+    assert _modules_containing("api.openai.com") == set()
+
+
+def test_no_module_sends_a_provider_auth_header():
+    """The other half: an endpoint can be reached via a variable, but the auth
+    scheme gives it away. The gateway takes `Authorization: Bearer`, never these."""
+    assert _modules_containing('"x-api-key"') == set()
+    assert _modules_containing("anthropic-version") == set()
