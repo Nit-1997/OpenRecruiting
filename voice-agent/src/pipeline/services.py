@@ -1,6 +1,6 @@
 from pipecat.services.deepgram.flux.stt import DeepgramFluxSTTService
 from pipecat.services.deepgram.tts import DeepgramTTSService
-from pipecat.services.anthropic.llm import AnthropicLLMService
+from pipecat.services.openai.llm import OpenAILLMService
 
 
 def create_deepgram_stt(
@@ -36,9 +36,24 @@ def create_deepgram_tts(api_key: str, voice: str = "aura-2-helena-en") -> Deepgr
     )
 
 
-def create_anthropic_llm(api_key: str, model: str) -> AnthropicLLMService:
-    return AnthropicLLMService(
+def create_llm(api_key: str, model: str, base_url: str) -> OpenAILLMService:
+    """The realtime LLM, through the LiteLLM gateway.
+
+    `api_key` is LITELLM_MASTER_KEY and `model` a gateway alias — this function
+    names no provider, which is the whole point of phase 7.
+
+    Two deliberate losses, both from swapping the previous provider service out:
+
+    * `enable_prompt_caching` is gone. It was Anthropic's ephemeral cache_control
+      and has no equivalent on this path; the spec accepts the cost.
+    * `max_tokens` no longer defaults to 4096 — OpenAILLMService leaves it
+      NOT_GIVEN, so the provider's own default applies. Left unset on purpose
+      rather than hardcoded: pinning 4096 here would silently re-cap every alias
+      this service is ever pointed at, and the gateway is where per-alias limits
+      belong.
+    """
+    return OpenAILLMService(
         api_key=api_key,
         model=model,
-        params=AnthropicLLMService.InputParams(enable_prompt_caching=True),
+        base_url=base_url,
     )

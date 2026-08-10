@@ -423,7 +423,7 @@ async def lifespan(app: FastAPI):
     ice_servers = _build_ice_servers()
     _webrtc_handler = SmallWebRTCRequestHandler(ice_servers=ice_servers)
     logger.info("Scout Voice Agent starting")
-    logger.info(f"Anthropic model: {settings.voice_anthropic_model}")
+    logger.info(f"LLM alias: {settings.voice_llm_model}")
     logger.info(f"ICE servers: {[s.urls for s in ice_servers]}")
     yield
     if _webrtc_handler:
@@ -488,8 +488,9 @@ async def _run_feedback_pipeline(connection, recall_bot: dict):
     settings = get_settings()
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
-        anthropic_api_key=settings.voice_anthropic_api_key,
-        anthropic_model=settings.voice_anthropic_model,
+        llm_api_key=settings.litellm_master_key,
+        llm_model=settings.voice_llm_model,
+        llm_base_url=settings.llm_gateway_url + "/v1",
         tts_voice=settings.voice_tts_voice,
         persona_text=persona_text,
         max_context_tokens=settings.max_context_tokens,
@@ -705,8 +706,9 @@ async def _run_intake_pipeline(connection, requisition: dict):
     settings = get_settings()
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
-        anthropic_api_key=settings.voice_anthropic_api_key,
-        anthropic_model=settings.voice_anthropic_model,
+        llm_api_key=settings.litellm_master_key,
+        llm_model=settings.voice_llm_model,
+        llm_base_url=settings.llm_gateway_url + "/v1",
         tts_voice=settings.voice_tts_voice,
         persona_text=persona_text,
         max_context_tokens=settings.max_context_tokens,
@@ -1229,8 +1231,9 @@ async def _run_fallback_feedback_pipeline(
     transcript_recorder = TranscriptAccumulatorProcessor()
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
-        anthropic_api_key=settings.voice_anthropic_api_key,
-        anthropic_model=settings.voice_anthropic_model,
+        llm_api_key=settings.litellm_master_key,
+        llm_model=settings.voice_llm_model,
+        llm_base_url=settings.llm_gateway_url + "/v1",
         tts_voice=settings.voice_tts_voice,
         persona_text=persona_text,
         max_context_tokens=settings.max_context_tokens,
@@ -1845,8 +1848,9 @@ async def _run_v2_screening_pipeline(
 
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
-        anthropic_api_key=settings.voice_anthropic_api_key,
-        anthropic_model=settings.voice_anthropic_model,
+        llm_api_key=settings.litellm_master_key,
+        llm_model=settings.voice_llm_model,
+        llm_base_url=settings.llm_gateway_url + "/v1",
         tts_voice=config_row.get("voice") or settings.voice_tts_voice,
         persona_text=build_voice_screening_prompt(session),
         max_context_tokens=settings.max_context_tokens,
@@ -2180,8 +2184,9 @@ async def v2_intake_offer(request: Request, background_tasks: BackgroundTasks):
 
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
-        anthropic_api_key=settings.voice_anthropic_api_key,
-        anthropic_model=settings.voice_anthropic_model,
+        llm_api_key=settings.litellm_master_key,
+        llm_model=settings.voice_llm_model,
+        llm_base_url=settings.llm_gateway_url + "/v1",
         tts_voice=settings.voice_tts_voice,
         persona_text=system_prompt,
         max_context_tokens=settings.max_context_tokens,

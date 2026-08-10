@@ -17,8 +17,13 @@ class Settings(BaseSettings):
     recall_base_url: str = "https://us-west-2.recall.ai/api/v1"
 
     voice_deepgram_api_key: str = ""
-    voice_anthropic_api_key: str = ""
-    voice_anthropic_model: str = "claude-sonnet-4-5-20250929"
+    # The LLM gateway. This service holds NO provider credential after phase 7 —
+    # LITELLM_MASTER_KEY authenticates it to the proxy, which holds the keys.
+    # The old provider-key setting is gone; it was the last one in the repository.
+    llm_gateway_url: str = "http://litellm:4000"
+    litellm_master_key: str = ""
+    # A GATEWAY ALIAS. Was voice_anthropic_model = claude-sonnet-4-5-20250929.
+    voice_llm_model: str = "voice-intake"
     voice_tts_voice: str = "aura-2-helena-en"
 
     max_context_tokens: int = 8000
@@ -42,7 +47,6 @@ class Settings(BaseSettings):
 
     # v2-specific settings
     service_port: int = 8011  # default differs from v1 (8001)
-    anthropic_model_sonnet: str = "claude-sonnet-4-6"
     intake_v2_voice_session_timeout_secs: int = 1800  # 30 minutes for intake
 
 

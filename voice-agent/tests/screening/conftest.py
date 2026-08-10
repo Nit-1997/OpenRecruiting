@@ -43,8 +43,14 @@ _HEAVY_MODULES = [
     "pipecat.services.deepgram.flux",
     "pipecat.services.deepgram.flux.stt",
     "pipecat.services.deepgram.tts",
+    # Phase 7 swapped AnthropicLLMService for OpenAILLMService. The anthropic
+    # entries stay: pipecat still ships that module, other stubs in this list
+    # import siblings under the same package, and removing them would only make
+    # this list describe less than it stubs.
     "pipecat.services.anthropic",
     "pipecat.services.anthropic.llm",
+    "pipecat.services.openai",
+    "pipecat.services.openai.llm",
     "pipecat.transports",
     "pipecat.transports.base_transport",
     "pipecat.transports.smallwebrtc",

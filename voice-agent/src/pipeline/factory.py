@@ -16,7 +16,7 @@ from pipecat.adapters.schemas.tools_schema import ToolsSchema
 from src.pipeline.services import (
     create_deepgram_stt,
     create_deepgram_tts,
-    create_anthropic_llm,
+    create_llm,
 )
 from src.pipeline.filler import FillerProcessor
 from src.pipeline.markdown_stripper import MarkdownStripper, TTSNameNormalizer
@@ -30,8 +30,12 @@ from src.pipeline.metrics_logger import MetricsLogger
 @dataclass
 class PipelineConfig:
     deepgram_api_key: str = ""
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-4-5-20250929"
+    # The gateway, not a provider. `llm_api_key` is LITELLM_MASTER_KEY and
+    # `llm_model` is an alias; renamed from anthropic_* in phase 7 so a caller
+    # cannot hand a provider credential to a field that no longer means one.
+    llm_api_key: str = ""
+    llm_model: str = "voice-intake"
+    llm_base_url: str = "http://litellm:4000/v1"
     tts_voice: str = "aura-2-helena-en"
     persona_text: str = ""
     flux_eot_threshold: float = 0.7
@@ -78,9 +82,10 @@ class PipelineFactory:
             api_key=config.deepgram_api_key,
             voice=config.tts_voice,
         )
-        llm = create_anthropic_llm(
-            api_key=config.anthropic_api_key,
-            model=config.anthropic_model,
+        llm = create_llm(
+            api_key=config.llm_api_key,
+            model=config.llm_model,
+            base_url=config.llm_base_url,
         )
 
         # Seed messages: system prompt + any prior turns from intake_sessions
