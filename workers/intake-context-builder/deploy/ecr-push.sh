@@ -23,7 +23,8 @@ REPO_NAME="openrecruiting-ai/intake-agent-context-builder"
 FUNCTION_NAME="${FUNCTION_NAME:-intake-agent-context-builder}"
 ECR_URI="${OPENRECRUITING_AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${REPO_NAME}"
 
-cd "$(dirname "$0")/.."
+# Repo root: the image needs intake-core and llm-core, which live there.
+cd "$(dirname "$0")/../../.."
 
 echo "==> Verifying AWS credentials resolve to account ${OPENRECRUITING_AWS_ACCOUNT_ID}"
 ACTIVE_ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
@@ -58,7 +59,7 @@ aws ecr describe-repositories --repository-names "$REPO_NAME" --region "$REGION"
     aws ecr create-repository --repository-name "$REPO_NAME" --region "$REGION"
 
 echo "==> Building image (platform linux/amd64)"
-docker build --platform linux/amd64 -t "${REPO_NAME}:latest" -f production/Dockerfile .
+docker build --platform linux/amd64 -t "${REPO_NAME}:latest" -f workers/intake-context-builder/production/Dockerfile .
 
 echo "==> Tagging + pushing"
 docker tag "${REPO_NAME}:latest" "${ECR_URI}:latest"
@@ -80,7 +81,7 @@ else
     echo "  Image URI: ${ECR_URI}:latest"
     echo "  Memory: 1024 MB"
     echo "  Timeout: 300s"
-    echo "  Env vars: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY, CORTEX_MCP_URL, CORTEX_TOKEN_URL, INTERNAL_API_SECRET"
+    echo "  Env vars: LLM_GATEWAY_URL, LITELLM_MASTER_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY, CORTEX_MCP_URL, CORTEX_TOKEN_URL, INTERNAL_API_SECRET"
     exit 1
 fi
 
