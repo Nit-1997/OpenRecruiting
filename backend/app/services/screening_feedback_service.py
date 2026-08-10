@@ -24,8 +24,8 @@ panel. It is deliberately decoupled from `_author_assessment` so it is separatel
 testable AND so a failure to compute it can never block the scorecard write or
 the feedback Lambda trigger (it is a directional signal, not a gate).
 
-All DB IO uses the custom async Supabase client (execute_async); the
-AsyncAnthropic client is awaitable so no asyncio.to_thread wrapping is needed.
+All DB IO uses the custom async Supabase client (execute_async); the llm_core
+gateway client is awaitable so no asyncio.to_thread wrapping is needed.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.config import get_settings
-from app.dependencies import get_anthropic_async_client
+from app.dependencies import get_llm_client
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -46,61 +46,69 @@ _AUTHENTICITY_KINDS = ("specificity", "consistency", "read_aloud")
 # Forced tool-use schema for the structured authenticity pass. Same pattern as
 # screening_question_generator._TOOL — the model is forced to call this tool so
 # we get clean JSON back without markdown-fence parsing.
+_FORCE_AUTHENTICITY_TOOL = {
+    "type": "function",
+    "function": {"name": "emit_authenticity_signals"},
+}
+
 _AUTHENTICITY_TOOL = {
-    "name": "emit_authenticity_signals",
-    "description": (
-        "Emit a DIRECTIONAL read on how authentic / self-authored the candidate's "
-        "screening answers appear. This is a soft signal to help the recruiter look "
-        "closer — it is NOT proof and NOT a pass/fail gate."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "overall": {
-                "type": "string",
-                "enum": list(_AUTHENTICITY_OVERALL),
-                "description": "Overall directional read across all answers.",
-            },
-            "confidence": {
-                "type": "number",
-                "minimum": 0.0,
-                "maximum": 1.0,
-                "description": "How confident you are in the overall read (0.0-1.0).",
-            },
-            "signals": {
-                "type": "array",
-                "description": "Specific patterns observed, one entry per pattern.",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "kind": {
-                            "type": "string",
-                            "enum": list(_AUTHENTICITY_KINDS),
-                            "description": (
-                                "specificity = how concrete/first-hand the detail is; "
-                                "consistency = internal coherence across answers; "
-                                "read_aloud = sounds scripted / AI-assisted / read aloud."
-                            ),
+    "type": "function",
+    "function": {
+        "name": "emit_authenticity_signals",
+        "description": (
+            "Emit a DIRECTIONAL read on how authentic / self-authored the candidate's "
+            "screening answers appear. This is a soft signal to help the recruiter look "
+            "closer — it is NOT proof and NOT a pass/fail gate."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "overall": {
+                    "type": "string",
+                    "enum": list(_AUTHENTICITY_OVERALL),
+                    "description": "Overall directional read across all answers.",
+                },
+                "confidence": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "How confident you are in the overall read (0.0-1.0).",
+                },
+                "signals": {
+                    "type": "array",
+                    "description": "Specific patterns observed, one entry per pattern.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "kind": {
+                                "type": "string",
+                                "enum": list(_AUTHENTICITY_KINDS),
+                                "description": (
+                                    "specificity = how concrete/first-hand the detail is; "
+                                    "consistency = internal coherence across answers; "
+                                    "read_aloud = sounds scripted / AI-assisted / read aloud."
+                                ),
+                            },
+                            "level": {
+                                "type": "string",
+                                "enum": list(_AUTHENTICITY_LEVELS),
+                                "description": "Strength of this signal.",
+                            },
+                            "note": {
+                                "type": "string",
+                                "description": "One short sentence of evidence for this signal.",
+                            },
                         },
-                        "level": {
-                            "type": "string",
-                            "enum": list(_AUTHENTICITY_LEVELS),
-                            "description": "Strength of this signal.",
-                        },
-                        "note": {
-                            "type": "string",
-                            "description": "One short sentence of evidence for this signal.",
-                        },
+                        "required": ["kind", "level", "note"],
                     },
-                    "required": ["kind", "level", "note"],
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "One-line directional note for the recruiter.",
                 },
             },
-            "summary": {
-                "type": "string",
-                "description": "One-line directional note for the recruiter.",
-            },
+            "required": ["overall", "confidence", "signals", "summary"],
         },
-        "required": ["overall", "confidence", "signals", "summary"],
     },
 }
 
@@ -113,8 +121,19 @@ def _bullets(items: list[str]) -> str:
 def _normalize_authenticity(raw: dict[str, Any]) -> dict[str, Any]:
     """Coerce the LLM tool output into the stored contract: clamp confidence,
     drop malformed signal rows, and fall back to safe directional defaults so we
-    never persist an off-contract shape. Returns {} if there is nothing usable."""
-    if not isinstance(raw, dict):
+    never persist an off-contract shape. Returns {} if there is nothing usable,
+    which the caller reads as "do not persist"."""
+    if not isinstance(raw, dict) or not raw:
+        # `not raw` is the truncated-tool-call shape: llm_core surfaces argument
+        # JSON it could not parse as arguments={}. Without this, every branch
+        # below falls through to its default and the function returns a complete,
+        # truthy verdict of overall='likely_authentic' — which the caller then
+        # PERSISTS to candidate_rounds.authenticity_signals and renders to a
+        # hiring panel. A fabricated affirmative reading of a candidate is the
+        # worst possible output of a degraded reply, and it was indistinguishable
+        # from a real one. The schema marks all four top-level fields required, so
+        # an empty payload is off-contract by definition; a partial one still gets
+        # today's coercion, since that is a model wording the defaults exist for.
         return {}
 
     overall = raw.get("overall")
@@ -382,19 +401,18 @@ headers, no preamble."""
     async def _author_assessment(self, ctx: dict[str, Any]) -> str:
         """Single LLM seam. Authors the interviewer-style assessment + authenticity
         appendix as plain text (this becomes scorecard_transcript)."""
-        client = get_anthropic_async_client()
+        llm = get_llm_client()
         model = get_settings().SCREENING_ASSESSOR_MODEL
         prompt = self._build_prompt(ctx)
-        msg = await client.messages.create(
+        reply = await llm.complete(
             model=model,
             max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         )
-        parts: list[str] = []
-        for block in getattr(msg, "content", []) or []:
-            if getattr(block, "type", None) == "text":
-                parts.append(getattr(block, "text", "") or "")
-        return "".join(parts).strip()
+        # The one site in this phase that reads prose rather than a tool call, so
+        # it passes no tools and no tool_choice. LLMReply.text is already the
+        # joined text of every text block, which is what the loop here did.
+        return (reply.text or "").strip()
 
     def _build_authenticity_prompt(self, ctx: dict[str, Any]) -> str:
         role = ctx.get("role") or {}
@@ -436,23 +454,33 @@ Respond ONLY by calling emit_authenticity_signals."""
         a formatted string), so we compute only text-derivable signals. Latency is
         a future enhancement once timestamped turns are available.
         """
-        client = get_anthropic_async_client()
+        llm = get_llm_client()
         model = get_settings().SCREENING_ASSESSOR_MODEL
         prompt = self._build_authenticity_prompt(ctx)
-        msg = await client.messages.create(
+        reply = await llm.complete(
             model=model,
             max_tokens=1200,
             tools=[_AUTHENTICITY_TOOL],
-            tool_choice={"type": "tool", "name": "emit_authenticity_signals"},
+            tool_choice=_FORCE_AUTHENTICITY_TOOL,
             messages=[{"role": "user", "content": prompt}],
         )
-        for block in getattr(msg, "content", []) or []:
-            if (
-                getattr(block, "type", None) == "tool_use"
-                and getattr(block, "name", None) == "emit_authenticity_signals"
-            ):
-                return _normalize_authenticity(getattr(block, "input", {}) or {})
-        return {}
+        call = reply.tool_call_named("emit_authenticity_signals")
+        if call is None:
+            # Defence in depth behind the forced tool. {} is the caller's "no
+            # signals" contract, so this branch is otherwise indistinguishable
+            # from a transcript that produced nothing worth flagging — and this
+            # output reaches a hiring panel, so the difference matters.
+            logger.warning(
+                "screening.feedback.authenticity_no_tool_call",
+                extra={
+                    "event": "screening.feedback",
+                    "status": "authenticity_no_tool_call",
+                    "alias": model,
+                    "finish_reason": reply.finish_reason,
+                },
+            )
+            return {}
+        return _normalize_authenticity(call.arguments or {})
 
     async def _write_scorecard_transcript(
         self, candidate_round_id: str, text: str

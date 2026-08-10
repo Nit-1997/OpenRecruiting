@@ -202,8 +202,10 @@ class Settings(BaseSettings):
     PERSONA_REDUCE_MODEL: str = "persona-reduce"
 
     # Screening agent assessor: authors the interviewer-style assessment from the
-    # interview transcript (becomes scorecard_transcript -> feedback Lambda). Sonnet.
-    SCREENING_ASSESSOR_MODEL: str = "claude-sonnet-4-6"
+    # interview transcript (becomes scorecard_transcript -> feedback Lambda), and
+    # separately computes the authenticity signals.
+    # A GATEWAY ALIAS, not a provider model id — litellm-config.yaml maps it.
+    SCREENING_ASSESSOR_MODEL: str = "screening-assessor"
 
     # Lambda callback secret for feedback completion notifications
     LAMBDA_CALLBACK_SECRET: str = ""

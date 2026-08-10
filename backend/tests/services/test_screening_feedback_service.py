@@ -168,3 +168,166 @@ async def test_authenticity_failure_does_not_block_scorecard(monkeypatch):
     feedback_job.trigger_feedback_processing.assert_awaited_once_with(
         CR_ID, skip_prereq_check=True
     )
+
+
+# --------------------------------------------------------------------------- #
+# The two LLM seams, tested directly against FakeLLM. Every test above mocks
+# them out, so these are the only tests of their bodies.
+# --------------------------------------------------------------------------- #
+import logging  # noqa: E402
+
+from llm_core.errors import LLMError  # noqa: E402
+
+import app.services.screening_feedback_service as feedback_module  # noqa: E402
+
+FORCED_AUTHENTICITY = {
+    "type": "function",
+    "function": {"name": "emit_authenticity_signals"},
+}
+
+_CTX = {
+    "role": {"role_title": "Backend Engineer"},
+    "transcript_text": "Q: tell me about an incident. A: we lost the primary db.",
+}
+
+
+def _svc(fake_llm, monkeypatch):
+    monkeypatch.setattr(feedback_module, "get_llm_client", lambda: fake_llm)
+    supa, _ = _fluent_supabase()
+    return ScreeningFeedbackService(db=supa, feedback_job=_make_feedback_job())
+
+
+async def test_author_assessment_returns_the_reply_text(fake_llm, monkeypatch):
+    """Site 8 — the one call in this phase that reads prose, not a tool call.
+    LLMReply.text is the joined text of every block, which is what the old
+    content loop built by hand."""
+    svc = _svc(fake_llm, monkeypatch)
+    fake_llm.queue_text("  ## Assessment\n\nStrong incident response.  ")
+
+    out = await svc._author_assessment(_CTX)
+
+    assert out == "## Assessment\n\nStrong incident response."
+
+
+async def test_author_assessment_sends_no_tools_at_all(fake_llm, monkeypatch):
+    """It asks for prose, so supplying tools — or a tool_choice — would be wrong.
+    llm_core rejects a tool_choice without tools, so this is load-bearing."""
+    svc = _svc(fake_llm, monkeypatch)
+    fake_llm.queue_text("text")
+
+    await svc._author_assessment(_CTX)
+
+    call = fake_llm.calls[0]
+    assert call["model"] == "screening-assessor"   # was "claude-sonnet-4-6"
+    assert call["max_tokens"] == 2000
+    assert call.get("tools") is None
+    assert call.get("tool_choice") is None
+
+
+async def test_compute_authenticity_normalizes_the_tool_arguments(fake_llm, monkeypatch):
+    svc = _svc(fake_llm, monkeypatch)
+    fake_llm.queue_tool_call(
+        "emit_authenticity_signals",
+        {
+            "overall": "some_concern",
+            "confidence": 0.62,
+            "signals": [
+                {"kind": "specificity", "level": "medium", "note": "few concrete numbers"}
+            ],
+        },
+    )
+
+    out = await svc._compute_authenticity(_CTX)
+
+    assert out["overall"] == "some_concern"
+    assert out["confidence"] == 0.62
+
+
+async def test_compute_authenticity_forces_its_tool(fake_llm, monkeypatch):
+    svc = _svc(fake_llm, monkeypatch)
+    fake_llm.queue_tool_call("emit_authenticity_signals", {"overall": "likely_authentic"})
+
+    await svc._compute_authenticity(_CTX)
+
+    call = fake_llm.calls[0]
+    assert call["model"] == "screening-assessor"
+    assert call["max_tokens"] == 1200
+    assert call["tool_choice"] == FORCED_AUTHENTICITY
+    assert call["tools"][0]["type"] == "function"
+    assert call["tools"][0]["function"]["name"] == "emit_authenticity_signals"
+
+
+async def test_compute_authenticity_logs_a_missing_tool_call(fake_llm, monkeypatch, caplog):
+    """{} is also the caller's "nothing worth flagging" result, so a degraded
+    reply is otherwise indistinguishable from a clean transcript — and this
+    output reaches a hiring panel.
+
+    This module logs through app.logging_config.get_logger (stdlib), not
+    structlog, so the assertion goes through caplog.
+    """
+    svc = _svc(fake_llm, monkeypatch)
+    fake_llm.queue_text("The candidate seemed genuine to me.")
+
+    with caplog.at_level(logging.WARNING, logger=feedback_module.__name__):
+        out = await svc._compute_authenticity(_CTX)
+
+    assert out == {}
+    assert "authenticity_no_tool_call" in caplog.text
+
+
+async def test_a_truncated_call_never_fabricates_an_authenticity_verdict(
+    fake_llm, monkeypatch
+):
+    """The one that must not regress.
+
+    A named call whose argument JSON was truncated arrives as arguments={}.
+    Every branch of _normalize_authenticity has a default, so an empty payload
+    used to normalize into a COMPLETE, truthy verdict of
+    overall='likely_authentic' — which generate_and_dispatch persists to
+    candidate_rounds.authenticity_signals and renders to a hiring panel. An
+    invented affirmative reading of a real candidate is the worst thing a
+    degraded reply here can produce.
+    """
+    svc = _svc(fake_llm, monkeypatch)
+    fake_llm.queue_tool_call("emit_authenticity_signals", {})
+
+    out = await svc._compute_authenticity(_CTX)
+
+    assert out == {}, "an empty payload must not become a 'likely_authentic' verdict"
+
+
+async def test_a_partial_payload_still_gets_its_defaults(fake_llm, monkeypatch):
+    """The empty-payload guard must not swallow a genuine partial reply — the
+    defaults exist for model wordings that miss a field, and that is unchanged."""
+    svc = _svc(fake_llm, monkeypatch)
+    fake_llm.queue_tool_call(
+        "emit_authenticity_signals", {"summary": "Answers were concrete."}
+    )
+
+    out = await svc._compute_authenticity(_CTX)
+
+    assert out["summary"] == "Answers were concrete."
+    assert out["overall"] == "likely_authentic"
+    assert out["confidence"] == 0.0
+
+
+async def test_compute_authenticity_does_not_swallow_gateway_errors(fake_llm, monkeypatch):
+    """generate_and_dispatch owns the fallback — a raise here must not block the
+    scorecard write, which the test above already pins."""
+    svc = _svc(fake_llm, monkeypatch)
+    fake_llm.queue_error(LLMError("gateway 500", alias="screening-assessor", status=500))
+
+    with pytest.raises(LLMError):
+        await svc._compute_authenticity(_CTX)
+
+
+async def test_no_transcript_text_reaches_the_degraded_log_line(fake_llm, monkeypatch, caplog):
+    """Transcripts carry candidate speech. A degraded-shape log describes shape."""
+    svc = _svc(fake_llm, monkeypatch)
+    secret = "My salary at Acme was 190000 and my manager was Dana."
+    fake_llm.queue_text(secret)
+
+    with caplog.at_level(logging.WARNING, logger=feedback_module.__name__):
+        await svc._compute_authenticity({"role": {}, "transcript_text": secret})
+
+    assert secret not in caplog.text
