@@ -1,39 +1,22 @@
-"""Extractor with a fake Anthropic client — no live API. Asserts the tool output
-maps into ResumeProfile and that any failure degrades to a minimal profile."""
+"""Extractor against llm-core's FakeLLM — no live API and no provider shapes.
+
+Asserts the tool output maps into ResumeProfile and that every failure degrades
+to a minimal profile carrying the raw text, never to a blank one.
+"""
+
+import pytest
+import structlog
+from llm_core.errors import LLMError
 
 from app.services.ats_enrichment.profile_models import ResumeProfile
 from app.services.ats_enrichment.signal_extractor import extract_resume_profile
 
+pytestmark = pytest.mark.asyncio
 
-class _Block:
-    def __init__(self, tool_input):
-        self.type = "tool_use"
-        self.name = "emit_candidate_profile"
-        self.input = tool_input
+FORCED = {"type": "function", "function": {"name": "emit_candidate_profile"}}
 
 
-class _Msg:
-    def __init__(self, content):
-        self.content = content
-
-
-class _FakeMessages:
-    def __init__(self, tool_input=None, raise_exc=None):
-        self._input = tool_input
-        self._raise = raise_exc
-
-    async def create(self, **_kwargs):
-        if self._raise is not None:
-            raise self._raise
-        return _Msg([_Block(self._input or {})])
-
-
-class _FakeClient:
-    def __init__(self, tool_input=None, raise_exc=None):
-        self.messages = _FakeMessages(tool_input, raise_exc)
-
-
-async def test_builds_profile_from_tool_output():
+async def test_builds_profile_from_tool_output(fake_llm):
     canned = {
         "summary": "Senior FP&A leader",
         "total_experience_years": 12,
@@ -42,28 +25,120 @@ async def test_builds_profile_from_tool_output():
         "domains": ["Corporate Finance"],
         "work_history": [{"title": "Director", "company": "Acme", "is_current": True}],
     }
-    prof = await extract_resume_profile(
-        "resume text", client=_FakeClient(tool_input=canned), model="claude-sonnet-4-6"
-    )
+    fake_llm.queue_tool_call("emit_candidate_profile", canned)
+
+    prof = await extract_resume_profile("resume text", llm=fake_llm, model="resume-extract")
+
     assert prof.summary == "Senior FP&A leader"
     assert prof.total_experience_years == 12
     assert prof.skills == ["FP&A", "SQL"]
     assert prof.work_history[0].company == "Acme"
 
 
-async def test_fail_soft_on_llm_error_keeps_raw_summary():
+async def test_fail_soft_on_llm_error_keeps_raw_summary(fake_llm):
+    fake_llm.queue_error(LLMError("api down", alias="resume-extract", status=502))
+
     prof = await extract_resume_profile(
-        "raw resume text here",
-        client=_FakeClient(raise_exc=RuntimeError("api down")),
-        model="m",
+        "raw resume text here", llm=fake_llm, model="resume-extract"
     )
+
     assert prof.summary == "raw resume text here"
     assert prof.skills == []
 
 
-async def test_empty_text_skips_llm():
-    # raise_exc would fire if the client were called — proves we short-circuit
-    prof = await extract_resume_profile(
-        "   ", client=_FakeClient(raise_exc=AssertionError("must not call")), model="m"
-    )
+async def test_empty_text_skips_llm(fake_llm):
+    prof = await extract_resume_profile("   ", llm=fake_llm, model="resume-extract")
+
     assert prof == ResumeProfile()
+    assert fake_llm.calls == []   # nothing queued, nothing called
+
+
+async def test_a_prose_reply_keeps_the_resume_rather_than_blanking_it(fake_llm):
+    """Defence in depth behind the forced tool.
+
+    Every ResumeProfile field has a default, so model_validate({}) SUCCEEDS and
+    returns a blank profile — the degraded reply would silently discard the
+    resume instead of degrading to it. The required-property check is what stops
+    that, so it is asserted on the value, not just on the log line.
+    """
+    fake_llm.queue_text("This resume looks fine to me.")
+
+    with structlog.testing.capture_logs() as logs:
+        prof = await extract_resume_profile(
+            "raw resume body", llm=fake_llm, model="resume-extract"
+        )
+
+    assert prof.summary == "raw resume body"
+    assert [e["event"] for e in logs] == ["resume_extract_no_usable_tool_arguments"]
+    assert logs[0]["had_tool_call"] is False
+
+
+async def test_a_truncated_tool_call_keeps_the_resume(fake_llm):
+    """The 2500-token budget against the largest tool schema in the codebase.
+    llm_core surfaces unparseable argument JSON as arguments={} on a ToolCall
+    that exists and is named correctly, so tool_call_named cannot see it."""
+    fake_llm.queue_tool_call("emit_candidate_profile", {})
+
+    with structlog.testing.capture_logs() as logs:
+        prof = await extract_resume_profile(
+            "raw resume body", llm=fake_llm, model="resume-extract"
+        )
+
+    assert prof.summary == "raw resume body"
+    assert [e["event"] for e in logs] == ["resume_extract_no_usable_tool_arguments"]
+    assert logs[0]["had_tool_call"] is True
+
+
+async def test_a_partial_extraction_is_still_a_real_profile(fake_llm):
+    """Only `summary` is required by the schema. A profile carrying it and
+    nothing else is a genuine result, not a degraded one."""
+    fake_llm.queue_tool_call("emit_candidate_profile", {"summary": "Ops lead"})
+
+    with structlog.testing.capture_logs() as logs:
+        prof = await extract_resume_profile(
+            "raw resume body", llm=fake_llm, model="resume-extract"
+        )
+
+    assert prof.summary == "Ops lead"
+    assert logs == []
+
+
+async def test_malformed_tool_output_keeps_the_models_summary(fake_llm):
+    """A summary that arrived but a sibling field that will not validate: the
+    extraction is partly usable, so the model's own summary wins over the raw
+    text. This is the branch the required-property check must not swallow."""
+    fake_llm.queue_tool_call(
+        "emit_candidate_profile",
+        {"summary": "Senior analyst", "work_history": "not a list"},
+    )
+
+    prof = await extract_resume_profile(
+        "raw resume body", llm=fake_llm, model="resume-extract"
+    )
+
+    assert prof.summary == "Senior analyst"
+
+
+async def test_sends_the_untrusted_resume_and_one_forced_openai_tool(fake_llm):
+    fake_llm.queue_tool_call("emit_candidate_profile", {"summary": "ok"})
+
+    await extract_resume_profile("SECRET RESUME", llm=fake_llm, model="resume-extract")
+
+    call = fake_llm.calls[0]
+    assert call["model"] == "resume-extract"
+    assert call["max_tokens"] == 2500
+    assert call["tool_choice"] == FORCED
+    assert "<untrusted_resume>" in call["messages"][0]["content"]
+    assert call["tools"][0]["type"] == "function"
+    assert call["tools"][0]["function"]["name"] == "emit_candidate_profile"
+
+
+async def test_no_resume_text_reaches_the_degraded_log_line(fake_llm):
+    """Resumes carry personal data. A degraded-shape log describes the shape."""
+    secret = "Jane Doe, jane@example.com, 555-0100"
+    fake_llm.queue_text(secret)
+
+    with structlog.testing.capture_logs() as logs:
+        await extract_resume_profile(secret, llm=fake_llm, model="resume-extract")
+
+    assert secret not in str(logs)

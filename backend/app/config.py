@@ -225,7 +225,8 @@ class Settings(BaseSettings):
     ATS_ENRICHMENT_BATCH: int = 1
     ATS_ENRICHMENT_MAX_RETRIES: int = 5
     ATS_RESUME_MAX_BYTES: int = 10_485_760  # 10MB cap on a downloaded resume
-    RESUME_EXTRACTION_MODEL: str = "claude-sonnet-4-6"
+    # A GATEWAY ALIAS, not a provider model id — litellm-config.yaml maps it.
+    RESUME_EXTRACTION_MODEL: str = "resume-extract"
     S3_RESUME_BUCKET: str = ""  # empty → skip durable resume copy (keep extracted signal)
     # Interview reconcile fallback (spec 2026-06-14 §5 trigger 2). 15 min default.
     ATS_INTERVIEW_RECONCILE_INTERVAL_S: int = 900

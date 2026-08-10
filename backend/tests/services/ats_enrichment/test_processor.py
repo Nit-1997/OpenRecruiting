@@ -83,7 +83,7 @@ async def test_full_path_persists_profile_and_pushes(respx_mock):
         extract_profile=_extract,
         upload_resume_fn=_upload,
         push_cortex=_push,
-        model="claude-sonnet-4-6",
+        model="resume-extract",
     )
     assert out == "done"
     sent = json.loads(rpc.calls[0].request.content)
