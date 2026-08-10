@@ -6,8 +6,8 @@ import json
 from typing import Any
 
 import structlog
-from anthropic import AsyncAnthropic
 
+from ._fence import strip_markdown_fence
 from ..prompts.synthesize_9_answers import (
     SYNTHESIZE_SYSTEM_PROMPT,
     build_synthesize_user_prompt,
@@ -56,21 +56,34 @@ def _normalize_answer(answer: Any) -> dict:
 
 
 async def synthesize_answers(
-    anthropic_client: AsyncAnthropic,
+    llm: Any,
     model: str,
     form_data: dict[str, Any],
     jd_facts: dict[str, Any],
     cortex_data: dict[str, Any],
 ) -> dict[str, Any]:
-    response = await anthropic_client.messages.create(
+    reply = await llm.complete(
         model=model,
         max_tokens=4096,
         temperature=0,
         system=SYNTHESIZE_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": build_synthesize_user_prompt(form_data, jd_facts, cortex_data)}],
     )
-    raw = response.content[0].text.strip()
-    raw = _strip_markdown_fence(raw)
+    raw = (reply.text or "").strip()
+    raw = strip_markdown_fence(raw)
+
+    # Every degraded path below returns _empty_answers(), which pipeline.py writes
+    # to BOTH prefilled_answers AND current_answers — so it becomes the session's
+    # starting context. That shape is deliberately kept (a failure here must not
+    # break the intake), but each path gets its OWN log line: "the model returned
+    # nothing", "the model returned prose we could not parse" and "the model
+    # returned a non-object" have different causes and different fixes, and
+    # without this they were indistinguishable from each other AND from a JD that
+    # genuinely yielded nothing.
+    if not raw:
+        logger.warning("synthesize_empty_reply", alias=model)
+        return _empty_answers()
+
     try:
         answers = json.loads(raw)
     except json.JSONDecodeError:
@@ -78,6 +91,7 @@ async def synthesize_answers(
         return _empty_answers()
 
     if not isinstance(answers, dict):
+        logger.warning("synthesize_not_an_object", kind=type(answers).__name__)
         return _empty_answers()
 
     normalized = {}
@@ -86,14 +100,3 @@ async def synthesize_answers(
     return normalized
 
 
-def _strip_markdown_fence(raw: str) -> str:
-    """Strip leading ```json / ``` and trailing ``` if Claude wrapped the body."""
-    if not raw.startswith("```"):
-        return raw
-    first_newline = raw.find("\n")
-    if first_newline == -1:
-        return raw
-    body = raw[first_newline + 1:]
-    if body.rstrip().endswith("```"):
-        body = body.rstrip()[: -len("```")]
-    return body.strip()

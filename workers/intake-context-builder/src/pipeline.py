@@ -9,7 +9,7 @@ import structlog
 from intake_core.persistence import load_session, update_process_stage  # noqa
 
 from .settings import load_settings
-from .clients.anthropic import get_anthropic_client, close_anthropic_client
+from .clients.llm import get_llm_client, close_llm_client
 from .clients.supabase import get_supabase_client, close_supabase_client
 from .clients.cortex_mcp import get_mcp_client, close_mcp_client
 from .clients.cortex_token import fetch_service_token
@@ -31,7 +31,7 @@ async def run_pipeline(session_id: str, include_turns: bool) -> dict[str, Any]:
     settings = load_settings()
 
     sb = get_supabase_client(settings.supabase_url, settings.supabase_secret_key)
-    ant = get_anthropic_client(settings.anthropic_api_key)
+    llm = get_llm_client()
 
     try:
         # Mark overall status: prefilling
@@ -56,7 +56,7 @@ async def run_pipeline(session_id: str, include_turns: bool) -> dict[str, Any]:
 
         # Stage 2: parse_jd
         update_process_stage(sb, session_id, stage_name="parse_jd", status="running")
-        jd_out = await parse_jd(anthropic_client=ant, model=settings.anthropic_model_sonnet, jd_text=jd_text)
+        jd_out = await parse_jd(llm=llm, model=settings.parse_jd_model, jd_text=jd_text)
         update_process_stage(sb, session_id, stage_name="parse_jd", status="completed", output=jd_out)
 
         # Stage 3: query_cortex
@@ -67,8 +67,8 @@ async def run_pipeline(session_id: str, include_turns: bool) -> dict[str, Any]:
         # Stage 4: synthesize
         update_process_stage(sb, session_id, stage_name="synthesize", status="running")
         answers = await synthesize_answers(
-            anthropic_client=ant,
-            model=settings.anthropic_model_sonnet,
+            llm=llm,
+            model=settings.synthesize_model,
             form_data=form_data,
             jd_facts=jd_out.get("facts", {}),
             cortex_data=cortex_out,
@@ -109,6 +109,6 @@ async def run_pipeline(session_id: str, include_turns: bool) -> dict[str, Any]:
 
     finally:
         # Mandatory: close async clients inside the live loop
-        await close_anthropic_client()
+        await close_llm_client()
         await close_mcp_client()
         close_supabase_client()

@@ -30,9 +30,9 @@ async def test_synthesize_returns_all_nine_keys():
         "q8_red_flags":        {"text": None,"extraction_confidence": "none",   "sources": []},
         "q9_anything_else":    {"text": None,"extraction_confidence": "none",   "sources": []},
     }
-    client.messages.create.return_value = MagicMock(content=[MagicMock(text=json.dumps(nine))])
+    client.complete.return_value = MagicMock(text=json.dumps(nine))
     out = await synthesize_answers(
-        anthropic_client=client, model="x",
+        llm=client, model="x",
         form_data={"role_name": "Senior BE"},
         jd_facts={}, cortex_data={},
     )
@@ -43,9 +43,9 @@ async def test_synthesize_returns_all_nine_keys():
 @pytest.mark.asyncio
 async def test_synthesize_returns_all_empty_on_malformed_response():
     client = AsyncMock()
-    client.messages.create.return_value = MagicMock(content=[MagicMock(text="not json")])
+    client.complete.return_value = MagicMock(text="not json")
     out = await synthesize_answers(
-        anthropic_client=client, model="x",
+        llm=client, model="x",
         form_data={"role_name": "x"}, jd_facts={}, cortex_data={},
     )
     assert len(out) == 9
@@ -67,9 +67,9 @@ async def test_synthesize_normalizes_legacy_confidence_key():
         "q8_red_flags":        {"text": None,"confidence": "none",   "sources": []},
         "q9_anything_else":    {"text": None,"confidence": "none",   "sources": []},
     }
-    client.messages.create.return_value = MagicMock(content=[MagicMock(text=json.dumps(legacy))])
+    client.complete.return_value = MagicMock(text=json.dumps(legacy))
     out = await synthesize_answers(
-        anthropic_client=client, model="x",
+        llm=client, model="x",
         form_data={"role_name": "x"}, jd_facts={}, cortex_data={},
     )
     assert out["q1_role_overview"]["extraction_confidence"] == "high"
@@ -81,9 +81,9 @@ async def test_synthesize_normalizes_string_sources():
     """Sonnet returns sources as a bare string — should be coerced to empty list (not a list)."""
     client = AsyncMock()
     payload = _all_empty_except("q1_role_overview", {"text": "x", "extraction_confidence": "high", "sources": "jd"})
-    client.messages.create.return_value = MagicMock(content=[MagicMock(text=json.dumps(payload))])
+    client.complete.return_value = MagicMock(text=json.dumps(payload))
     out = await synthesize_answers(
-        anthropic_client=client, model="x",
+        llm=client, model="x",
         form_data={"role_name": "x"}, jd_facts={}, cortex_data={},
     )
     assert isinstance(out["q1_role_overview"]["sources"], list)
@@ -95,9 +95,9 @@ async def test_synthesize_rejects_invalid_confidence():
     """Sonnet returns 'very high' as confidence — should fall back to 'none'."""
     client = AsyncMock()
     payload = _all_empty_except("q1_role_overview", {"text": "x", "extraction_confidence": "very high", "sources": []})
-    client.messages.create.return_value = MagicMock(content=[MagicMock(text=json.dumps(payload))])
+    client.complete.return_value = MagicMock(text=json.dumps(payload))
     out = await synthesize_answers(
-        anthropic_client=client, model="x",
+        llm=client, model="x",
         form_data={"role_name": "x"}, jd_facts={}, cortex_data={},
     )
     assert out["q1_role_overview"]["extraction_confidence"] == "none"
@@ -108,9 +108,27 @@ async def test_synthesize_handles_non_dict_answer():
     """Sonnet returns a plain string for an answer — should be replaced with empty shape."""
     client = AsyncMock()
     payload = _all_empty_except("q1_role_overview", "just a string")
-    client.messages.create.return_value = MagicMock(content=[MagicMock(text=json.dumps(payload))])
+    client.complete.return_value = MagicMock(text=json.dumps(payload))
     out = await synthesize_answers(
-        anthropic_client=client, model="x",
+        llm=client, model="x",
         form_data={"role_name": "x"}, jd_facts={}, cortex_data={},
     )
     assert out["q1_role_overview"] == {"text": None, "extraction_confidence": "none", "sources": []}
+
+
+@pytest.mark.asyncio
+async def test_synthesize_returns_empty_answers_on_an_empty_reply():
+    """pipeline.py writes this result to BOTH prefilled_answers and
+    current_answers, so it becomes the session's starting context. The empty
+    shape is deliberate (a failure must not break the intake), but it now has its
+    own log line rather than being indistinguishable from unparseable prose."""
+    client = AsyncMock()
+    client.complete.return_value = MagicMock(text="")
+
+    out = await synthesize_answers(
+        llm=client, model="context-synthesize", form_data={}, jd_facts={}, cortex_data={}
+    )
+
+    assert set(out) == set(QUESTION_IDS)
+    assert all(v["text"] is None for v in out.values())
+    assert all(v["extraction_confidence"] == "none" for v in out.values())
