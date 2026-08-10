@@ -25,4 +25,13 @@ RUN pip install --no-cache-dir /tmp/intake-core && rm -rf /tmp/intake-core
 COPY llm-core /tmp/llm-core
 RUN pip install --no-cache-dir /tmp/llm-core && rm -rf /tmp/llm-core
 
+# The gateway alias map. Backend tests assert properties of it that cannot be
+# checked at runtime: that the streaming aliases declare native tool support (a
+# `false` there silently stops the intake agent persisting any answer), and that
+# every alias a setting names actually exists. `make test` mounts only backend/,
+# so the repo root is not reachable from inside the container and the file has to
+# be baked in. Solved this way rather than with a skipif — a skipped guard is not
+# a guard, and this plan forbids new skips.
+COPY litellm-config.yaml /litellm-config.yaml
+
 COPY backend/ /app/
