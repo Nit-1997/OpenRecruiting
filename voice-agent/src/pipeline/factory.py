@@ -12,7 +12,6 @@ from pipecat.utils.context.llm_context_summarization import LLMContextSummarizat
 from pipecat.turns.user_turn_strategies import ExternalUserTurnStrategies
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.adapters.schemas.tools_schema import ToolsSchema
-from pipecat.adapters.schemas.function_schema import FunctionSchema
 
 from src.pipeline.services import (
     create_deepgram_stt,
@@ -23,6 +22,7 @@ from src.pipeline.filler import FillerProcessor
 from src.pipeline.markdown_stripper import MarkdownStripper, TTSNameNormalizer
 from src.pipeline.end_detector import EndOfConversationDetector
 from src.pipeline.input_gate import PostEndInputGate
+from src.pipeline.tool_schemas import function_schemas, tool_name
 from src.pipeline.interrupt_context_cleaner import InterruptContextCleaner
 from src.pipeline.metrics_logger import MetricsLogger
 
@@ -90,15 +90,7 @@ class PipelineFactory:
 
         # Build context. For v2, attach tools as standard FunctionSchema objects.
         if config.tools:
-            standard_tools = [
-                FunctionSchema(
-                    name=t["name"],
-                    description=t.get("description", ""),
-                    properties=t.get("input_schema", {}).get("properties", {}),
-                    required=t.get("input_schema", {}).get("required", []),
-                )
-                for t in config.tools
-            ]
+            standard_tools = function_schemas(config.tools)
             tools_schema = ToolsSchema(standard_tools=standard_tools)
             context = LLMContext(messages, tools=tools_schema)
         else:
@@ -229,8 +221,8 @@ class PipelineFactory:
                 return _handler
 
             for tool in config.tools:
-                tool_name = tool["name"]
-                llm.register_function(tool_name, _make_tool_handler(tool_name, _persist_proc_ref))
+                name = tool_name(tool)
+                llm.register_function(name, _make_tool_handler(name, _persist_proc_ref))
 
         pipeline = Pipeline([
             transport.input(),
