@@ -6,13 +6,16 @@ from typing import Any
 
 import structlog
 
-from intake_core.tools.schemas import ALL_TOOLS
+from intake_core.tools.schemas import ALL_TOOLS, ALL_TOOLS_OPENAI
 from intake_core.tools.update_answer import handle_update_answer, ahandle_update_answer
 from intake_core.tools.mark_status import handle_mark_status, ahandle_mark_status
 
 logger = structlog.get_logger(__name__)
 
 INTAKE_TOOLS_ANTHROPIC: list[dict] = ALL_TOOLS
+# The same two tools in the shape the LiteLLM gateway speaks. The backend text
+# runner uses this one; the voice agent still uses the Anthropic list above.
+INTAKE_TOOLS_OPENAI: list[dict] = ALL_TOOLS_OPENAI
 
 
 def handle_tool_call(
@@ -75,4 +78,9 @@ async def ahandle_tool_call(
     return {"ok": False, "error": f"unknown tool: {name}"}
 
 
-__all__ = ["INTAKE_TOOLS_ANTHROPIC", "handle_tool_call", "ahandle_tool_call"]
+__all__ = [
+    "INTAKE_TOOLS_ANTHROPIC",
+    "INTAKE_TOOLS_OPENAI",
+    "handle_tool_call",
+    "ahandle_tool_call",
+]

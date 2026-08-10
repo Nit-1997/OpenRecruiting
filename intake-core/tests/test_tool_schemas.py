@@ -44,3 +44,35 @@ def test_qid_enum_lists_nine_questions():
     }
     for tool in [UPDATE_ANSWER_TOOL, MARK_STATUS_TOOL]:
         assert set(tool["input_schema"]["properties"]["qid"]["enum"]) == expected
+
+
+from intake_core.tools.schemas import ALL_TOOLS_OPENAI  # noqa: E402
+
+
+def test_openai_export_mirrors_every_anthropic_spec():
+    assert len(ALL_TOOLS_OPENAI) == len(ALL_TOOLS)
+    for old, new in zip(ALL_TOOLS, ALL_TOOLS_OPENAI):
+        assert set(new) == {"type", "function"}
+        assert new["type"] == "function"
+        assert set(new["function"]) == {"name", "description", "parameters"}
+        assert new["function"]["name"] == old["name"]
+        assert new["function"]["description"] is old["description"]
+        assert new["function"]["parameters"] is old["input_schema"]
+
+
+def test_openai_export_carries_the_computed_qid_enum():
+    """The enum is computed from INTAKE_QUESTIONS, which is why these specs are
+    not literal_eval-able and why the derivation shares the object rather than
+    copying it."""
+    for tool in ALL_TOOLS_OPENAI:
+        enum = tool["function"]["parameters"]["properties"]["qid"]["enum"]
+        assert len(enum) == 9
+        assert "q4_must_haves" in enum
+
+
+def test_the_anthropic_export_is_untouched_for_the_voice_agent():
+    """voice-agent/src/main.py:43 still imports ALL_TOOLS and hands it to
+    pipecat's AnthropicLLMService. Phase 7 moves it; until then this shape is
+    load-bearing and no voice-agent test would catch its removal."""
+    for tool in ALL_TOOLS:
+        assert set(tool) == {"name", "description", "input_schema"}
