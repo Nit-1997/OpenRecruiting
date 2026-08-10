@@ -526,3 +526,287 @@ async def test_a_well_shaped_tool_still_reaches_the_gateway_untouched():
     )
 
     assert sent[0]["tools"] == [TOOL]
+
+
+# --- tool_choice -------------------------------------------------------------
+#
+# Why this parameter exists: without it a model MAY answer a single-tool request
+# in prose, and — measured at 8.75% on claude-haiku-4-5 — may emit a prose
+# preamble BEFORE the tool call that eats the max_tokens budget and truncates the
+# argument JSON. A truncated call still arrives as a correctly-named ToolCall
+# carrying `arguments={}`, which a safety guardrail reads as a clean verdict.
+# Forcing the tool suppresses the preamble and closes both paths.
+
+FORCE_JD = {"type": "function", "function": {"name": "emit_job_description"}}
+
+
+async def test_tool_choice_is_forwarded_to_the_gateway_verbatim():
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_tool_response("emit_job_description", {"title": "SRE"}), sent),
+        capabilities=FakeCaps(),
+    )
+
+    await client.complete(
+        model="intake-jd",
+        messages=[{"role": "user", "content": "hi"}],
+        tools=[TOOL],
+        tool_choice=FORCE_JD,
+    )
+
+    assert sent[0]["tool_choice"] == FORCE_JD
+
+
+async def test_tool_choice_is_absent_from_the_payload_by_default():
+    """Today's behaviour is the default: no existing caller changes shape."""
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_tool_response("emit_job_description", {"title": "SRE"}), sent),
+        capabilities=FakeCaps(),
+    )
+
+    await client.complete(
+        model="intake-jd", messages=[{"role": "user", "content": "hi"}], tools=[TOOL]
+    )
+
+    assert "tool_choice" not in sent[0]
+
+
+@pytest.mark.parametrize("choice", ["auto", "required"])
+async def test_the_openai_string_forms_are_accepted(choice):
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_tool_response("emit_job_description", {"title": "SRE"}), sent),
+        capabilities=FakeCaps(),
+    )
+
+    await client.complete(
+        model="intake-jd",
+        messages=[{"role": "user", "content": "hi"}],
+        tools=[TOOL],
+        tool_choice=choice,
+    )
+
+    assert sent[0]["tool_choice"] == choice
+
+
+async def test_tool_choice_without_tools_is_rejected():
+    """Forcing a tool with no tools is a caller bug, not a no-op.
+
+    Silently dropping it is the failure mode that matters: the call site believes
+    the tool is forced, the provider was never told, and the guarantee the caller
+    is relying on is gone with nothing to show for it.
+    """
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_text_response("hi"), sent), capabilities=FakeCaps()
+    )
+
+    with pytest.raises(LLMError) as exc:
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tool_choice=FORCE_JD,
+        )
+
+    assert "tool_choice" in str(exc.value)
+    assert sent == []
+
+
+async def test_tool_choice_with_an_empty_tool_list_is_rejected():
+    """`tools=[]` is treated as no tools everywhere else in complete(); the
+    rejection must follow that same truthiness check, not `is not None`."""
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_text_response("hi"), sent), capabilities=FakeCaps()
+    )
+
+    with pytest.raises(LLMError):
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[],
+            tool_choice=FORCE_JD,
+        )
+
+    assert sent == []
+
+
+async def test_anthropic_shaped_tool_choice_is_rejected():
+    """Six un-migrated call sites in this repo still pass {'type': 'tool', 'name': ...}.
+
+    Forwarding that verbatim is the same class of bug validate_tool_shape exists
+    to catch: the gateway either 400s opaquely or ignores it, and the caller's
+    forcing guarantee evaporates without a trace.
+    """
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_text_response("hi"), sent), capabilities=FakeCaps()
+    )
+
+    with pytest.raises(LLMError) as exc:
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[TOOL],
+            tool_choice={"type": "tool", "name": "emit_job_description"},
+        )
+
+    assert "OpenAI" in str(exc.value)
+    assert sent == []
+
+
+async def test_tool_choice_none_is_rejected():
+    """"none" has no faithful rendering on the emulated path, where the whole
+    mechanism is an instruction mandating a tool-call JSON object. Rejecting it
+    on BOTH paths keeps behaviour independent of which alias is configured;
+    a caller that wants no tool call omits `tools`."""
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_text_response("hi"), sent), capabilities=FakeCaps()
+    )
+
+    with pytest.raises(LLMError):
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[TOOL],
+            tool_choice="none",
+        )
+
+    assert sent == []
+
+
+async def test_forcing_a_tool_that_was_not_supplied_is_rejected():
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_text_response("hi"), sent), capabilities=FakeCaps()
+    )
+
+    with pytest.raises(LLMError) as exc:
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[TOOL],
+            tool_choice={"type": "function", "function": {"name": "emit_persona"}},
+        )
+
+    assert "emit_persona" in str(exc.value)
+    assert sent == []
+
+
+async def test_tool_choice_is_rejected_before_the_capability_probe():
+    """Same rule as the tool-shape guard: a caller bug must not be caught (or
+    missed) depending on what the probe answers."""
+    caps = FakeCaps(supported=True)
+    client = LLMClient(openai_client=_openai_stub(_text_response("hi"), []), capabilities=caps)
+
+    with pytest.raises(LLMError):
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tool_choice=FORCE_JD,
+        )
+
+    assert caps.asked == []
+
+
+async def test_an_unknown_tool_choice_value_is_rejected():
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_text_response("hi"), sent), capabilities=FakeCaps()
+    )
+
+    with pytest.raises(LLMError):
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[TOOL],
+            tool_choice="emit_job_description",
+        )
+
+    assert sent == []
+
+
+# --- tool_choice on the emulated path ----------------------------------------
+
+OTHER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "emit_persona",
+        "description": "Return the persona.",
+        "parameters": {"type": "object", "properties": {"tone": {"type": "string"}}},
+    },
+}
+
+
+async def test_emulation_narrows_to_the_forced_tool():
+    """Emulation forces *a* tool by construction, but with several supplied it
+    lets the model pick. A named tool_choice must narrow the rendered instruction
+    to that one, or "forced" means something weaker here than on the native path.
+    """
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_text_response('{"title": "SRE"}'), sent),
+        capabilities=FakeCaps(supported=False),
+    )
+
+    reply = await client.complete(
+        model="intake-jd-local",
+        messages=[{"role": "user", "content": "hi"}],
+        tools=[TOOL, OTHER_TOOL],
+        tool_choice=FORCE_JD,
+    )
+
+    instruction = sent[0]["messages"][0]["content"]
+    assert "emit_job_description" in instruction
+    assert "emit_persona" not in instruction
+    # Single-tool rendering: no {"name": ..., "arguments": ...} envelope required,
+    # so the bare object the model returned parses against the forced schema.
+    assert reply.tool_call_named("emit_job_description").arguments == {"title": "SRE"}
+
+
+async def test_tool_choice_never_reaches_a_model_that_cannot_do_native_tools():
+    """The emulated path sends response_format, not tools — a tool_choice key
+    alongside it is a parameter the provider was never going to honour."""
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(_text_response('{"title": "SRE"}'), sent),
+        capabilities=FakeCaps(supported=False),
+    )
+
+    await client.complete(
+        model="intake-jd-local",
+        messages=[{"role": "user", "content": "hi"}],
+        tools=[TOOL],
+        tool_choice=FORCE_JD,
+    )
+
+    assert "tool_choice" not in sent[0]
+    assert "tools" not in sent[0]
+    assert sent[0]["response_format"] == {"type": "json_object"}
+
+
+@pytest.mark.parametrize("choice", ["auto", "required"])
+async def test_the_string_forms_are_a_no_op_on_the_emulated_path(choice):
+    """Emulation already yields exactly one call, so both are already satisfied.
+    Neither may narrow or drop a tool."""
+    sent = []
+    client = LLMClient(
+        openai_client=_openai_stub(
+            _text_response('{"name": "emit_persona", "arguments": {"tone": "warm"}}'), sent
+        ),
+        capabilities=FakeCaps(supported=False),
+    )
+
+    reply = await client.complete(
+        model="intake-jd-local",
+        messages=[{"role": "user", "content": "hi"}],
+        tools=[TOOL, OTHER_TOOL],
+        tool_choice=choice,
+    )
+
+    instruction = sent[0]["messages"][0]["content"]
+    assert "emit_job_description" in instruction
+    assert "emit_persona" in instruction
+    assert reply.tool_call_named("emit_persona").arguments == {"tone": "warm"}

@@ -772,3 +772,87 @@ async def test_a_falsy_tool_list_is_validated_by_neither(tools):
     assert await _error_from_complete(real, tools) is None
     assert await _error_from_stream(fake, tools) is None
     assert await _error_from_stream(real, tools) is None
+
+
+# --- tool_choice parity ---------------------------------------------------
+#
+# The fake must apply the SAME tool_choice validation as the real client. A fake
+# that recorded whatever it was handed would let a test assert "the guardrail
+# forces its tool" and stay green against a value the gateway rejects — which is
+# exactly the failure validate_tool_shape was pushed into the fake to prevent.
+
+FORCE_JD = {"type": "function", "function": {"name": "emit_job_description"}}
+
+
+async def _choice_error(client, *, tools, tool_choice):
+    try:
+        await client.complete(
+            model="intake-jd",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=tools,
+            tool_choice=tool_choice,
+        )
+    except Exception as exc:  # noqa: BLE001 — the type is what the test asserts on
+        return exc
+    return None
+
+
+async def test_complete_records_the_tool_choice_it_was_given():
+    fake = FakeLLM()
+    fake.queue_tool_call("emit_job_description", {"title": "SRE"})
+
+    await fake.complete(
+        model="intake-jd", messages=[], tools=[OPENAI_TOOL], tool_choice=FORCE_JD
+    )
+
+    assert fake.calls[0]["tool_choice"] == FORCE_JD
+
+
+async def test_complete_records_tool_choice_as_none_when_it_was_not_given():
+    fake = FakeLLM()
+    fake.queue_text("ok")
+
+    await fake.complete(model="intake-jd", messages=[])
+
+    assert fake.calls[0]["tool_choice"] is None
+
+
+@pytest.mark.parametrize(
+    "tools, tool_choice",
+    [
+        (None, FORCE_JD),
+        ([], FORCE_JD),
+        ([OPENAI_TOOL], {"type": "tool", "name": "emit_job_description"}),
+        ([OPENAI_TOOL], "none"),
+        ([OPENAI_TOOL], "whatever"),
+        ([OPENAI_TOOL], {"type": "function", "function": {"name": "emit_persona"}}),
+    ],
+)
+async def test_the_fake_rejects_every_tool_choice_the_real_client_rejects(tools, tool_choice):
+    """Identical type AND identical message, so a test cannot pass here and fail
+    against the gateway."""
+    fake = FakeLLM()
+    fake.queue_text("must not be returned")
+    real, gateway = _real_client()
+
+    fake_error = await _choice_error(fake, tools=tools, tool_choice=tool_choice)
+    real_error = await _choice_error(real, tools=tools, tool_choice=tool_choice)
+
+    assert isinstance(fake_error, LLMError), f"fake accepted {tool_choice!r}"
+    assert type(real_error) is type(fake_error), (
+        f"real client raised {real_error!r}, fake raised {fake_error!r}"
+    )
+    assert str(real_error) == str(fake_error)
+
+    assert gateway.sent == [], "a rejected tool_choice must never reach the gateway"
+    assert fake.calls == [], "a rejected call must not be recorded"
+
+
+@pytest.mark.parametrize("tool_choice", [FORCE_JD, "auto", "required"])
+async def test_the_fake_accepts_every_tool_choice_the_real_client_accepts(tool_choice):
+    fake = FakeLLM()
+    fake.queue_tool_call("emit_job_description", {"title": "SRE"})
+    real, _ = _real_client()
+
+    assert await _choice_error(fake, tools=[OPENAI_TOOL], tool_choice=tool_choice) is None
+    assert await _choice_error(real, tools=[OPENAI_TOOL], tool_choice=tool_choice) is None

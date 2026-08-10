@@ -18,6 +18,7 @@ from llm_core.capabilities import CapabilityCache
 from llm_core.emulation import (
     build_emulation_instruction,
     parse_emulated_reply,
+    validate_tool_choice,
     validate_tool_shape,
 )
 from llm_core.errors import LLMError
@@ -153,7 +154,24 @@ class LLMClient:
         system: str | None = None,
         max_tokens: int = 2048,
         temperature: float | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
     ) -> LLMReply:
+        """One non-streaming turn.
+
+        `tool_choice` is OpenAI-shaped and optional; omitting it leaves the
+        provider's default ("auto" when tools are present), which is what every
+        caller got before the parameter existed. See `validate_tool_choice` for
+        the accepted values and for why the rejected ones are rejected.
+
+        Forcing a tool is not cosmetic. Left to its own devices a model may answer
+        a single-tool request in prose, and — measured at 8.75% on
+        claude-haiku-4-5 — may emit a prose preamble BEFORE the tool call that
+        consumes the `max_tokens` budget and truncates the argument JSON. A
+        truncated call still arrives as a correctly-named ToolCall carrying
+        `arguments={}` (see `_to_reply`), which is indistinguishable from a real
+        answer of all-defaults unless the caller checks. Forcing suppresses the
+        preamble and closes both paths.
+        """
         payload: dict[str, Any] = {
             "model": model,
             "max_tokens": max_tokens,
@@ -161,8 +179,16 @@ class LLMClient:
         if temperature is not None:
             payload["temperature"] = temperature
 
+        # Before the capability probe and before anything is dispatched, for the
+        # same reason validate_tool_shape sits where it does: which alias happens
+        # to be configured must not decide whether a caller bug is caught.
+        forced = validate_tool_choice(tool_choice, tools)
+
         outgoing = list(messages)
         emulate = False
+        # What emulation renders and parses against. Narrowed to the forced tool
+        # below; identical to `tools` otherwise.
+        tool_scope = tools
 
         if tools:
             # Shape is checked before the capability probe, so both dispatch paths
@@ -177,11 +203,32 @@ class LLMClient:
             validate_tool_shape(tools)
             emulate = not await self._caps.supports_tools(model)
             if emulate:
-                instruction = build_emulation_instruction(tools)
+                # Emulation forces *a* tool by construction — the instruction says
+                # "you must respond by calling", and parse_emulated_reply always
+                # yields exactly one ToolCall — so "auto" and "required" are
+                # already satisfied and need no handling. A NAMED choice is not:
+                # with several tools rendered the model still picks, which is
+                # weaker than the native path promises. Narrowing the scope to the
+                # forced tool makes it genuinely forced, and keeps the reply parsed
+                # against that tool's schema rather than against an envelope the
+                # single-tool instruction never asked for. tool_choice itself is
+                # NOT sent — this request carries response_format, not tools, and
+                # the provider was never going to honour it.
+                if forced:
+                    tool_scope = [
+                        tool
+                        for tool in tools
+                        if (tool.get("function") or {}).get("name") == forced
+                    ]
+                instruction = build_emulation_instruction(tool_scope)
                 outgoing = [{"role": "system", "content": instruction}, *outgoing]
                 payload["response_format"] = {"type": "json_object"}
             else:
                 payload["tools"] = tools
+                if tool_choice is not None:
+                    # Forwarded verbatim: the gateway speaks OpenAI and translates
+                    # per provider. Validated above, so nothing unrecognised here.
+                    payload["tool_choice"] = tool_choice
 
         if system:
             outgoing = [{"role": "system", "content": system}, *outgoing]
@@ -206,7 +253,7 @@ class LLMClient:
         # BaseException (CancelledError, KeyboardInterrupt) deliberately passes through.
         try:
             return self._to_reply(
-                response=response, model=model, tools=tools, emulate=emulate
+                response=response, model=model, tools=tool_scope, emulate=emulate
             )
         except LLMError:
             raise
@@ -242,6 +289,18 @@ class LLMClient:
         system message, but the reply is NOT parsed back into tool_call events —
         the emulated JSON arrives as ('text', ...) like any other prose. Streaming
         and emulated tools do not compose; use complete() when you need both.
+
+        There is deliberately NO `tool_choice` here, though complete() has one.
+        Two reasons, and the second is the one that decided it. First, nothing
+        streams a forced tool call: every site that wants forcing wants a single
+        verdict, which is complete()'s shape. Second, and worse, this method
+        cannot honour the promise. On an emulated alias it yields no tool_call
+        event at all (see the paragraph above), so a caller who passed
+        tool_choice and got prose would be holding a guarantee that was never
+        true — the same silent gap between believed and actual forcing that
+        complete()'s tool_choice exists to close. Adding it is additive and cheap
+        if a streaming caller ever needs it; the emulated-path gap must be closed
+        first.
         """
         payload: dict[str, Any] = {
             "model": model,

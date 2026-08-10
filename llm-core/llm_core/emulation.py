@@ -22,6 +22,9 @@ dispatcher knows.
 `validate_tool_shape` is the one place that check lives, and it is deliberately not
 private to this module: `LLMClient` calls it on the native path too, so a
 malformed spec fails identically whether the alias emulates tools or not.
+`validate_tool_choice` is here for the same reason and on the same terms — it is
+a caller-bug check that must fire identically on both dispatch paths, and this
+module is where such checks already live.
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ import re
 import uuid
 from typing import Any
 
-from llm_core.errors import ToolEmulationError
+from llm_core.errors import LLMError, ToolEmulationError
 from llm_core.types import ToolCall
 
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
@@ -104,6 +107,93 @@ def validate_tool_shape(tools: list[dict[str, Any]]) -> list[tuple[str, str, dic
         entries.append((name, fn.get("description") or "", fn.get("parameters") or {}))
 
     return entries
+
+
+_TOOL_CHOICE_STRINGS = ("auto", "required")
+
+
+def validate_tool_choice(
+    tool_choice: Any, tools: list[dict[str, Any]] | None
+) -> str | None:
+    """Validate an OpenAI-shaped `tool_choice`, returning the forced tool name.
+
+    Returns None when there is nothing to force — no `tool_choice` at all, or one
+    of the string forms, which name no tool.
+
+    Accepted:
+        "auto"      — the model decides. The default when tools are present.
+        "required"  — the model must call one of the supplied tools.
+        {"type": "function", "function": {"name": "..."}} — force that tool.
+
+    Rejected, and why each rejection is a bug rather than a preference:
+
+    - **No tools.** Forcing a tool when none were supplied cannot be honoured by
+      any provider. Dropping it silently would leave the call site believing a
+      guarantee it does not have, which is the whole failure mode `tool_choice`
+      was added to close.
+    - **`"none"`.** It has no faithful rendering on the emulated path, where the
+      entire mechanism is a prompt instruction mandating a tool-call JSON object.
+      Honouring it there would mean not emulating at all, so the same arguments
+      would behave differently depending on which alias configuration happened to
+      be live — precisely what `validate_tool_shape` was hoisted onto both paths
+      to prevent. A caller that wants no tool call omits `tools`.
+    - **Anthropic's `{"type": "tool", "name": ...}`.** Several call sites in this
+      repo still carry that shape from the pre-gateway era, so it is the expected
+      migration mistake. Forwarded verbatim it is at best an opaque provider 400
+      and at worst silently ignored, taking the forcing guarantee with it.
+    - **A name that is not among `tools`.** The provider would reject it, and on
+      the emulated path there would be no schema to render or parse against.
+    """
+    if tool_choice is None:
+        return None
+
+    if not tools:
+        raise LLMError(
+            "tool_choice was supplied without any tools; forcing a tool call "
+            "requires at least one tool in the same request"
+        )
+
+    # Deliberately re-validated here rather than assumed: this function is called
+    # from both LLMClient and FakeLLM, and a malformed spec must produce the
+    # shape error (the more fundamental one) rather than a confusing complaint
+    # that the forced name is not among the tools.
+    names = [name for name, _description, _schema in validate_tool_shape(tools)]
+
+    if isinstance(tool_choice, str):
+        if tool_choice in _TOOL_CHOICE_STRINGS:
+            return None
+        if tool_choice == "none":
+            raise LLMError(
+                "tool_choice='none' is not supported: it has no faithful "
+                "equivalent on the tool-emulation path, so honouring it would "
+                "make behaviour depend on the alias. Omit `tools` instead."
+            )
+        raise LLMError(
+            f"tool_choice={tool_choice!r} is not a recognised value; expected one of "
+            f"{list(_TOOL_CHOICE_STRINGS)} or "
+            "{'type': 'function', 'function': {'name': ...}}"
+        )
+
+    if isinstance(tool_choice, dict):
+        function = tool_choice.get("function")
+        if tool_choice.get("type") == "function" and isinstance(function, dict):
+            name = function.get("name")
+            if isinstance(name, str) and name:
+                if name not in names:
+                    raise LLMError(
+                        f"tool_choice forces '{name}', which is not among the supplied "
+                        f"tools: {sorted(names)}"
+                    )
+                return name
+
+    raise LLMError(
+        f"tool_choice is not in OpenAI shape, got {_snippet(tool_choice)}. Expected "
+        "one of "
+        f"{list(_TOOL_CHOICE_STRINGS)} or "
+        "{'type': 'function', 'function': {'name': ...}}. Anthropic-shaped choices "
+        "using {'type': 'tool', 'name': ...} must be converted before they reach "
+        "llm_core, which does not translate them."
+    )
 
 
 def build_emulation_instruction(tools: list[dict[str, Any]]) -> str:

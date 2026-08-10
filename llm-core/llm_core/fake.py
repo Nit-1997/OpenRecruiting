@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
-from llm_core.emulation import validate_tool_shape
+from llm_core.emulation import validate_tool_choice, validate_tool_shape
 from llm_core.errors import LLMError
 from llm_core.types import LLMReply, ToolCall
 
@@ -176,7 +176,16 @@ class FakeLLM:
         system: str | None = None,
         max_tokens: int = 2048,
         temperature: float | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
     ) -> LLMReply:
+        # Same guard as the real client's complete(), in the same position: before
+        # anything is recorded and before a queued reply is consumed. A fake that
+        # recorded whatever tool_choice it was handed would let a test assert "this
+        # site forces its tool" and stay green against a value the gateway rejects
+        # — the identical relocation-of-the-bug the tool-shape guard below exists
+        # to prevent. Runs first here too, so a malformed spec paired with a
+        # tool_choice yields the same (shape) error from both classes.
+        validate_tool_choice(tool_choice, tools)
         # Same guard as the real client's complete(), in the same position: before
         # anything is recorded and before a queued reply is consumed. The real
         # client raises here on an Anthropic-shaped spec ({'name', 'input_schema'});
@@ -200,6 +209,7 @@ class FakeLLM:
                 "system": system,
                 "max_tokens": max_tokens,
                 "temperature": temperature,
+                "tool_choice": tool_choice,
             }
         ).reply
 
