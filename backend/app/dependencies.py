@@ -208,32 +208,6 @@ def invalidate_profile_cache(user_id: str) -> None:
     _profile_cache.invalidate(user_id)
 
 
-# Anthropic async client — singleton at app scope.
-# FastAPI/uvicorn runs a single event loop for the lifetime of the process,
-# so a module-level AsyncAnthropic instance is safe here.
-#
-# STILL ALIVE ON PURPOSE after the phase-2 migration. Its only remaining
-# consumers are the two STREAMING routers (intake_text_messages, debrief_chat),
-# which phase 3 rewrites onto llm_core.stream_turn. Non-streaming call sites use
-# get_llm_client() instead; see backend/tests/test_anthropic_surface.py, which
-# fails if a new consumer appears. Phase 3 deletes this block, that test, and the
-# `anthropic` pin in requirements.txt together.
-
-import os as _os
-from anthropic import AsyncAnthropic as _AsyncAnthropic
-
-_anthropic_client: "_AsyncAnthropic | None" = None
-
-
-def get_anthropic_async_client() -> "_AsyncAnthropic":
-    """FastAPI dependency that returns a process-scoped AsyncAnthropic client."""
-    global _anthropic_client
-    if _anthropic_client is None:
-        api_key = _os.environ["ANTHROPIC_API_KEY"]
-        _anthropic_client = _AsyncAnthropic(api_key=api_key, max_retries=2)
-    return _anthropic_client
-
-
 # LLM gateway client — the provider-agnostic path. Provider choice lives in
 # litellm-config.yaml, so nothing below this line names a provider.
 from llm_core import LLMClient as _LLMClient

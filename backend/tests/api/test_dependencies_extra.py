@@ -1,7 +1,7 @@
 """Characterization tests for the uncovered parts of app/dependencies.py:
 ProfileCache (LRU + TTL), JWKSClient caching, get_current_user (cache hit /
 DB fetch / not-found), require_staff, invalidate_profile_cache,
-get_jwks_client singleton, and get_anthropic_async_client.
+and get_jwks_client singleton.
 """
 
 import time
@@ -193,15 +193,3 @@ async def test_require_staff_rejects_non_staff():
     with pytest.raises(HTTPException) as exc:
         await require_staff(user)
     assert exc.value.status_code == 403
-
-
-# ----------------------- get_anthropic_async_client -----------------------
-
-def test_get_anthropic_async_client_singleton():
-    deps._anthropic_client = None
-    fake = object()
-    with patch.object(deps, "_AsyncAnthropic", return_value=fake):
-        a = deps.get_anthropic_async_client()
-        b = deps.get_anthropic_async_client()
-    assert a is b is fake
-    deps._anthropic_client = None
