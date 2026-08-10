@@ -3,42 +3,26 @@ Tests for POST /api/v2/intake/parse-intent.
 
 Auth is overridden via the conftest `recruiter_client` fixture (overrides
 `get_current_user`; `get_current_user_with_org` resolves from it).
-The Anthropic client dependency is patched via `app.dependency_overrides`.
+The gateway client dependency is replaced with llm-core's FakeLLM via
+`app.dependency_overrides`; the conftest `clear_caches` fixture clears them on
+teardown.
 """
 from __future__ import annotations
 
-import pytest
+from llm_core.errors import LLMError
 
 from app.main import app
-from app.dependencies import get_anthropic_async_client
+from app.dependencies import get_llm_client
 
 V2_ROOT = "/api/v2"
 
 
-class _FakeBlock:
-    type = "tool_use"
-    name = "emit_role_fields"
-
-    def __init__(self, input_data: dict) -> None:
-        self.input = input_data
-
-
-class _FakeMsg:
-    def __init__(self, blocks: list) -> None:
-        self.content = blocks
-
-
-class _FakeMessages:
-    async def create(self, **kw):
-        return _FakeMsg([_FakeBlock({"intent": "create_role", "role_name": "Senior Backend Engineer", "exp_min": 7})])
-
-
-class _FakeClient:
-    messages = _FakeMessages()
-
-
-def test_parse_intent_returns_extracted_fields(recruiter_client):
-    app.dependency_overrides[get_anthropic_async_client] = lambda: _FakeClient()
+def test_parse_intent_returns_extracted_fields(recruiter_client, fake_llm):
+    fake_llm.queue_tool_call(
+        "emit_role_fields",
+        {"intent": "create_role", "role_name": "Senior Backend Engineer", "exp_min": 7},
+    )
+    app.dependency_overrides[get_llm_client] = lambda: fake_llm
     resp = recruiter_client.post(
         f"{V2_ROOT}/intake/parse-intent",
         json={"text": "senior backend eng, 7 yrs"},
@@ -53,15 +37,9 @@ def test_parse_intent_returns_extracted_fields(recruiter_client):
     assert body["list_status"] is None
 
 
-def test_parse_intent_returns_all_none_on_llm_failure(recruiter_client):
-    class _BrokenMessages:
-        async def create(self, **kw):
-            raise RuntimeError("LLM exploded")
-
-    class _BrokenClient:
-        messages = _BrokenMessages()
-
-    app.dependency_overrides[get_anthropic_async_client] = lambda: _BrokenClient()
+def test_parse_intent_returns_all_none_on_llm_failure(recruiter_client, fake_llm):
+    fake_llm.queue_error(LLMError("LLM exploded", alias="parse-role-intent"))
+    app.dependency_overrides[get_llm_client] = lambda: fake_llm
     resp = recruiter_client.post(
         f"{V2_ROOT}/intake/parse-intent",
         json={"text": "something something role"},
@@ -76,15 +54,11 @@ def test_parse_intent_returns_all_none_on_llm_failure(recruiter_client):
     assert body["list_status"] is None
 
 
-def test_parse_intent_returns_list_sessions_intent(recruiter_client):
-    class _ListMessages:
-        async def create(self, **kw):
-            return _FakeMsg([_FakeBlock({"intent": "list_sessions", "list_status": "pending"})])
-
-    class _ListClient:
-        messages = _ListMessages()
-
-    app.dependency_overrides[get_anthropic_async_client] = lambda: _ListClient()
+def test_parse_intent_returns_list_sessions_intent(recruiter_client, fake_llm):
+    fake_llm.queue_tool_call(
+        "emit_role_fields", {"intent": "list_sessions", "list_status": "pending"}
+    )
+    app.dependency_overrides[get_llm_client] = lambda: fake_llm
     resp = recruiter_client.post(
         f"{V2_ROOT}/intake/parse-intent",
         json={"text": "show me pending intakes"},
@@ -96,13 +70,15 @@ def test_parse_intent_returns_list_sessions_intent(recruiter_client):
     assert body["role_name"] is None
 
 
-def test_parse_intent_rejects_empty_text(recruiter_client):
-    app.dependency_overrides[get_anthropic_async_client] = lambda: _FakeClient()
+def test_parse_intent_rejects_empty_text(recruiter_client, fake_llm):
+    """422 fires before the service runs, so the empty queue is never consumed."""
+    app.dependency_overrides[get_llm_client] = lambda: fake_llm
     resp = recruiter_client.post(
         f"{V2_ROOT}/intake/parse-intent",
         json={"text": ""},
     )
     assert resp.status_code == 422
+    assert fake_llm.calls == []
 
 
 def test_parse_intent_requires_auth(unauthed_client):

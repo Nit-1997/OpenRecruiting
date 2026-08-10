@@ -1,6 +1,6 @@
 """Single responsibility: extract structured role fields from free-text intent.
 
-One Anthropic tool-use call. Extracts only fields present in the text; absent
+One gateway tool-use call. Extracts only fields present in the text; absent
 fields are None. Any failure returns all-None so the UI never blocks the user
 from starting an intake.
 """
@@ -15,62 +15,65 @@ logger = structlog.get_logger(__name__)
 _EMPTY = {"role_name": None, "exp_min": None, "exp_max": None, "location": None, "intent": "other", "list_status": None}
 
 _TOOL = {
-    "name": "emit_role_fields",
-    "description": (
-        "Classify the recruiter's message and emit any structured fields. "
-        "Always set intent to one of: 'create_role', 'list_sessions', or 'other'. "
-        "For 'create_role': extract role_name, exp_min, exp_max, location from the message. "
-        "For 'list_sessions': set list_status to the requested filter. "
-        "Treat any of these as a role-creation request: 'req', 'requisition', 'role', "
-        "'position', 'opening', 'hire', 'hiring for', 'need a', 'looking for'. "
-        "Treat any of these as a list request: 'show', 'list', 'see', 'what', 'display', "
-        "'get me', followed by words like 'intakes', 'roles', 'sessions', 'reqs'. "
-        "Extract the job TITLE as role_name (title-cased), e.g. 'Product Manager', "
-        "'Senior Backend Engineer', 'iOS Developer'. "
-        "Extract city, region, or work arrangement as location, e.g. 'San Francisco', "
-        "'Remote · US', 'New York', 'Remote'. "
-        "Extract experience ranges as exp_min/exp_max when present (e.g. '5-9 yrs' → 5/9, "
-        "'3+ years' → exp_min=3). "
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "intent": {
-                "type": "string",
-                "enum": ["create_role", "list_sessions", "other"],
-                "description": (
-                    "Classify the message: 'create_role' if creating/drafting/starting a role, "
-                    "'list_sessions' if viewing/listing/showing existing intakes or roles, "
-                    "'other' otherwise."
-                ),
+    "type": "function",
+    "function": {
+        "name": "emit_role_fields",
+        "description": (
+            "Classify the recruiter's message and emit any structured fields. "
+            "Always set intent to one of: 'create_role', 'list_sessions', or 'other'. "
+            "For 'create_role': extract role_name, exp_min, exp_max, location from the message. "
+            "For 'list_sessions': set list_status to the requested filter. "
+            "Treat any of these as a role-creation request: 'req', 'requisition', 'role', "
+            "'position', 'opening', 'hire', 'hiring for', 'need a', 'looking for'. "
+            "Treat any of these as a list request: 'show', 'list', 'see', 'what', 'display', "
+            "'get me', followed by words like 'intakes', 'roles', 'sessions', 'reqs'. "
+            "Extract the job TITLE as role_name (title-cased), e.g. 'Product Manager', "
+            "'Senior Backend Engineer', 'iOS Developer'. "
+            "Extract city, region, or work arrangement as location, e.g. 'San Francisco', "
+            "'Remote · US', 'New York', 'Remote'. "
+            "Extract experience ranges as exp_min/exp_max when present (e.g. '5-9 yrs' → 5/9, "
+            "'3+ years' → exp_min=3). "
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "intent": {
+                    "type": "string",
+                    "enum": ["create_role", "list_sessions", "other"],
+                    "description": (
+                        "Classify the message: 'create_role' if creating/drafting/starting a role, "
+                        "'list_sessions' if viewing/listing/showing existing intakes or roles, "
+                        "'other' otherwise."
+                    ),
+                },
+                "list_status": {
+                    "type": "string",
+                    "enum": ["pending", "published", "submitted", "active", "all"],
+                    "description": (
+                        "Only set when intent='list_sessions'. Filter: 'pending' = not-yet-completed intakes, "
+                        "'published' = published roles, 'submitted' = submitted, 'active' = active, "
+                        "'all' if unspecified or user wants everything. Omit if intent != 'list_sessions'."
+                    ),
+                },
+                "role_name": {
+                    "type": "string",
+                    "description": (
+                        "Job title, title-cased. Examples: 'Product Manager', "
+                        "'Senior Backend Engineer', 'Data Scientist'. Omit if absent."
+                    ),
+                },
+                "exp_min": {"type": "integer", "description": "Minimum years experience. Omit if absent."},
+                "exp_max": {"type": "integer", "description": "Maximum years experience. Omit if absent."},
+                "location": {
+                    "type": "string",
+                    "description": (
+                        "City, region, or arrangement. Examples: 'San Francisco', "
+                        "'Remote · US', 'New York', 'Remote'. Omit if absent."
+                    ),
+                },
             },
-            "list_status": {
-                "type": "string",
-                "enum": ["pending", "published", "submitted", "active", "all"],
-                "description": (
-                    "Only set when intent='list_sessions'. Filter: 'pending' = not-yet-completed intakes, "
-                    "'published' = published roles, 'submitted' = submitted, 'active' = active, "
-                    "'all' if unspecified or user wants everything. Omit if intent != 'list_sessions'."
-                ),
-            },
-            "role_name": {
-                "type": "string",
-                "description": (
-                    "Job title, title-cased. Examples: 'Product Manager', "
-                    "'Senior Backend Engineer', 'Data Scientist'. Omit if absent."
-                ),
-            },
-            "exp_min": {"type": "integer", "description": "Minimum years experience. Omit if absent."},
-            "exp_max": {"type": "integer", "description": "Maximum years experience. Omit if absent."},
-            "location": {
-                "type": "string",
-                "description": (
-                    "City, region, or arrangement. Examples: 'San Francisco', "
-                    "'Remote · US', 'New York', 'Remote'. Omit if absent."
-                ),
-            },
+            "additionalProperties": False,
         },
-        "additionalProperties": False,
     },
 }
 
@@ -100,29 +103,35 @@ _SYSTEM = (
     "  'how does this work?' → intent='other'"
 )
 
-_MODEL = "claude-haiku-4-5-20251001"
+# A GATEWAY ALIAS, not a provider model id (litellm-config.yaml maps it to haiku).
+# This is the one call site in the backend whose model is not read from settings;
+# it was hardcoded before the migration and stays hardcoded after it.
+_MODEL = "parse-role-intent"
+
+_FORCE_TOOL = {"type": "function", "function": {"name": "emit_role_fields"}}
 
 
-async def parse_role_intent(client: Any, text: str) -> dict[str, Any]:
+async def parse_role_intent(llm: Any, text: str) -> dict[str, Any]:
     """Return {role_name, exp_min, exp_max, location} with None for anything not found."""
     try:
-        msg = await client.messages.create(
+        reply = await llm.complete(
             model=_MODEL,
             max_tokens=400,
             system=_SYSTEM,
             tools=[_TOOL],
-            tool_choice={"type": "tool", "name": "emit_role_fields"},
+            tool_choice=_FORCE_TOOL,
             messages=[{"role": "user", "content": text}],
         )
     except Exception as exc:  # noqa: BLE001 — never block the user on extraction failure
         logger.warning("parse_intent_llm_failed", error=str(exc))
         return dict(_EMPTY)
 
-    args: dict[str, Any] = {}
-    for block in getattr(msg, "content", []) or []:
-        if getattr(block, "type", None) == "tool_use" and getattr(block, "name", None) == "emit_role_fields":
-            args = getattr(block, "input", {}) or {}
-            break
+    # The forcing survived the migration in OpenAI shape rather than being
+    # dropped in favour of _SYSTEM's "Always call emit_role_fields". A prose reply
+    # still lands on the all-None result the empty-content case produced before,
+    # so this branch stays as defence in depth.
+    call = reply.tool_call_named("emit_role_fields")
+    args: dict[str, Any] = call.arguments if call else {}
 
     raw_intent = args.get("intent") or "other"
     intent = raw_intent if raw_intent in ("create_role", "list_sessions", "other") else "other"
