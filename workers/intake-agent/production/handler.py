@@ -17,7 +17,7 @@ import time
 
 import structlog
 
-from src.clients.anthropic import AnthropicClient
+from src.clients.llm import LLMGatewayClient
 from src.clients.supabase import SupabaseClient, close_async_http_client
 from src.config import get_settings
 from src.logging import configure_logging, get_logger
@@ -61,8 +61,8 @@ async def process_intake_v2(session_id: str) -> str:
 
     try:
         role_context = await supabase.get_session_context(session_id)
-        async with AnthropicClient() as anthropic:
-            pipeline = IntakePipelineV2(anthropic=anthropic, supabase=supabase, session_id=session_id)
+        async with LLMGatewayClient() as llm:
+            pipeline = IntakePipelineV2(llm=llm, supabase=supabase, session_id=session_id)
             await pipeline.run(role_context)
         logger.info(
             "worker_complete",

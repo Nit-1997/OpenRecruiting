@@ -47,9 +47,9 @@ def test_format_current_answers_handles_missing_keys():
 
 @pytest.mark.asyncio
 async def test_pipeline_writes_rounds_and_feedback_questions():
-    anthropic = AsyncMock()
+    llm = AsyncMock()
     # call_sonnet returns: first for rounds, then once per round for details
-    anthropic.call_sonnet.side_effect = [
+    llm.call_sonnet.side_effect = [
         json.dumps({
             "rounds": [
                 {"name": "Coding", "category": "coding", "duration_minutes": 60,
@@ -103,7 +103,7 @@ async def test_pipeline_writes_rounds_and_feedback_questions():
         ],
     }
 
-    pipeline = IntakePipelineV2(anthropic=anthropic, supabase=supabase, session_id="s1")
+    pipeline = IntakePipelineV2(llm=llm, supabase=supabase, session_id="s1")
     await pipeline.run(role_context)
 
     # 2 rounds inserted
@@ -202,10 +202,10 @@ async def test_save_round_skeletons_rejects_non_list_body():
 
 @pytest.mark.asyncio
 async def test_pipeline_propagates_errors_from_rounds_call():
-    anthropic = AsyncMock()
-    anthropic.call_sonnet.side_effect = ValueError("LLM 500")
+    llm = AsyncMock()
+    llm.call_sonnet.side_effect = ValueError("LLM 500")
     supabase = MagicMock()
-    pipeline = IntakePipelineV2(anthropic=anthropic, supabase=supabase, session_id="s1")
+    pipeline = IntakePipelineV2(llm=llm, supabase=supabase, session_id="s1")
     role_context = {
         "session_id": "s1", "requisition_id": "r1", "organization_id": "o1",
         "role_title": "x", "experience_min_years": 0, "experience_max_years": 2,

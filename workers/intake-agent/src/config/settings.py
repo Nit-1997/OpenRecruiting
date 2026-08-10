@@ -7,11 +7,18 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     environment: Literal["development", "staging", "production"] = "development"
 
-    anthropic_api_key: str = ""
-    anthropic_model_haiku: str = "claude-haiku-4-5-20251001"
-    anthropic_model_sonnet: str = "claude-sonnet-4-6"
-    anthropic_timeout: int = 120
-    anthropic_max_retries: int = 3
+    # The LiteLLM gateway. This worker holds no provider credential:
+    # LITELLM_MASTER_KEY authenticates it to the proxy, which holds the keys.
+    llm_gateway_url: str = "http://litellm:4000"
+    litellm_master_key: str = ""
+    # GATEWAY ALIASES, not provider model ids, preserving each shape's tier.
+    # NOTE: intake-agent-haiku currently has NO CALLER — call_haiku is unused in
+    # this worker. The alias is kept rather than deleted so the symmetry with
+    # call_sonnet survives; see the client docstring.
+    llm_model_haiku: str = "intake-agent-haiku"
+    llm_model_sonnet: str = "intake-agent-sonnet"
+    llm_timeout: int = 120
+    llm_max_retries: int = 3
 
     supabase_url: str = ""
     supabase_secret_key: str = ""

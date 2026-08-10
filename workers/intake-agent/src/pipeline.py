@@ -9,7 +9,7 @@ import json
 import time
 from typing import Any
 
-from src.clients.anthropic import AnthropicClient
+from src.clients.llm import LLMGatewayClient
 from src.clients.supabase import SupabaseClient
 from src.logging import get_logger
 from src.prompts import build_rounds_prompt, build_round_details_prompt
@@ -71,8 +71,8 @@ def format_current_answers_as_summary(
 class IntakePipelineV2:
     """Runs Stage 2a (rounds design) + Stage 2b (parallel round details)."""
 
-    def __init__(self, anthropic: AnthropicClient, supabase: SupabaseClient, session_id: str):
-        self.anthropic = anthropic
+    def __init__(self, llm: LLMGatewayClient, supabase: SupabaseClient, session_id: str):
+        self.llm = llm
         self.supabase = supabase
         self.session_id = session_id
 
@@ -97,7 +97,7 @@ class IntakePipelineV2:
         stage_2a_start = time.monotonic()
         logger.info("stage_2a_rounds_start")
         rounds_prompt = build_rounds_prompt(intake_summary=full_summary)
-        raw_rounds = await self.anthropic.call_sonnet(rounds_prompt, max_tokens=4096)
+        raw_rounds = await self.llm.call_sonnet(rounds_prompt, max_tokens=4096)
         round_skeletons = self._parse_rounds_json(raw_rounds)
         logger.info(
             "stage_2a_rounds_complete",
@@ -117,7 +117,7 @@ class IntakePipelineV2:
             prompt = build_round_details_prompt(
                 round_skeleton=skeleton, intake_summary=full_summary
             )
-            raw = await self.anthropic.call_sonnet(prompt, max_tokens=2048)
+            raw = await self.llm.call_sonnet(prompt, max_tokens=2048)
             details = self._parse_round_details_json(raw)
             await self.supabase.save_round_details(round_id, details)
             return details

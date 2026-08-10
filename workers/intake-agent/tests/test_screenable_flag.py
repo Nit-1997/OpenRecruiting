@@ -59,8 +59,8 @@ def test_artifact_mapping_defaults_when_screenable_absent():
 
 @pytest.mark.asyncio
 async def test_pipeline_carries_screenable_into_interview_plan():
-    anthropic = AsyncMock()
-    anthropic.call_sonnet.side_effect = [
+    llm = AsyncMock()
+    llm.call_sonnet.side_effect = [
         json.dumps({
             "rounds": [
                 {"name": "Recruiter Screen", "category": "behavioral", "duration_minutes": 30,
@@ -101,7 +101,7 @@ async def test_pipeline_carries_screenable_into_interview_plan():
         "questions_version": "v1", "questions_snapshot": [{"id": "q1", "topic": "Role", "order": 1}],
     }
 
-    pipeline = IntakePipelineV2(anthropic=anthropic, supabase=supabase, session_id="s1")
+    pipeline = IntakePipelineV2(llm=llm, supabase=supabase, session_id="s1")
     await pipeline.run(role_context)
 
     plan = supabase.finalize_interview_plan.await_args.kwargs["interview_plan"]

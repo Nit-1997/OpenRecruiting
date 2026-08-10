@@ -50,7 +50,7 @@ def test_mark_session_failed_rolls_back_status_to_ready():
 def test_handler_failure_calls_mark_session_failed():
     """When pipeline.run() raises, handler calls mark_session_failed with the error."""
     with patch("production.handler.SupabaseClient") as MockSB, \
-         patch("production.handler.AnthropicClient") as MockAnt, \
+         patch("production.handler.LLMGatewayClient") as MockAnt, \
          patch("production.handler.IntakePipelineV2") as MockPipe, \
          patch("production.handler.close_async_http_client", new_callable=AsyncMock):
         sb = MockSB.return_value
@@ -73,7 +73,7 @@ def test_handler_failure_calls_mark_session_failed():
 
 def test_two_invocations_warm_succeed():
     with patch("production.handler.SupabaseClient") as MockSB, \
-         patch("production.handler.AnthropicClient") as MockAnt, \
+         patch("production.handler.LLMGatewayClient") as MockAnt, \
          patch("production.handler.IntakePipelineV2") as MockPipe, \
          patch("production.handler.close_async_http_client", new_callable=AsyncMock) as mock_close:
         sb = MockSB.return_value
