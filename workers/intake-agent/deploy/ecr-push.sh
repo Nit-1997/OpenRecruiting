@@ -74,7 +74,7 @@ else
     echo "  Image URI: ${ECR_URI}:latest"
     echo "  Memory: 1024 MB"
     echo "  Timeout: 300s"
-    echo "  Env vars: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY,"
+    echo "  Env vars: LLM_GATEWAY_URL, LITELLM_MASTER_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY,"
     echo "            SQS_QUEUE_URL, SQS_REGION, LOG_LEVEL, LOG_FORMAT"
     echo "  (AWS_REGION is reserved by Lambda — set automatically, do not configure)"
     exit 1

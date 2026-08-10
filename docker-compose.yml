@@ -175,6 +175,8 @@ services:
       dockerfile: workers/feedback-agent/Dockerfile
     expose: ["9001"]
     env_file: [.env]
+    # Both LLM paths go through the gateway from phases 5-6.
+    depends_on: [litellm]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:9001/health')"]
       interval: 30s
@@ -189,6 +191,8 @@ services:
       dockerfile: workers/intake-agent/Dockerfile
     expose: ["9002"]
     env_file: [.env]
+    # Both LLM paths go through the gateway from phases 5-6.
+    depends_on: [litellm]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:9002/health')"]
       interval: 30s
