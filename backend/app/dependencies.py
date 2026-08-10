@@ -211,6 +211,13 @@ def invalidate_profile_cache(user_id: str) -> None:
 # Anthropic async client — singleton at app scope.
 # FastAPI/uvicorn runs a single event loop for the lifetime of the process,
 # so a module-level AsyncAnthropic instance is safe here.
+#
+# STILL ALIVE ON PURPOSE after the phase-2 migration. Its only remaining
+# consumers are the two STREAMING routers (intake_text_messages, debrief_chat),
+# which phase 3 rewrites onto llm_core.stream_turn. Non-streaming call sites use
+# get_llm_client() instead; see backend/tests/test_anthropic_surface.py, which
+# fails if a new consumer appears. Phase 3 deletes this block, that test, and the
+# `anthropic` pin in requirements.txt together.
 
 import os as _os
 from anthropic import AsyncAnthropic as _AsyncAnthropic

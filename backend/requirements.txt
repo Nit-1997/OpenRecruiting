@@ -7,6 +7,10 @@ pydantic-settings>=2.1.0
 PyJWT[crypto]>=2.8.0
 httpx>=0.24.0,<0.28.0
 boto3>=1.34.0
+# Streaming only. The nine non-streaming call sites moved to the LiteLLM gateway
+# via llm-core in phase 2; text_runner and debrief_chat/runner still stream
+# through the Anthropic SDK until phase 3 rewrites them. Dropping this pin before
+# then breaks two routers at import.
 anthropic>=0.40.0
 # Dodo Payments SDK — required by admin billing_service (ported from v1)
 dodopayments>=1.84.0
