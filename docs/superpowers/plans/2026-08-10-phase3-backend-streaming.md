@@ -42,6 +42,17 @@ Phase 1's hazard list (`2026-08-07-llm-gateway-foundation.md:1960-1969`) adds th
 - `make test` rebuilds `backend/Dockerfile.test` itself, and `intake-core` **and** `llm-core` are baked into that image (CHECKPOINT fact #4). Tasks 2 and 4 change `intake-core`; `make test` picks that up on its own, but a running `backend` container will not — rebuild it.
 - **`intake-core` has its own suite that `make test` does not run.** Tasks 2 and 4 change `intake-core/intake_core/`, so they must also run `cd intake-core && python -m pytest -q` and paste the count. There is no Dockerfile.test for intake-core; run it in a venv with `pip install -e ./intake-core`. **A task that changes intake-core without running that suite has shipped an unverified change** — 81 test functions live there and none of them are in the backend gate.
 - **`voice-agent` has no test covering the code Task 4 changes.** Its verification is `docker compose up -d --build voice-agent` followed by `make verify` showing `ok voice-agent`. Say so in the commit; never claim a suite that was not run.
+
+  **Review addendum — that is too weak on its own, and the plan already contains the fix.**
+  `make verify` only proves the container answers `/health`; it would stay green with a
+  coverage tracker that raises on every turn, because the tracker is spawned as a
+  supervised background task whose failures are logged, not surfaced. Task 4 already
+  migrates `voice-agent/scripts/smoke_test_v2.py` onto the gateway (see its Step for
+  `:75-88`), so **run that script as the real verification** — it exercises
+  `run_coverage_tracker` against the live gateway end to end, which is precisely the code
+  path with no test. Record its output in the commit. If it cannot be run in the
+  environment, say so explicitly rather than substituting `make verify` and calling the
+  task verified.
 - Rebuild and restart affected containers after changes: `docker compose up -d --build backend` (and `voice-agent` in Task 4). Task 3 and Task 4 also change `litellm-config.yaml`, which needs `docker compose up -d litellm` — the proxy reads that file at boot and a new alias does not exist until it restarts.
 - Commit after each task with a meaningful message. **Self-review the diff before committing** (`git diff --cached`).
 - Every HTML element added anywhere in this project must carry a unique `id`. (No UI is added by this plan; the rule is project-wide.)
@@ -2485,7 +2496,12 @@ Behaviour deliberately preserved: a tool that *raises* still yields its `tool_ca
     model_info: {supports_function_calling: true}
 ```
 
-**What the frontend sees.** The SSE `done` payload's `stop_reason` changes vocabulary — `"end_turn"` becomes `"stop"`. Verified safe: `recruiter-app/src/lib/intake/api.ts:474` passes it through as `d.stop_reason ?? null` and `src/types/intake.ts:277` types it `string | null`; nothing in `recruiter-app` branches on the value. The `'end_turn'` occurrences in `recruiter-app` are fixtures inside its own tests, not assertions about backend behaviour, so its suite (1224) is unaffected and no `npm run build` is required.
+**What the frontend sees.** The SSE `done` payload's `stop_reason` changes vocabulary — `"end_turn"` becomes `"stop"`. Verified safe: `recruiter-app/src/lib/intake/api.ts:474` passes it through as `d.stop_reason ?? null` and `src/types/intake.ts:277` types it `string | null`; nothing in `recruiter-app` branches on the value. The `'end_turn'` occurrences in `recruiter-app` are fixtures inside its own tests, not assertions about backend behaviour, so its suite is unaffected and no `npm run build` is required.
+
+*(Review note: the spec's stated recruiter-app count of 1224 is stale. Measured on merged
+`main` 2026-08-10: **1273 tests, 1271 pass, 2 fail**. The 2 failures are pre-existing and
+flaky — `src/components/shell/composer.test.tsx` passes 6/6 in isolation and only fails under
+full-suite parallelism. Do not treat them as a phase-3 regression; see CHECKPOINT.md.)*
 
 - [ ] **Step 7: Run every affected suite**
 
@@ -2558,6 +2574,14 @@ The three deletions must land together. Dropping the pin while the factory survi
 **Files:**
 - Modify: `backend/app/dependencies.py`
 - Modify: `backend/requirements.txt`
+- Modify: `intake-core/pyproject.toml` — **added in review; the plan as written missed this
+  and its own verification step would have failed because of it.** `intake-core`
+  pins `anthropic>=0.40,<1.0` at `:9`, and intake-core is installed into the backend image,
+  so removing only the backend pin leaves the SDK installed and importable. Safe to drop
+  here and *only* here: `coverage_tracker.py` was intake-core's sole consumer (verified —
+  `grep -rn anthropic intake-core/intake_core/` returns just `:44` and `:81`, both inside
+  that one function), it never even imported the SDK (the client arrives as a duck-typed
+  parameter), and Task 4 has already migrated it by this point.
 - Delete: `backend/tests/test_anthropic_surface.py`
 - Modify: `backend/tests/api/test_dependencies_extra.py`
 - Create: `backend/tests/test_no_provider_sdk.py`
@@ -2749,7 +2773,16 @@ Expected: `make test` PASS — **2196 passed, 5 skipped**, `--cov-fail-under=85`
 docker compose exec backend python -c "import anthropic" ; echo "exit=$?"
 ```
 
-Expected: `ModuleNotFoundError` and a non-zero exit. A zero exit means the image was not rebuilt.
+Expected: `ModuleNotFoundError` and a non-zero exit.
+
+**If you get a zero exit, do NOT assume the image was not rebuilt** — that was this step's
+original diagnosis and it sends you chasing a Docker caching problem that is not there.
+Check `intake-core/pyproject.toml:9` first. It pins `anthropic>=0.40,<1.0`, intake-core is
+installed into the backend image, and that pin alone keeps the SDK importable no matter what
+`backend/requirements.txt` says. The source-text tests in this task CANNOT see it — they
+scan files, not the installed environment, so they will happily pass while the SDK is still
+in the image. Dropping that pin is part of this task's Files list above. Only after
+confirming it is gone is "the image was not rebuilt" the right conclusion.
 
 - [ ] **Step 8: Live-verify both streaming paths (recommended, ~2 billed calls)**
 
