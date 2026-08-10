@@ -4,7 +4,17 @@ version = "0.1.0"
 description = "Provider-agnostic LLM access shared across OpenRecruiting services"
 requires-python = ">=3.11"
 dependencies = [
-    "openai>=1.40,<2.0",
+    # Upper bound is <3.0, NOT <2.0, and that is load-bearing rather than lax.
+    # voice-agent ships openai 2.52.0 because pipecat requires it. The moment
+    # intake-core depends on llm-core (phase 3.5+), a <2.0 pin here would make pip
+    # SILENTLY DOWNGRADE the voice image to openai 1.x — no error, just a subtly
+    # different SDK under a live voice pipeline.
+    # Verified safe against 2.52.0 before widening: llm-core's whole hermetic suite
+    # (194 passed) plus a live gateway run of complete() with a forced tool AND
+    # stream_turn emitting ('tool_call', 'done'). The surface this package touches is
+    # three lines -- AsyncOpenAI(...) and chat.completions.create(**payload) -- which
+    # is unchanged across 1.x and 2.x.
+    "openai>=1.40,<3.0",
     "httpx>=0.27,<1.0",
     "structlog>=24.1,<26.0",
 ]
