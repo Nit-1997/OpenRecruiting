@@ -29,13 +29,20 @@ from app.services.intake.jd_sanitize import sanitize_jd_text
 logger = structlog.get_logger(__name__)
 
 
-def _empty(source: str, truncated: bool = False) -> dict[str, Any]:
+def _empty(
+    source: str, truncated: bool = False, guardrail_errored: bool = False
+) -> dict[str, Any]:
     return {
         "status": "empty",
         "source": source,
         "formatted_jd": "",
         "structured": None,
-        "flags": {"injection_detected": False, "reason": None, "truncated": truncated},
+        "flags": {
+            "injection_detected": False,
+            "reason": None,
+            "truncated": truncated,
+            "guardrail_errored": guardrail_errored,
+        },
     }
 
 
@@ -87,6 +94,19 @@ async def extract_jd(
 
     # 3. guardrail — quarantine on a positive injection verdict
     guard = await check_injection(llm, model, clean)
+
+    # `errored` means the guardrail returned no usable verdict: an LLM failure, a
+    # prose reply, or a tool call truncated to empty arguments. Its policy is
+    # fail-OPEN, so the pipeline continues exactly as it did — the JD below this
+    # line was NOT cleared, it was merely not rejected. That distinction has to
+    # leave this function, or the only record of an unchecked JD is a log line
+    # nobody joins back to the request. Rides in `flags` on every branch that ran
+    # the guardrail; no status changes, so no caller has to handle a new state to
+    # keep working.
+    guardrail_errored = bool(guard.get("errored"))
+    if guardrail_errored:
+        logger.warning("jd_guardrail_degraded", source=source, truncated=truncated)
+
     if guard["injection_detected"]:
         logger.warning("jd_injection_quarantined", source=source, reason=guard.get("reason"))
         return {
@@ -98,21 +118,29 @@ async def extract_jd(
                 "injection_detected": True,
                 "reason": guard.get("reason") or "The text contained instructions aimed at the AI.",
                 "truncated": truncated,
+                # A positive verdict means the tool call arrived and carried the
+                # required field, so this branch is never the degraded one.
+                "guardrail_errored": False,
             },
         }
 
     # 4. parse → structured + formatted
     structured = await parse_jd(llm, model, clean)
     if not structured:
-        return _empty(source, truncated)
+        return _empty(source, truncated, guardrail_errored)
     formatted = format_jd(structured)
     if not formatted:
-        return _empty(source, truncated)
+        return _empty(source, truncated, guardrail_errored)
 
     return {
         "status": "ok",
         "source": source,
         "formatted_jd": formatted,
         "structured": structured,
-        "flags": {"injection_detected": False, "reason": None, "truncated": truncated},
+        "flags": {
+            "injection_detected": False,
+            "reason": None,
+            "truncated": truncated,
+            "guardrail_errored": guardrail_errored,
+        },
     }

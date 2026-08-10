@@ -14,7 +14,9 @@
 # sonnet default.
 
 model_list:
-  # Haiku today: backend/app/config.py:180 INTAKE_JD_MODEL.
+  # Haiku, because Settings.INTAKE_JD_MODEL was claude-haiku-4-5-20251001 before
+  # it was flipped to this alias. The setting now holds the alias, so this entry
+  # is the only remaining record of the tier it has to preserve.
   - model_name: intake-jd
     litellm_params:
       model: anthropic/claude-haiku-4-5-20251001
@@ -69,7 +71,7 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
-  # Haiku today: backend/app/config.py:124 CANDIDATE_DETECT_MODEL, whose current
+  # Haiku today: Settings.CANDIDATE_DETECT_MODEL in backend/app/config.py, whose current
   # value is claude-3-5-haiku-latest. Pinned to the same haiku tier as the other
   # two rather than to a floating '-latest' tag, so the alias is reproducible.
   - model_name: candidate-detect

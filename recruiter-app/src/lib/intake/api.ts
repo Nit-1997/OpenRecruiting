@@ -174,13 +174,21 @@ export interface JdExtractResult {
     must_haves: string[];
     nice_to_haves: string[];
   } | null;
-  flags: { injection_detected: boolean; reason: string | null; truncated: boolean };
+  flags: {
+    injection_detected: boolean;
+    reason: string | null;
+    truncated: boolean;
+    // The guardrail produced no usable verdict and was failed open. No UI reads
+    // this yet; it is typed so that a screen which wants to say "we could not
+    // fully check this text" does not have to widen the contract first.
+    guardrail_errored?: boolean;
+  };
 }
 
 // Multipart POST (browser sets the multipart boundary — do NOT set Content-Type).
 // `text` (a URL inside it is auto-detected + fetched server-side) and/or `file`.
-// Backend runs sanitize → injection guardrail → Haiku parse and returns the
-// formatted JD (status 'rejected' on injection, 'empty' if nothing usable).
+// Backend runs sanitize → injection guardrail → parse through the LLM gateway and
+// returns the formatted JD (status 'rejected' on injection, 'empty' if nothing usable).
 export async function extractJobDescription(
   input: { text?: string; file?: File },
   signal?: AbortSignal,

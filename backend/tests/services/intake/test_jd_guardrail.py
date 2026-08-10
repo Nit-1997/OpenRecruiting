@@ -1,9 +1,9 @@
 """Unit tests for the JD injection guardrail's verdict contract.
 
-These sit below test_jd_extract_service.py, which can only observe
-`injection_detected` — `extract_jd` never reads `errored`. The distinction
-between "the model said clean" and "the guardrail did not run" lives in this
-function's return value and in its log lines, so it has to be asserted here.
+These sit below test_jd_extract_service.py, which observes the same distinction
+one level up as the `guardrail_errored` response flag. Which of the three
+degraded shapes produced it — an LLM failure, a prose reply, or a truncated tool
+call — is only visible here, in this function's return value and log lines.
 
 Both degraded shapes tested below were found by a live 80-call measurement
 against claude-haiku-4-5 (guardrail-live-measurement.md).
