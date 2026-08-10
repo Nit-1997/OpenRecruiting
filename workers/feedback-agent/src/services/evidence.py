@@ -153,7 +153,18 @@ class EvidenceService:
         try:
             response = await client.call_sonnet(prompt)
             result = parse_json_response(response)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 — one item must not fail the run
+            # Previously silent. This item now goes to the judge with NO evidence,
+            # and the judge's own fallback would have stamped it "supported" —
+            # a claim about a real candidate, marked as evidenced by nothing. The
+            # judge now refuses that (see judge.py), but the failure still has to
+            # be visible here, or the only symptom is a scorecard that quietly
+            # says less than it should.
+            logger.warning(
+                "evidence_extraction_failed",
+                topic_id=topic_id,
+                error=str(exc)[:200],
+            )
             result = {
                 "feedback_evidence": [],
                 "antifeedback_evidence": [],

@@ -93,12 +93,28 @@ class JudgeService:
                 claim_strength=getattr(item, "claim_strength", "primary"),
             )
         else:
+            # "supported" is a claim about a real candidate, so it requires
+            # evidence to point at. Two upstream failures compound here: an
+            # evidence-extraction failure yields empty lists without raising, and
+            # this method's own except-branch defaults `choice` to "feedback" —
+            # so a run where BOTH LLM calls failed used to produce
+            # evidence_status="supported" with evidence=[], indistinguishable on
+            # the scorecard from a genuinely well-evidenced item.
+            # "none" is already the persistence layer's default for this field
+            # (clients/supabase.py) and the UI renders anything non-"supported"
+            # as unverified, so this degrades honestly rather than inventing a
+            # new state.
+            if not item.feedback_evidence:
+                logger.warning(
+                    "judge_supported_without_evidence",
+                    topic_id=item.topic_id,
+                )
             return JudgedFeedbackItem(
                 topic_id=item.topic_id,
                 topic_heading=item.topic_heading,
                 feedback=item.feedback,
                 sentiment=item.sentiment,
-                evidence_status="supported",
+                evidence_status="supported" if item.feedback_evidence else "none",
                 evidence=item.feedback_evidence,
                 reasoning=reasoning,
                 claim_strength=getattr(item, "claim_strength", "primary"),
