@@ -188,6 +188,17 @@ class Settings(BaseSettings):
     # Screening agent question generator (title/prompt/probe/signal/dimension). Sonnet.
     SCREENING_GENERATOR_MODEL: str = "claude-sonnet-4-6"
 
+    # Screening persona reduce: synthesizes the org's real interviewer style into
+    # persona dimensions. A GATEWAY ALIAS, not a provider model id.
+    #
+    # New in phase 2, and the only setting it adds. This workload has always
+    # borrowed SCREENING_GENERATOR_MODEL above; litellm-config.yaml has defined a
+    # persona-reduce alias since phase 1 that nothing read. Giving it its own
+    # setting is what lets the two workloads be repointed independently, and it
+    # leaves the generator with exactly one reader so that setting can be flipped
+    # to an alias without dragging an unmigrated caller onto api.anthropic.com.
+    PERSONA_REDUCE_MODEL: str = "persona-reduce"
+
     # Screening agent assessor: authors the interviewer-style assessment from the
     # interview transcript (becomes scorecard_transcript -> feedback Lambda). Sonnet.
     SCREENING_ASSESSOR_MODEL: str = "claude-sonnet-4-6"

@@ -31,7 +31,7 @@ from intake_core.screening.persona import (
 )
 
 from app.config import get_settings
-from app.dependencies import get_anthropic_async_client
+from app.dependencies import get_llm_client
 from app.services.supabase import get_supabase_admin_client
 
 from .cortex_persona_reader import CortexPersonaReader
@@ -74,42 +74,48 @@ GENERIC_DIMENSION_VALUES: dict[str, str] = {
 
 
 _TOOL = {
-    "name": "emit_persona_dimensions",
-    "description": (
-        "Synthesize the org's real interviewer style (provided as trait signal) "
-        "into screening-persona dimensions. Each dimension is one paragraph "
-        "describing how the screening interviewer should behave for that aspect, "
-        "with a confidence reflecting how much real signal supported it."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "dimensions": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "key": {
-                            "type": "string",
-                            "enum": _FILLABLE_DIMENSIONS,
-                            "description": "Which persona dimension this describes.",
+    "type": "function",
+    "function": {
+        "name": "emit_persona_dimensions",
+        "description": (
+            "Synthesize the org's real interviewer style (provided as trait signal) "
+            "into screening-persona dimensions. Each dimension is one paragraph "
+            "describing how the screening interviewer should behave for that aspect, "
+            "with a confidence reflecting how much real signal supported it."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "dimensions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "key": {
+                                "type": "string",
+                                "enum": _FILLABLE_DIMENSIONS,
+                                "description": "Which persona dimension this describes.",
+                            },
+                            "value": {
+                                "type": "string",
+                                "description": "How the interviewer should behave for this dimension.",
+                            },
+                            "confidence": {
+                                "type": "number",
+                                "description": "0..1 — how strongly the trait signal supported this.",
+                            },
                         },
-                        "value": {
-                            "type": "string",
-                            "description": "How the interviewer should behave for this dimension.",
-                        },
-                        "confidence": {
-                            "type": "number",
-                            "description": "0..1 — how strongly the trait signal supported this.",
-                        },
+                        "required": ["key", "value", "confidence"],
                     },
-                    "required": ["key", "value", "confidence"],
-                },
-            }
+                }
+            },
+            "required": ["dimensions"],
         },
-        "required": ["dimensions"],
     },
 }
+
+
+_FORCE_TOOL = {"type": "function", "function": {"name": "emit_persona_dimensions"}}
 
 
 def _signal_block(signal: list[dict]) -> str:
@@ -247,23 +253,17 @@ not support.
 
 Respond ONLY by calling emit_persona_dimensions."""
 
-        client = get_anthropic_async_client()
-        model = get_settings().SCREENING_GENERATOR_MODEL
-        msg = await client.messages.create(
+        llm = get_llm_client()
+        model = get_settings().PERSONA_REDUCE_MODEL
+        reply = await llm.complete(
             model=model,
             max_tokens=2000,
             tools=[_TOOL],
-            tool_choice={"type": "tool", "name": "emit_persona_dimensions"},
+            tool_choice=_FORCE_TOOL,
             messages=[{"role": "user", "content": prompt}],
         )
-        raw_dims: list[dict[str, Any]] = []
-        for block in getattr(msg, "content", []) or []:
-            if (
-                getattr(block, "type", None) == "tool_use"
-                and getattr(block, "name", None) == "emit_persona_dimensions"
-            ):
-                raw_dims = (getattr(block, "input", {}) or {}).get("dimensions") or []
-                break
+        call = reply.tool_call_named("emit_persona_dimensions")
+        raw_dims: list[dict[str, Any]] = (call.arguments.get("dimensions") or []) if call else []
 
         dims: list[PersonaDimension] = []
         for raw in raw_dims:

@@ -334,3 +334,108 @@ async def test_reader_parses_rows(monkeypatch):
     assert len(rows) == 1
     assert rows[0]["trait"] == "Structured probing"
     assert rows[0]["frequency"] == 4
+
+
+# --------------------------------------------------------------------------- #
+# _synthesize_dimensions — the single LLM seam, tested directly against FakeLLM.
+# Every test above mocks this method out; these are the only tests of its body.
+# --------------------------------------------------------------------------- #
+import app.api.v2.services.persona_reduce_service as persona_module  # noqa: E402
+
+_SIGNAL = [{"trait": "asks for trade-offs", "category": "probing", "frequency": 4}]
+
+FORCED = {"type": "function", "function": {"name": "emit_persona_dimensions"}}
+
+
+def _service(fake_llm, monkeypatch):
+    """Build the service without touching Supabase or Cortex.
+
+    _synthesize_dimensions reads neither self.supabase nor self.reader, but
+    __init__ constructs a CortexPersonaReader, so the seam is patched at the
+    module attribute the method actually calls.
+    """
+    monkeypatch.setattr(persona_module, "get_llm_client", lambda: fake_llm)
+    return PersonaReduceService(supabase=object())
+
+
+@pytest.mark.asyncio
+async def test_synthesize_maps_tool_output_to_cortex_dimensions(fake_llm, monkeypatch):
+    service = _service(fake_llm, monkeypatch)
+    fake_llm.queue_tool_call(
+        "emit_persona_dimensions",
+        {
+            "dimensions": [
+                {"key": "probing_depth", "value": "Push on trade-offs.", "confidence": 0.9},
+                {"key": "not_a_dimension", "value": "ignored", "confidence": 1.0},
+            ]
+        },
+    )
+
+    dims = await service._synthesize_dimensions(_SIGNAL)
+
+    assert [d.key for d in dims] == ["probing_depth"]
+    assert dims[0].source == "cortex"
+    assert dims[0].confidence == 0.9
+
+
+@pytest.mark.asyncio
+async def test_synthesize_clamps_confidence_and_survives_bad_rows(fake_llm, monkeypatch):
+    service = _service(fake_llm, monkeypatch)
+    fake_llm.queue_tool_call(
+        "emit_persona_dimensions",
+        {
+            "dimensions": [
+                {"key": "tone_rapport", "value": "Warm.", "confidence": 7.5},
+                "not-a-dict",
+                {"key": "structure", "value": "Ordered.", "confidence": "nonsense"},
+            ]
+        },
+    )
+
+    dims = await service._synthesize_dimensions(_SIGNAL)
+
+    by_key = {d.key: d for d in dims}
+    assert by_key["tone_rapport"].confidence == 1.0
+    assert by_key["structure"].confidence == 0.0
+
+
+@pytest.mark.asyncio
+async def test_synthesize_sends_its_own_alias_and_a_forced_openai_tool(fake_llm, monkeypatch):
+    """persona-reduce, NOT screening-generator. This service borrowed the
+    generator's setting before the migration; the two are now independent, which
+    is what lets Task 7 flip SCREENING_GENERATOR_MODEL safely."""
+    service = _service(fake_llm, monkeypatch)
+    fake_llm.queue_tool_call("emit_persona_dimensions", {"dimensions": []})
+
+    await service._synthesize_dimensions(_SIGNAL)
+
+    call = fake_llm.calls[0]
+    assert call["model"] == "persona-reduce"
+    assert call["max_tokens"] == 2000
+    assert call["tool_choice"] == FORCED
+    assert call["tools"][0]["type"] == "function"
+    assert call["tools"][0]["function"]["name"] == "emit_persona_dimensions"
+    assert "asks for trade-offs" in call["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_synthesize_yields_nothing_on_a_prose_reply(fake_llm, monkeypatch):
+    """Defence in depth behind the forced tool. No dimensions means derive()
+    composes an all-generic persona rather than failing."""
+    service = _service(fake_llm, monkeypatch)
+    fake_llm.queue_text("Here is my analysis of the interviewer style.")
+
+    assert await service._synthesize_dimensions(_SIGNAL) == []
+
+
+@pytest.mark.asyncio
+async def test_synthesize_does_not_swallow_gateway_errors(fake_llm, monkeypatch):
+    """derive() owns the fallback (persona_reduce_service.derive), not this
+    method — so the error has to reach it."""
+    from llm_core.errors import LLMError
+
+    service = _service(fake_llm, monkeypatch)
+    fake_llm.queue_error(LLMError("gateway 500", alias="persona-reduce", status=500))
+
+    with pytest.raises(LLMError):
+        await service._synthesize_dimensions(_SIGNAL)
