@@ -48,7 +48,7 @@ from app.api.v2.services.cortex_gap_reader import CortexGapReader, _parse_rows
 from app.api.v2.services.cortex_insight_client import CortexInsightClient
 from app.api.v2.services.debrief_repository import DebriefRepository
 from app.config import get_settings
-from app.dependencies import get_anthropic_async_client
+from app.dependencies import get_llm_client
 from app.services.debrief_chat.action_service import DebriefActionService
 from app.services.debrief_chat.contracts import ChatEvent, build_proposed_action
 from app.services.debrief_chat.conversation_repository import (
@@ -98,7 +98,7 @@ def _build_runner(
         requisition_id=str(row.get("requisition_id") or "") or None,
     )
     return DebriefChatRunner(
-        client=get_anthropic_async_client(),
+        llm=get_llm_client(),
         model=settings.DEBRIEF_CHAT_MODEL,
         max_iters=settings.DEBRIEF_CHAT_MAX_ITERS,
         max_tokens=settings.DEBRIEF_CHAT_MAX_TOKENS,

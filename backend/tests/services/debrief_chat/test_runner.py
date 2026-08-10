@@ -57,7 +57,7 @@ def _read_tools(dispatch_return=None):
 
 def _runner(*, repo, read_tools, max_iters=4):
     return DebriefChatRunner(
-        client=MagicMock(),
+        llm=MagicMock(),
         model="claude-sonnet-4-6",
         max_iters=max_iters,
         max_tokens=1024,
@@ -125,7 +125,7 @@ async def test_read_tool_call_dispatches_and_loop_continues():
                 "tool_call",
                 {"id": "t1", "name": "get_candidate_detail", "input": {"candidate_id": CAND_A}},
             )
-            yield ("done", {"text": "Let me check. ", "stop_reason": "tool_use"})
+            yield ("done", {"text": "Let me check. ", "stop_reason": "tool_calls"})
         else:
             yield ("text", "Ada's round-2 rating is strong.")
             yield ("done", {"text": "Ada's round-2 rating is strong.", "stop_reason": "end_turn"})
@@ -166,10 +166,15 @@ async def test_propose_tool_emits_action_and_breaks_without_tool_result():
             {
                 "id": "p1",
                 "name": "propose_add_round",
-                "input": {"candidate_ids": [CAND_A], "params": {"name": "Final"}},
+                "input": {
+                    "candidate_ids": [CAND_A],
+                    "summary": "Add a final round for Ada.",
+                    "rationale": "One more signal before deciding.",
+                    "name": "Final",
+                },
             },
         )
-        yield ("done", {"text": "I'd add a round. ", "stop_reason": "tool_use"})
+        yield ("done", {"text": "I'd add a round. ", "stop_reason": "tool_calls"})
 
     with patch("app.services.debrief_chat.runner.stream_llm_turn", new=fake_stream):
         events = await _collect(runner.run("should we add a final round for Ada?"))
@@ -210,10 +215,15 @@ async def test_propose_record_decision_intercepted_with_specs_registered():
             {
                 "id": "p2",
                 "name": "propose_record_decision",
-                "input": {"candidate_ids": [CAND_A], "verdict": "hire"},
+                "input": {
+                    "candidate_ids": [CAND_A],
+                    "summary": "Record a hire for Ada.",
+                    "rationale": "Strong across all rounds.",
+                    "verdict": "hire",
+                },
             },
         )
-        yield ("done", {"text": "", "stop_reason": "tool_use"})
+        yield ("done", {"text": "", "stop_reason": "tool_calls"})
 
     with patch("app.services.debrief_chat.runner.stream_llm_turn", new=fake_stream):
         events = await _collect(runner.run("record a hire for Ada"))
@@ -241,7 +251,7 @@ async def test_runner_registers_read_and_propose_tools():
     with patch("app.services.debrief_chat.runner.stream_llm_turn", new=fake_stream):
         await _collect(runner.run("hi"))
 
-    names = {t["name"] for t in seen["tools"]}
+    names = {t["function"]["name"] for t in seen["tools"]}
     assert "get_candidate_detail" in names
     assert "propose_record_decision" in names
     assert "propose_add_round" in names
@@ -265,7 +275,7 @@ async def test_iteration_bound_terminates_gracefully():
             "tool_call",
             {"id": f"t{call_count}", "name": "get_candidate_detail", "input": {"candidate_id": CAND_A}},
         )
-        yield ("done", {"text": "", "stop_reason": "tool_use"})
+        yield ("done", {"text": "", "stop_reason": "tool_calls"})
 
     with patch("app.services.debrief_chat.runner.stream_llm_turn", new=always_tool):
         events = await _collect(runner.run("loop please"))
@@ -349,7 +359,7 @@ async def test_read_tool_dispatch_failure_does_not_crash_turn():
                 "tool_call",
                 {"id": "t1", "name": "get_candidate_detail", "input": {"candidate_id": CAND_A}},
             )
-            yield ("done", {"text": "", "stop_reason": "tool_use"})
+            yield ("done", {"text": "", "stop_reason": "tool_calls"})
         else:
             yield ("text", "Sorry, I couldn't fetch that.")
             yield ("done", {"text": "Sorry, I couldn't fetch that.", "stop_reason": "end_turn"})
@@ -432,3 +442,156 @@ async def test_current_user_message_not_duplicated():
     ]
     assert len(user_occurrences) == 1
     assert seen["messages"][-1] == {"role": "user", "content": current}
+
+
+# ---------------------------------------------------------------------------
+# Degraded tool calls. llm_core surfaces a truncated argument buffer as
+# input={}, on a call that exists and is named correctly — the failure shape
+# this codebase hit three times in phase 2, each time landing on a default that
+# read as a real answer.
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_a_truncated_propose_call_never_becomes_a_confirm_card():
+    """The worst degraded outcome available to this agent.
+
+    A propose_* call is persisted on the assistant turn and rendered to the
+    recruiter as a confirm card. A truncated one would propose a write against a
+    real candidate while naming neither the candidate nor the verdict. The turn
+    must fall through and end as text — which is what the model actually
+    produced — rather than surfacing an action nobody asked for.
+    """
+    repo = _repo()
+    read_tools = _read_tools()
+    runner = _runner(repo=repo, read_tools=read_tools)
+
+    async def fake_stream(**kwargs):
+        yield ("text", "Here's my read. ")
+        yield ("tool_call", {"id": "p9", "name": "propose_record_decision", "input": {}})
+        yield ("done", {"text": "Here's my read. ", "stop_reason": "tool_calls"})
+
+    with patch("app.services.debrief_chat.runner.stream_llm_turn", new=fake_stream):
+        events = await _collect(runner.run("what do you think?"))
+
+    assert [e for e in events if e.type == "proposed_action"] == []
+    assert [e for e in events if e.type == "done"]
+    read_tools.dispatch.assert_not_awaited()
+    assistant_turn = repo.append_turn.await_args_list[1].args[1]
+    assert assistant_turn.get("proposed_action") is None
+
+
+@pytest.mark.asyncio
+async def test_a_truncated_read_call_is_not_dispatched_and_is_answered():
+    """It must still get a tool message: every entry in the assistant turn's
+    tool_calls has to be answered before the next assistant turn, or the gateway
+    rejects the request. Naming the absent properties lets the model retry."""
+    repo = _repo()
+    read_tools = _read_tools()
+    runner = _runner(repo=repo, read_tools=read_tools)
+
+    calls = 0
+
+    async def fake_stream(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            yield ("tool_call", {"id": "r1", "name": "get_candidate_detail", "input": {}})
+            yield ("done", {"text": "", "stop_reason": "tool_calls"})
+        else:
+            yield ("text", "Sorry, I need a candidate.")
+            yield ("done", {"text": "Sorry, I need a candidate.", "stop_reason": "stop"})
+
+    with patch("app.services.debrief_chat.runner.stream_llm_turn", new=fake_stream):
+        await _collect(runner.run("tell me about them"))
+
+    read_tools.dispatch.assert_not_awaited()
+    assert calls == 2, "the loop must continue so the model can retry"
+
+
+@pytest.mark.asyncio
+async def test_the_loop_continues_on_tool_calls_not_on_an_anthropic_stop_reason():
+    """The bug this rewrite exists to kill.
+
+    The old guard was `stop_reason != "tool_use"`. stream_turn passes the
+    provider's finish_reason through untouched, so the value is now "tool_calls"
+    — making that condition permanently true, breaking the loop on iteration one
+    and executing no tools at all, behind a perfectly normal-looking reply.
+    """
+    repo = _repo()
+    read_tools = _read_tools()
+    runner = _runner(repo=repo, read_tools=read_tools)
+
+    calls = 0
+
+    async def fake_stream(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            yield (
+                "tool_call",
+                {
+                    "id": "r1",
+                    "name": "get_candidate_detail",
+                    "input": {"candidate_id": CAND_A},
+                },
+            )
+            yield ("done", {"text": "", "stop_reason": "tool_calls"})
+        else:
+            yield ("text", "Ada is strong.")
+            yield ("done", {"text": "Ada is strong.", "stop_reason": "stop"})
+
+    with patch("app.services.debrief_chat.runner.stream_llm_turn", new=fake_stream):
+        await _collect(runner.run("tell me about Ada"))
+
+    read_tools.dispatch.assert_awaited_once()
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_the_request_history_is_openai_shaped():
+    """OpenAI's Chat Completions schema cannot accept Anthropic content blocks.
+    The assistant turn carries a sibling tool_calls array whose arguments are a
+    JSON STRING, and each call is answered by its own role:"tool" message."""
+    import json
+
+    repo = _repo()
+    read_tools = _read_tools()
+    runner = _runner(repo=repo, read_tools=read_tools)
+
+    seen: list = []
+    calls = 0
+
+    async def fake_stream(**kwargs):
+        nonlocal calls
+        calls += 1
+        seen.append([dict(m) for m in kwargs["messages"]])
+        if calls == 1:
+            yield ("text", "Checking. ")
+            yield (
+                "tool_call",
+                {
+                    "id": "r1",
+                    "name": "get_candidate_detail",
+                    "input": {"candidate_id": CAND_A},
+                },
+            )
+            yield ("done", {"text": "Checking. ", "stop_reason": "tool_calls"})
+        else:
+            yield ("text", "Done.")
+            yield ("done", {"text": "Done.", "stop_reason": "stop"})
+
+    with patch("app.services.debrief_chat.runner.stream_llm_turn", new=fake_stream):
+        await _collect(runner.run("tell me about Ada"))
+
+    second = seen[1]
+    assistant = [m for m in second if m["role"] == "assistant"][-1]
+    assert isinstance(assistant["content"], str)
+    assert assistant["tool_calls"][0]["type"] == "function"
+    assert assistant["tool_calls"][0]["id"] == "r1"
+    args = assistant["tool_calls"][0]["function"]["arguments"]
+    assert isinstance(args, str), "arguments must be a JSON string, not a dict"
+    assert json.loads(args) == {"candidate_id": CAND_A}
+
+    tool_msgs = [m for m in second if m["role"] == "tool"]
+    assert len(tool_msgs) == 1
+    assert tool_msgs[0]["tool_call_id"] == "r1"
+    assert not any(m["role"] == "user" and isinstance(m["content"], list) for m in second)

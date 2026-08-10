@@ -283,7 +283,15 @@ class Settings(BaseSettings):
     # with the assistant-route + intake runtime LLMs (the strict-Opus rule governs
     # the coding agent, not in-product runtimes). MAX_ITERS bounds the in-loop read-
     # tool cycle to prevent a runaway tool loop.
-    DEBRIEF_CHAT_MODEL: str = "claude-sonnet-4-6"
+    # A GATEWAY ALIAS, not a provider model id — litellm-config.yaml maps it
+    # (sonnet today).
+    #
+    # This alias MUST resolve to a tool-capable model. llm_core.stream_turn emits
+    # no tool_call event on the emulated path, so an alias without native function
+    # calling does not degrade this agent, it disables it — the recruiter gets a
+    # confident answer over zero retrieved data. Pinned by
+    # backend/tests/services/intake/test_llm_stream.py.
+    DEBRIEF_CHAT_MODEL: str = "debrief-chat"
     DEBRIEF_CHAT_MAX_ITERS: int = 4
     DEBRIEF_CHAT_MAX_TOKENS: int = 2048
 

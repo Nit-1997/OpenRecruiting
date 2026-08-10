@@ -4,7 +4,7 @@ Auth comes from the conftest `recruiter_client` / `unauthed_client` fixtures.
 The packet load is mocked via respx (the org-scoped DebriefRepository.get_packet
 read of debrief_packets). The runner is stubbed by monkeypatching the module-level
 `_build_runner` factory to yield canned ChatEvents — so the route is tested in
-isolation from the Anthropic loop and the Cortex token seam.
+isolation from the gateway loop and the Cortex token seam.
 """
 from __future__ import annotations
 
@@ -502,3 +502,11 @@ def test_conversation_empty_when_no_row(recruiter_client, respx_mock):
     resp = recruiter_client.get(f"{V2_ROOT}/debrief/packets/{PACKET_ID}/conversation")
     assert resp.status_code == 200
     assert resp.json()["turns"] == []
+
+
+def test_build_runner_passes_the_configured_alias():
+    """The factory calls get_llm_client() directly rather than through Depends, so
+    app.dependency_overrides is NOT a seam here — this is the only test that sees
+    which model string the runner is actually built with."""
+    runner = chat_router._build_runner(_packet_row(), _current(), MagicMock())
+    assert runner._model == "debrief-chat"

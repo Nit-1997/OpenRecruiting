@@ -20,14 +20,23 @@ from pathlib import Path
 
 _APP = Path(__file__).resolve().parent.parent / "app"
 
-# Streaming only. Anything else appearing here is a phase-2 regression.
+# Shrinks as phase 3 migrates each streaming router. Anything appearing here that
+# is not listed is a regression; anything listed that has already migrated should
+# be REMOVED in the same commit that migrates it, so the suite stays green after
+# every task rather than sitting red until the final deletion.
+#
+# debrief_chat.py left this set in Task 3. intake_text_messages.py leaves it in
+# Task 4, at which point the set is empty and Task 6 deletes this whole file
+# along with the factory and the pin.
 _EXPECTED_CLIENT_USERS = {
-    "api/v2/routers/debrief_chat.py",
     "api/v2/routers/intake_text_messages.py",
 }
 
-# Phase 3's, and the only module still allowed to carry Anthropic tool specs.
-_STREAMING_TOOL_SPECS = "services/debrief_chat/tool_specs.py"
+# Modules in backend/app still carrying Anthropic-shaped tool specs. Task 3
+# converted debrief_chat/tool_specs.py, which was the last one — intake-core's
+# schemas.py still has an Anthropic export for the voice agent, but it lives
+# outside backend/app and is deliberately retained until phase 7.
+_ANTHROPIC_TOOL_SPEC_MODULES: set[str] = set()
 
 
 def _modules_containing(needle: str) -> set[str]:
@@ -53,11 +62,12 @@ def test_no_migrated_module_still_speaks_the_anthropic_message_api():
     assert _modules_containing(".messages.create(") == set()
 
 
-def test_only_the_streaming_tool_specs_still_use_input_schema():
-    """The eight migrated specs carry `parameters` inside an OpenAI `function`
-    envelope. llm_core rejects `input_schema` outright, so a straggler would fail
-    loudly — but only on the code path that runs, and this catches it statically."""
-    assert _modules_containing("input_schema") == {_STREAMING_TOOL_SPECS}
+def test_no_module_in_the_app_still_uses_input_schema():
+    """All nineteen migrated specs — phase 2's eight, plus phase 3's eleven debrief
+    tools — carry `parameters` inside an OpenAI `function` envelope. llm_core
+    rejects `input_schema` outright, so a straggler would fail loudly, but only on
+    the code path that runs; this catches it statically."""
+    assert _modules_containing("input_schema") == _ANTHROPIC_TOOL_SPEC_MODULES
 
 
 def test_no_module_reads_a_tool_call_positionally():

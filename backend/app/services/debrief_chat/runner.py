@@ -1,4 +1,4 @@
-"""DebriefChatRunner — the bounded Anthropic tool-use loop for debrief chat.
+"""DebriefChatRunner — the bounded gateway tool-use loop for debrief chat.
 
 One responsibility: drive a single recruiter→assistant turn over a generated
 packet. It owns turn replay, the read-tool loop, the propose interception, the
@@ -11,27 +11,52 @@ propose_* tool is NEVER executed here — calling one ENDS the turn with a singl
 confirm. The runner gates on a name set / prefix so it is forward-compatible with
 the action phase without owning the action contract.
 
-Streaming reuses the intake `stream_llm_turn` seam verbatim (same Anthropic SDK
-idiom, same mock surface in tests).
+Streaming goes through the intake `stream_llm_turn` seam over llm_core, so the
+model is a gateway alias and nothing here names a provider. The in-loop request
+history is OpenAI-shaped: an assistant message carrying a sibling `tool_calls`
+array whose arguments are a JSON STRING, followed by one
+{"role": "tool", "tool_call_id": ...} message per call. It was Anthropic content
+blocks before phase 3, which OpenAI's Chat Completions schema cannot accept.
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any, AsyncIterator
 
 import structlog
 
 from app.services.debrief_chat.contracts import ChatEvent
 from app.services.debrief_chat.tool_specs import PROPOSE_TOOL_SPECS, READ_TOOL_SPECS
-from app.services.intake.anthropic_stream import stream_llm_turn
+from app.services.intake.llm_stream import stream_llm_turn
 
 logger = structlog.get_logger(__name__)
 
 # The model is offered both read tools (executed in-loop) and propose tools
 # (intercepted, never executed). The propose-name set IS the propose tool specs.
 _TOOL_SPECS = READ_TOOL_SPECS + PROPOSE_TOOL_SPECS
-_READ_TOOL_NAMES = {spec["name"] for spec in READ_TOOL_SPECS}
-_PROPOSE_TOOL_NAMES = {spec["name"] for spec in PROPOSE_TOOL_SPECS}
+_READ_TOOL_NAMES = {spec["function"]["name"] for spec in READ_TOOL_SPECS}
+_PROPOSE_TOOL_NAMES = {spec["function"]["name"] for spec in PROPOSE_TOOL_SPECS}
+
+# What each tool must carry to be a real call. A truncated argument buffer
+# arrives as input={} (llm_core client.py:436-449) and is otherwise
+# indistinguishable from a genuine call of all-defaults — the recurring failure
+# shape in this codebase, found three times in phase 2. Keyed on the schema's
+# declared `required` set, as those fixes were.
+_REQUIRED_ARGS = {
+    spec["function"]["name"]: frozenset(
+        spec["function"]["parameters"].get("required") or []
+    )
+    for spec in _TOOL_SPECS
+}
+
+
+def _missing_args(tool_call: dict) -> frozenset[str]:
+    """Required properties absent from a streamed call's arguments."""
+    supplied = set((tool_call.get("input") or {}).keys())
+    return _REQUIRED_ARGS.get(tool_call.get("name"), frozenset()) - supplied
+
+
 _ERROR_MESSAGE = "Something went wrong answering that. Please try again."
 _GRACEFUL_ASSISTANT_TEXT = (
     "I hit a problem answering that just now. Please try asking again."
@@ -42,7 +67,7 @@ class DebriefChatRunner:
     def __init__(
         self,
         *,
-        client,
+        llm,
         model: str,
         max_iters: int,
         max_tokens: int,
@@ -52,7 +77,7 @@ class DebriefChatRunner:
         system_prompt: str,
         packet_id: str,
     ) -> None:
-        self._client = client
+        self._llm = llm
         self._model = model
         self._max_iters = max_iters
         self._max_tokens = max_tokens
@@ -98,7 +123,7 @@ class DebriefChatRunner:
                 stop_reason: str | None = None
 
                 async for kind, payload in stream_llm_turn(
-                    client=self._client,
+                    llm=self._llm,
                     model=self._model,
                     system=self._system_prompt,
                     messages=messages,
@@ -119,17 +144,38 @@ class DebriefChatRunner:
                     None,
                 )
                 if propose_call is not None:
-                    proposed_action = {
-                        "kind": propose_call.get("name"),
-                        "input": propose_call.get("input", {}),
-                    }
-                    yield ChatEvent(type="proposed_action", data=proposed_action)
-                    break
+                    missing = _missing_args(propose_call)
+                    if missing:
+                        # A degraded reply must never become a confirm card. This
+                        # one would propose a write against a real candidate while
+                        # naming neither the candidate nor the verdict, and it is
+                        # persisted on the turn — the same shape as phase 2's
+                        # fabricated authenticity verdict. The turn falls through
+                        # and ends as text, which is what the model produced.
+                        logger.warning(
+                            "debrief_chat_propose_arguments_incomplete",
+                            packet_id=self._packet_id,
+                            tool=propose_call.get("name"),
+                            missing=sorted(missing),
+                        )
+                    else:
+                        proposed_action = {
+                            "kind": propose_call.get("name"),
+                            "input": propose_call.get("input", {}),
+                        }
+                        yield ChatEvent(type="proposed_action", data=proposed_action)
+                        break
 
                 read_calls = [
                     tc for tc in tool_calls if tc.get("name") in _READ_TOOL_NAMES
                 ]
-                if stop_reason != "tool_use" or not read_calls:
+                # Driven by whether calls arrived, NOT by a stop_reason string.
+                # This was `stop_reason != "tool_use"`, and stream_turn passes the
+                # provider's finish_reason through untouched — so the value is
+                # "tool_calls" today and None from a gateway that omits it.
+                # Correcting the string would leave the same class of bug in
+                # place; presence of calls is what the loop actually depends on.
+                if not read_calls:
                     break
 
                 if iteration == self._max_iters - 1:
@@ -137,48 +183,69 @@ class DebriefChatRunner:
                         "debrief_chat_iteration_guard_hit",
                         packet_id=self._packet_id,
                         max_iters=self._max_iters,
+                        stop_reason=stop_reason,
                     )
                     break
 
-                assistant_content: list[dict[str, Any]] = []
-                if iteration_text_parts:
-                    assistant_content.append(
-                        {"type": "text", "text": "".join(iteration_text_parts)}
-                    )
-                for tc in read_calls:
-                    assistant_content.append(
-                        {
-                            "type": "tool_use",
-                            "id": tc["id"],
+                # OpenAI-shaped assistant turn: content is a STRING, the calls
+                # live in a sibling `tool_calls` array, and `arguments` is a JSON
+                # string rather than the decoded dict the event carried. Both
+                # empty forms are omitted: some providers behind the gateway
+                # reject content: null and tool_calls: [].
+                assistant: dict[str, Any] = {"role": "assistant"}
+                text = "".join(iteration_text_parts)
+                if text:
+                    assistant["content"] = text
+                assistant["tool_calls"] = [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
                             "name": tc["name"],
-                            "input": tc.get("input", {}),
-                        }
-                    )
-                messages.append({"role": "assistant", "content": assistant_content})
+                            "arguments": json.dumps(tc.get("input") or {}),
+                        },
+                    }
+                    for tc in read_calls
+                ]
+                messages.append(assistant)
 
-                tool_results: list[dict[str, Any]] = []
+                # One {"role": "tool"} message PER CALL, each carrying the id it
+                # answers. Every entry in the assistant turn's tool_calls must be
+                # answered before the next assistant turn or the gateway 400s.
                 for tc in read_calls:
-                    try:
-                        result = await self._read_tools.dispatch(
-                            tc["name"], tc.get("input", {})
-                        )
-                        content = str(result)
-                    except Exception as exc:  # noqa: BLE001 — per-tool fail-soft
+                    missing = _missing_args(tc)
+                    if missing:
+                        # Not dispatched: the arguments are degraded, and telling
+                        # the model exactly what is absent lets the next iteration
+                        # retry. Dispatching {} would reach the same refusal from
+                        # DebriefReadTools, but unnamed and unlogged.
                         logger.warning(
-                            "debrief_chat_read_tool_failed",
+                            "debrief_chat_read_arguments_incomplete",
                             packet_id=self._packet_id,
                             tool=tc.get("name"),
-                            error=str(exc),
+                            missing=sorted(missing),
                         )
-                        content = "couldn't fetch that data right now"
-                    tool_results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tc["id"],
-                            "content": content,
-                        }
+                        content = (
+                            "that call was missing required properties: "
+                            f"{', '.join(sorted(missing))}"
+                        )
+                    else:
+                        try:
+                            result = await self._read_tools.dispatch(
+                                tc["name"], tc.get("input", {})
+                            )
+                            content = str(result)
+                        except Exception as exc:  # noqa: BLE001 — per-tool fail-soft
+                            logger.warning(
+                                "debrief_chat_read_tool_failed",
+                                packet_id=self._packet_id,
+                                tool=tc.get("name"),
+                                error=str(exc),
+                            )
+                            content = "couldn't fetch that data right now"
+                    messages.append(
+                        {"role": "tool", "tool_call_id": tc["id"], "content": content}
                     )
-                messages.append({"role": "user", "content": tool_results})
         except Exception:
             logger.exception("debrief_chat_turn_failed", packet_id=self._packet_id)
             yield ChatEvent(type="error", data={"message": _ERROR_MESSAGE})
