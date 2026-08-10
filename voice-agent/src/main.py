@@ -2169,11 +2169,14 @@ async def v2_intake_offer(request: Request, background_tasks: BackgroundTasks):
     system_prompt = build_voice_intake_prompt(session_row)
     seed_messages = format_turns_for_llm(session_row.get("turns") or [])
 
-    from anthropic import AsyncAnthropic
-    tracker_anthropic = AsyncAnthropic(api_key=settings.voice_anthropic_api_key)
-    tracker_model = os.getenv("ANTHROPIC_MODEL_SONNET", "claude-sonnet-4-6")
+    # The coverage tracker runs through the LiteLLM gateway (phase 3). `llm_core`
+    # is imported here rather than at module scope because `get_client()`
+    # constructs its HTTP client on first call, and this module is imported by
+    # tooling that has no gateway configured.
+    from llm_core import get_client as get_llm_client
 
-    tracker_model_ref = tracker_model
+    tracker_llm = get_llm_client()
+    tracker_model_ref = "voice-intake"   # a gateway alias, not a provider model id
 
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
@@ -2197,7 +2200,7 @@ async def v2_intake_offer(request: Request, background_tasks: BackgroundTasks):
         ),
         intake_on_user_turn=lambda text, idx: run_coverage_tracker(
             supabase_client=sb,
-            anthropic_client=tracker_anthropic,
+            llm=tracker_llm,
             model=tracker_model_ref,
             session_id=session_id,
             last_user_turn=text,
@@ -2220,14 +2223,13 @@ async def v2_intake_offer(request: Request, background_tasks: BackgroundTasks):
             config,
             session_id,
             sb,
-            tracker_anthropic,
         )
 
     answer = await _webrtc_handler.handle_web_request(sdp_request, _on_connection)
     return answer
 
 
-async def _run_v2_intake_pipeline(connection, config: PipelineConfig, session_id: str, sb, tracker_anthropic):
+async def _run_v2_intake_pipeline(connection, config: PipelineConfig, session_id: str, sb):
     """Run the v2 intake pipeline for one voice session."""
     session_ended = asyncio.Event()
     end_event = asyncio.Event()
@@ -2279,10 +2281,10 @@ async def _run_v2_intake_pipeline(connection, config: PipelineConfig, session_id
             )
         except Exception as ex:
             logger.warning("v2_clear_modality_failed", session_id=session_id, error=str(ex))
-        try:
-            await tracker_anthropic.close()
-        except Exception:
-            pass
+        # The gateway client is deliberately NOT closed here. It was a per-session
+        # AsyncAnthropic before phase 3; llm_core.get_client() returns a PROCESS
+        # SINGLETON, so closing it at the end of one voice session would tear down
+        # the transport every later session in this worker depends on.
 
     async def _watch_end_event():
         await end_event.wait()

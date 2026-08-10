@@ -26,7 +26,6 @@ sys.path.insert(0, "../intake-core")
 
 async def main() -> int:
     from supabase import create_client
-    from anthropic import AsyncAnthropic
 
     from src.session_loader import load_intake_session_for_voice, format_turns_for_llm
     from src.persona.dynamic_intake import build_voice_intake_prompt
@@ -73,20 +72,21 @@ async def main() -> int:
     assert out["ok"] is True
     print(f"    ok: {out}")
 
-    print("[6] Running coverage tracker (live Anthropic call)...")
-    ant = AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    try:
-        result = await run_coverage_tracker(
-            supabase_client=sb,
-            anthropic_client=ant,
-            model=os.getenv("ANTHROPIC_MODEL_SONNET", "claude-sonnet-4-6"),
-            session_id=session_id,
-            last_user_turn="Skip the team-structure question for now.",
-            debounce_ms=0,
-        )
-        print(f"    tracker result: ok={result['ok']} applied={result.get('applied')} patch_keys={list((result.get('patch') or {}).keys())}")
-    finally:
-        await ant.close()
+    print("[6] Running coverage tracker (live gateway call)...")
+    from llm_core import get_client as get_llm_client
+
+    # No try/finally: the gateway client is a process singleton, not a per-call
+    # resource, so closing it here would tear down the shared transport.
+    llm = get_llm_client()
+    result = await run_coverage_tracker(
+        supabase_client=sb,
+        llm=llm,
+        model="voice-intake",
+        session_id=session_id,
+        last_user_turn="Skip the team-structure question for now.",
+        debounce_ms=0,
+    )
+    print(f"    tracker result: ok={result['ok']} applied={result.get('applied')} patch_keys={list((result.get('patch') or {}).keys())}")
 
     print("[7] Re-loading session to confirm tool + tracker writes landed...")
     row2 = load_intake_session_for_voice(sb, session_id)

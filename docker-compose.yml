@@ -17,6 +17,9 @@ services:
       - "40000-40010:40000-40010/udp"
     env_file: [.env]
     extra_hosts: ["host.docker.internal:host-gateway"]
+    # The intake coverage tracker calls the gateway from phase 3 onward.
+    # LLM_GATEWAY_URL / LITELLM_MASTER_KEY already arrive via env_file.
+    depends_on: [litellm]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8011/health')"]
       interval: 30s

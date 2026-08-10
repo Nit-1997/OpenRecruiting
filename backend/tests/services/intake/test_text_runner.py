@@ -54,7 +54,7 @@ async def test_run_text_turn_rejects_when_voice_active(fake_session, mock_supaba
     fake_session["active_modality"] = "voice"
     with patch("app.services.intake.text_runner.aload_session", new=AsyncMock(return_value=fake_session)):
         gen = run_text_turn(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="x", session_id="sess-1", user_message="hi",
         )
         with pytest.raises(ModalityConflictError):
@@ -69,7 +69,7 @@ async def test_run_text_opening_greets_without_user_turn(fake_session, mock_supa
     async def fake_stream(**kwargs):
         yield ("text", "Hey, Scout here ")
         yield ("text", "— let's nail the Senior BE role.")
-        yield ("done", {"text": "...", "stop_reason": "end_turn"})
+        yield ("done", {"text": "...", "stop_reason": "stop"})
 
     mock_append = AsyncMock(return_value={"idx": 0, "role": "assistant", "modality": "text"})
 
@@ -78,7 +78,7 @@ async def test_run_text_opening_greets_without_user_turn(fake_session, mock_supa
          patch("app.services.intake.text_runner.stream_llm_turn", new=fake_stream), \
          patch("app.services.intake.text_runner.build_dynamic_prompt", return_value="SYS"):
         events = await _collect(run_text_opening(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="claude-sonnet-4-6", session_id="sess-1",
         ))
 
@@ -106,7 +106,7 @@ async def test_run_text_opening_noop_when_agent_spoke_last(fake_session, mock_su
          patch("app.services.intake.text_runner.append_turn_for_session", new=mock_append), \
          patch("app.services.intake.text_runner.build_dynamic_prompt", return_value="SYS"):
         events = await _collect(run_text_opening(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="claude-sonnet-4-6", session_id="sess-1",
         ))
 
@@ -132,7 +132,7 @@ async def test_run_text_opening_continues_when_recruiter_spoke_last(fake_session
         seen_messages["messages"] = kwargs.get("messages")
         yield ("text", "Got it — PRD and cross-team. ")
         yield ("text", "How are the four rounds structured?")
-        yield ("done", {"text": "...", "stop_reason": "end_turn"})
+        yield ("done", {"text": "...", "stop_reason": "stop"})
 
     mock_append = AsyncMock(return_value={"idx": 2, "role": "assistant", "modality": "text"})
 
@@ -141,7 +141,7 @@ async def test_run_text_opening_continues_when_recruiter_spoke_last(fake_session
          patch("app.services.intake.text_runner.stream_llm_turn", new=fake_stream), \
          patch("app.services.intake.text_runner.build_dynamic_prompt", return_value="SYS"):
         events = await _collect(run_text_opening(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="claude-sonnet-4-6", session_id="sess-1",
         ))
 
@@ -166,7 +166,7 @@ async def test_run_text_opening_rejects_when_voice_active(fake_session, mock_sup
     with patch("app.services.intake.text_runner.aload_session", new=AsyncMock(return_value=fake_session)):
         with pytest.raises(ModalityConflictError):
             await _collect(run_text_opening(
-                supabase_client=client, anthropic_client=MagicMock(),
+                supabase_client=client, llm=MagicMock(),
                 model="x", session_id="sess-1",
             ))
 
@@ -179,7 +179,7 @@ async def test_run_text_turn_streams_text_and_writes_turns(fake_session, mock_su
     async def fake_stream(**kwargs):
         yield ("text", "Hello ")
         yield ("text", "there.")
-        yield ("done", {"text": "Hello there.", "stop_reason": "end_turn"})
+        yield ("done", {"text": "Hello there.", "stop_reason": "stop"})
 
     mock_append = AsyncMock(side_effect=[
         {"idx": 0, "role": "user", "content": "hi", "modality": "text"},
@@ -192,7 +192,7 @@ async def test_run_text_turn_streams_text_and_writes_turns(fake_session, mock_su
          patch("app.services.intake.text_runner.build_dynamic_prompt", return_value="SYS"), \
          patch("app.services.intake.text_runner.coverage_tracker_run", new=AsyncMock()) as mock_cov:
         events = await _collect(run_text_turn(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="claude-sonnet-4-6", session_id="sess-1", user_message="hi",
         ))
 
@@ -203,7 +203,10 @@ async def test_run_text_turn_streams_text_and_writes_turns(fake_session, mock_su
 
     done_events = [p for k, p in events if k == "done"]
     assert len(done_events) == 1
-    assert done_events[0]["stop_reason"] == "end_turn"
+    # OpenAI vocabulary now: stream_turn passes the provider's
+    # finish_reason through untouched. The frontend never compares
+    # this value (verified by grep), so the wire change is safe.
+    assert done_events[0]["stop_reason"] == "stop"
     assert done_events[0]["text"] == "Hello there."
 
 
@@ -216,7 +219,7 @@ async def test_run_text_turn_coverage_failure_is_logged_and_does_not_crash(fake_
 
     async def fake_stream(**kwargs):
         yield ("text", "Hi.")
-        yield ("done", {"text": "Hi.", "stop_reason": "end_turn"})
+        yield ("done", {"text": "Hi.", "stop_reason": "stop"})
 
     mock_append = AsyncMock(side_effect=[
         {"idx": 0, "role": "user", "content": "hi", "modality": "text"},
@@ -233,7 +236,7 @@ async def test_run_text_turn_coverage_failure_is_logged_and_does_not_crash(fake_
          patch("app.services.intake.text_runner.coverage_tracker_run", new=boom), \
          patch("app.services.intake.text_runner.logger") as mock_logger:
         events = await _collect(run_text_turn(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="x", session_id="sess-1", user_message="hi",
         ))
         # Let the background coverage task run + its done-callback fire.
@@ -243,7 +246,10 @@ async def test_run_text_turn_coverage_failure_is_logged_and_does_not_crash(fake_
     # Caller turn completed normally despite the background failure.
     done_events = [p for k, p in events if k == "done"]
     assert len(done_events) == 1
-    assert done_events[0]["stop_reason"] == "end_turn"
+    # OpenAI vocabulary now: stream_turn passes the provider's
+    # finish_reason through untouched. The frontend never compares
+    # this value (verified by grep), so the wire change is safe.
+    assert done_events[0]["stop_reason"] == "stop"
 
     # The supervision callback logged the background failure.
     assert mock_logger.error.called or mock_logger.warning.called
@@ -261,7 +267,7 @@ async def test_run_text_turn_coverage_task_tracked_then_released(fake_session, m
     client, _ = mock_supabase
 
     async def fake_stream(**kwargs):
-        yield ("done", {"text": "", "stop_reason": "end_turn"})
+        yield ("done", {"text": "", "stop_reason": "stop"})
 
     started = asyncio.Event()
     release = asyncio.Event()
@@ -278,7 +284,7 @@ async def test_run_text_turn_coverage_task_tracked_then_released(fake_session, m
          patch("app.services.intake.text_runner.build_dynamic_prompt", return_value="SYS"), \
          patch("app.services.intake.text_runner.coverage_tracker_run", new=slow_coverage):
         await _collect(run_text_turn(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="x", session_id="sess-1", user_message="hi",
         ))
 
@@ -310,13 +316,13 @@ async def test_run_text_turn_tool_use_loop(fake_session, mock_supabase):
             yield ("text", "Got it. ")
             yield ("tool_call", {
                 "id": "toolu_1", "name": "update_answer",
-                "input": {"qid": "q4_must_haves", "text": "Python"},
+                "input": {"qid": "q4_must_haves", "text": "Python", "confidence": "high"},
             })
-            yield ("done", {"text": "Got it. ", "stop_reason": "tool_use"})
+            yield ("done", {"text": "Got it. ", "stop_reason": "tool_calls"})
         else:
             # Second call: follow-up text after tool_result
             yield ("text", "Any other must-haves?")
-            yield ("done", {"text": "Any other must-haves?", "stop_reason": "end_turn"})
+            yield ("done", {"text": "Any other must-haves?", "stop_reason": "stop"})
 
     mock_append = AsyncMock(side_effect=[
         {"idx": 0, "role": "user", "content": "Python", "modality": "text"},
@@ -333,7 +339,7 @@ async def test_run_text_turn_tool_use_loop(fake_session, mock_supabase):
          patch("app.services.intake.text_runner.ahandle_tool_call", new=mock_tool), \
          patch("app.services.intake.text_runner.coverage_tracker_run", new=AsyncMock()):
         events = await _collect(run_text_turn(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="x", session_id="sess-1", user_message="Python",
         ))
 
@@ -358,7 +364,10 @@ async def test_run_text_turn_tool_use_loop(fake_session, mock_supabase):
     # Done event has combined text and terminal stop_reason
     done_events = [p for k, p in events if k == "done"]
     assert len(done_events) == 1
-    assert done_events[0]["stop_reason"] == "end_turn"
+    # OpenAI vocabulary now: stream_turn passes the provider's
+    # finish_reason through untouched. The frontend never compares
+    # this value (verified by grep), so the wire change is safe.
+    assert done_events[0]["stop_reason"] == "stop"
     assert done_events[0]["text"] == "Got it. Any other must-haves?"
 
     # assistant turn persisted with combined text
@@ -381,11 +390,11 @@ async def test_run_text_turn_executes_tool_calls(fake_session, mock_supabase):
             yield ("text", "Got it. ")
             yield ("tool_call", {
                 "id": "toolu_1", "name": "update_answer",
-                "input": {"qid": "q4_must_haves", "text": "Python"},
+                "input": {"qid": "q4_must_haves", "text": "Python", "confidence": "high"},
             })
-            yield ("done", {"text": "Got it. ", "stop_reason": "tool_use"})
+            yield ("done", {"text": "Got it. ", "stop_reason": "tool_calls"})
         else:
-            yield ("done", {"text": "", "stop_reason": "end_turn"})
+            yield ("done", {"text": "", "stop_reason": "stop"})
 
     mock_append = AsyncMock(side_effect=[
         {"idx": 0, "role": "user", "content": "Python", "modality": "text"},
@@ -401,7 +410,7 @@ async def test_run_text_turn_executes_tool_calls(fake_session, mock_supabase):
          patch("app.services.intake.text_runner.ahandle_tool_call", new=mock_tool), \
          patch("app.services.intake.text_runner.coverage_tracker_run", new=AsyncMock()):
         events = await _collect(run_text_turn(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="x", session_id="sess-1", user_message="Python",
         ))
 
@@ -420,7 +429,7 @@ async def test_run_text_turn_sets_modality_lock(fake_session, mock_supabase):
     client, chain = mock_supabase
 
     async def fake_stream(**kwargs):
-        yield ("done", {"text": "", "stop_reason": "end_turn"})
+        yield ("done", {"text": "", "stop_reason": "stop"})
 
     with patch("app.services.intake.text_runner.aload_session", new=AsyncMock(return_value=fake_session)), \
          patch("app.services.intake.text_runner.append_turn_for_session", new=AsyncMock(return_value={"idx": 0})), \
@@ -428,7 +437,7 @@ async def test_run_text_turn_sets_modality_lock(fake_session, mock_supabase):
          patch("app.services.intake.text_runner.build_dynamic_prompt", return_value="SYS"), \
          patch("app.services.intake.text_runner.coverage_tracker_run", new=AsyncMock()):
         await _collect(run_text_turn(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="x", session_id="sess-1", user_message="hi",
         ))
 
@@ -449,9 +458,9 @@ async def test_run_text_turn_tool_use_loop_guard(fake_session, mock_supabase):
         call_count += 1
         yield ("tool_call", {
             "id": f"toolu_{call_count}", "name": "update_answer",
-            "input": {"qid": "q1", "text": f"iter{call_count}"},
+            "input": {"qid": "q1", "text": f"iter{call_count}", "confidence": "high"},
         })
-        yield ("done", {"text": "", "stop_reason": "tool_use"})
+        yield ("done", {"text": "", "stop_reason": "tool_calls"})
 
     mock_append = AsyncMock(side_effect=[
         {"idx": 0, "role": "user", "content": "test", "modality": "text"},
@@ -467,7 +476,7 @@ async def test_run_text_turn_tool_use_loop_guard(fake_session, mock_supabase):
          patch("app.services.intake.text_runner.coverage_tracker_run", new=AsyncMock()), \
          patch("app.services.intake.text_runner.logger") as mock_logger:
         events = await _collect(run_text_turn(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="x", session_id="sess-1", user_message="test",
         ))
 
@@ -478,6 +487,9 @@ async def test_run_text_turn_tool_use_loop_guard(fake_session, mock_supabase):
         "tool_use_loop_guard_hit",
         session_id="sess-1",
         iterations=_MAX_TOOL_ITERATIONS,
+        # Kept in the log even though it no longer drives control flow — it is
+        # the only remaining record of what the provider actually said.
+        stop_reason="tool_calls",
     )
     # Function still terminates with a done event
     done_events = [p for k, p in events if k == "done"]
@@ -486,8 +498,9 @@ async def test_run_text_turn_tool_use_loop_guard(fake_session, mock_supabase):
 
 @pytest.mark.asyncio
 async def test_run_text_turn_tool_messages_appended_correctly(fake_session, mock_supabase):
-    """Verify messages list is built correctly: assistant content has tool_use block,
-    and a tool_result user turn is appended before the second LLM call."""
+    """Verify the messages list is built in OpenAI shape: the assistant turn
+    carries a sibling tool_calls array, and one role:"tool" message per call is
+    appended before the second gateway call."""
     client, _ = mock_supabase
 
     captured_messages: list[list] = []
@@ -501,12 +514,12 @@ async def test_run_text_turn_tool_messages_appended_correctly(fake_session, mock
         if call_count == 1:
             yield ("tool_call", {
                 "id": "toolu_abc", "name": "mark_status",
-                "input": {"status": "complete"},
+                "input": {"qid": "q4_must_haves", "status": "complete"},
             })
-            yield ("done", {"text": "", "stop_reason": "tool_use"})
+            yield ("done", {"text": "", "stop_reason": "tool_calls"})
         else:
             yield ("text", "All done!")
-            yield ("done", {"text": "All done!", "stop_reason": "end_turn"})
+            yield ("done", {"text": "All done!", "stop_reason": "stop"})
 
     mock_append = AsyncMock(side_effect=[
         {"idx": 0, "role": "user", "content": "done", "modality": "text"},
@@ -521,26 +534,33 @@ async def test_run_text_turn_tool_messages_appended_correctly(fake_session, mock
          patch("app.services.intake.text_runner.ahandle_tool_call", new=mock_tool), \
          patch("app.services.intake.text_runner.coverage_tracker_run", new=AsyncMock()):
         await _collect(run_text_turn(
-            supabase_client=client, anthropic_client=MagicMock(),
+            supabase_client=client, llm=MagicMock(),
             model="x", session_id="sess-1", user_message="done",
         ))
 
     assert call_count == 2
 
-    # Second call's messages should end with:
-    # [..., {"role": "assistant", "content": [{"type": "tool_use", ...}]},
-    #       {"role": "user", "content": [{"type": "tool_result", ...}]}]
+    # Second call's messages end with the OPENAI shape:
+    # [..., {"role": "assistant", "tool_calls": [{"id", "type", "function"}]},
+    #       {"role": "tool", "tool_call_id": ..., "content": ...}]
+    # It was Anthropic content blocks — a tool_use block inside an assistant
+    # content array answered by a user turn of tool_result blocks — which
+    # OpenAI's Chat Completions schema cannot accept at all.
+    import json as _json
+
     msgs_second_call = captured_messages[1]
     second_to_last = msgs_second_call[-2]
     last = msgs_second_call[-1]
 
     assert second_to_last["role"] == "assistant"
-    assistant_content = second_to_last["content"]
-    assert any(b["type"] == "tool_use" and b["id"] == "toolu_abc" for b in assistant_content)
+    calls = second_to_last["tool_calls"]
+    assert [c["id"] for c in calls] == ["toolu_abc"]
+    assert calls[0]["type"] == "function"
+    assert calls[0]["function"]["name"] == "mark_status"
+    # arguments is a JSON STRING, not the decoded dict the event carried.
+    assert isinstance(calls[0]["function"]["arguments"], str)
+    assert _json.loads(calls[0]["function"]["arguments"])["qid"] == "q4_must_haves"
 
-    assert last["role"] == "user"
-    user_content = last["content"]
-    assert any(
-        b["type"] == "tool_result" and b["tool_use_id"] == "toolu_abc"
-        for b in user_content
-    )
+    assert last["role"] == "tool"
+    assert last["tool_call_id"] == "toolu_abc"
+    assert isinstance(last["content"], str)

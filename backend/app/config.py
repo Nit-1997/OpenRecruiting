@@ -181,6 +181,24 @@ class Settings(BaseSettings):
     # (haiku today). Both the guardrail and the parser call use this one alias.
     INTAKE_JD_MODEL: str = "intake-jd"
 
+    # Intake TEXT conversation agent (the streaming tool loop) and the post-turn
+    # coverage tracker it fires. A GATEWAY ALIAS, not a provider model id —
+    # litellm-config.yaml maps it (sonnet today, matching the claude-sonnet-4-6
+    # the router hardcoded before phase 3).
+    #
+    # This alias MUST resolve to a tool-capable model. llm_core.stream_turn emits
+    # no tool_call event on the emulated path, so an alias without native function
+    # calling does not degrade this agent, it disables it — the recruiter's answers
+    # would silently never be persisted and the emulated JSON would be streamed to
+    # them as chat prose. Pinned by
+    # backend/tests/services/intake/test_llm_stream.py.
+    #
+    # Distinct from `voice-intake` even though both drive the same intake persona:
+    # the text path streams through llm_core and the voice path through pipecat
+    # (phase 7), and two aliases let either be repointed at a local model
+    # independently.
+    INTAKE_TEXT_MODEL: str = "intake-text"
+
     # Ask-Anything intent router (browse_roles | intake_call | debrief | out_of_scope).
     # A GATEWAY ALIAS, not a provider model id — litellm-config.yaml maps it.
     ASSISTANT_INTENT_MODEL: str = "route-intent"

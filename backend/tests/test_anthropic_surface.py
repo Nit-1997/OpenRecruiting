@@ -25,12 +25,11 @@ _APP = Path(__file__).resolve().parent.parent / "app"
 # be REMOVED in the same commit that migrates it, so the suite stays green after
 # every task rather than sitting red until the final deletion.
 #
-# debrief_chat.py left this set in Task 3. intake_text_messages.py leaves it in
-# Task 4, at which point the set is empty and Task 6 deletes this whole file
-# along with the factory and the pin.
-_EXPECTED_CLIENT_USERS = {
-    "api/v2/routers/intake_text_messages.py",
-}
+# debrief_chat.py left this set in Task 3; intake_text_messages.py left it in
+# Task 4. The set is now EMPTY — no module outside dependencies.py still takes
+# the Anthropic client. Task 6 deletes the factory, the pin, and this whole file
+# together.
+_EXPECTED_CLIENT_USERS: set[str] = set()
 
 # Modules in backend/app still carrying Anthropic-shaped tool specs. Task 3
 # converted debrief_chat/tool_specs.py, which was the last one — intake-core's

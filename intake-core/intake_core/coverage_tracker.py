@@ -1,7 +1,7 @@
 """Coverage tracker — post-turn LLM backstop (spec section 7).
 
 Runs as an asyncio.create_task after each user turn. Reads current_answers,
-last user turn, and recent context. Calls Sonnet 4.6, parses the patch,
+last user turn, and recent context. Calls the LLM gateway, parses the patch,
 writes via update_current_answers RPC.
 
 Design choices:
@@ -41,13 +41,20 @@ def _is_async_client(client) -> bool:
 
 async def run_coverage_tracker(
     supabase_client,
-    anthropic_client,
+    llm,
     model: str,
     session_id: str,
     last_user_turn: str,
     debounce_ms: int = 200,
 ) -> dict[str, Any]:
     """Run a single coverage tracker pass. Returns {ok, applied, patch?, error?}.
+
+    `llm` is a provider-agnostic client with `.complete(...)` — llm_core.LLMClient
+    in both live callers. The parameter was `anthropic_client` before phase 3, and
+    it was RENAMED rather than repurposed on purpose: passing the wrong client
+    under the old name would have failed as an AttributeError swallowed by the
+    except below, killing this backstop with nothing anywhere to notice. A wrong
+    keyword is a loud TypeError at the call site instead.
 
     Supports both async (SupabaseAdminClient — FastAPI/text path) and sync
     (supabase-py create_client — voice agent path) Supabase clients.
@@ -78,14 +85,17 @@ async def run_coverage_tracker(
     )
 
     try:
-        response = await anthropic_client.messages.create(
+        # `model` is a gateway alias, not a provider model id. No tools are used
+        # here — the tracker asks for JSON in prose and parses it itself — so this
+        # call is unaffected by tool emulation and is safe on any alias.
+        reply = await llm.complete(
             model=model,
             max_tokens=1024,
             temperature=0,
             system=TRACKER_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
         )
-        raw = response.content[0].text
+        raw = reply.text
     except Exception as e:
         logger.warning("tracker_llm_failed", session_id=session_id, error=str(e))
         return {"ok": False, "error": str(e)[:200], "applied": False}

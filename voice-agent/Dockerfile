@@ -28,6 +28,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY intake-core /tmp/intake-core
 RUN pip install --no-cache-dir /tmp/intake-core && rm -rf /tmp/intake-core
 
+# llm-core is the shared gateway client. The intake coverage tracker moved onto
+# it in phase 3, and this container is one of its two callers. The pipecat LLM
+# service is still Anthropic-bound — that is phase 7.
+COPY llm-core /tmp/llm-core
+RUN pip install --no-cache-dir /tmp/llm-core && rm -rf /tmp/llm-core
+
 COPY voice-agent/src/ /app/src/
 
 EXPOSE 8011

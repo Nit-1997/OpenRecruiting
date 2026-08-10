@@ -74,7 +74,7 @@ def test_text_messages_streams_sse_chunks(recruiter_client):
 
     with patch("app.api.v2.routers.intake_text_messages.require_no_other_modality", new=AsyncMock()), \
          patch("app.api.v2.routers.intake_text_messages.run_text_turn", new=fake_gen), \
-         patch("app.api.v2.routers.intake_text_messages.get_anthropic_async_client",
+         patch("app.api.v2.routers.intake_text_messages.get_llm_client",
                return_value=MagicMock()):
         app.dependency_overrides[get_supabase] = lambda: mock_supabase
         try:
@@ -104,7 +104,7 @@ def test_text_messages_returns_409_on_modality_conflict(recruiter_client):
     with patch(
         "app.api.v2.routers.intake_text_messages.require_no_other_modality",
         new=AsyncMock(side_effect=_LockConflict(session_id=session_id, held="voice", requested="text")),
-    ), patch("app.api.v2.routers.intake_text_messages.get_anthropic_async_client",
+    ), patch("app.api.v2.routers.intake_text_messages.get_llm_client",
              return_value=MagicMock()):
         app.dependency_overrides[get_supabase] = lambda: mock_supabase
         try:
@@ -128,7 +128,7 @@ def test_text_messages_returns_404_when_session_not_found(recruiter_client):
     with patch(
         "app.api.v2.routers.intake_text_messages.require_no_other_modality",
         new=AsyncMock(side_effect=LookupError("intake_sessions row not found")),
-    ), patch("app.api.v2.routers.intake_text_messages.get_anthropic_async_client",
+    ), patch("app.api.v2.routers.intake_text_messages.get_llm_client",
              return_value=MagicMock()):
         app.dependency_overrides[get_supabase] = lambda: mock_supabase
         try:
@@ -149,7 +149,7 @@ def test_text_messages_validates_message_non_empty(recruiter_client):
     mock_supabase = MagicMock()
 
     with patch("app.api.v2.routers.intake_text_messages.require_no_other_modality", new=AsyncMock()), \
-         patch("app.api.v2.routers.intake_text_messages.get_anthropic_async_client",
+         patch("app.api.v2.routers.intake_text_messages.get_llm_client",
                return_value=MagicMock()):
         app.dependency_overrides[get_supabase] = lambda: mock_supabase
         try:

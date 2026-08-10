@@ -1,6 +1,6 @@
 """Text agent loop for v2 intake.
 
-Streams an Anthropic Sonnet turn back to the caller as a tagged event iterator,
+Streams one assistant turn back to the caller through the LLM gateway as a tagged event iterator,
 while:
   - locking the session to text modality
   - persisting user + assistant turns
@@ -14,6 +14,7 @@ intake-core primitives (persistence, prompts.builder, tools, coverage_tracker).
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, AsyncIterator
 
 import structlog
@@ -21,14 +22,31 @@ import structlog
 from intake_core.coverage_tracker import run_coverage_tracker as coverage_tracker_run
 from intake_core.persistence import aload_session
 from intake_core.prompts.builder import build_dynamic_prompt
-from intake_core.tools import INTAKE_TOOLS_ANTHROPIC, ahandle_tool_call
+from intake_core.tools import INTAKE_TOOLS_OPENAI, ahandle_tool_call
 
-from app.services.intake.anthropic_stream import stream_llm_turn
+from app.services.intake.llm_stream import stream_llm_turn
 from app.services.intake.turn_writer import append_turn_for_session
 
 logger = structlog.get_logger(__name__)
 
 _MAX_TOOL_ITERATIONS = 5
+
+# What each tool must carry to be a real call. A truncated argument buffer arrives
+# as input={} (llm_core client.py:436-449). intake-core would refuse it as
+# "unknown qid: None", which is safe — but the refusal is unnamed, unlogged, and
+# the call was still recorded on the assistant turn as though it had worked.
+_REQUIRED_ARGS = {
+    spec["function"]["name"]: frozenset(
+        spec["function"]["parameters"].get("required") or []
+    )
+    for spec in INTAKE_TOOLS_OPENAI
+}
+
+
+def _missing_args(tool_call: dict[str, Any]) -> frozenset[str]:
+    supplied = set((tool_call.get("input") or {}).keys())
+    return _REQUIRED_ARGS.get(tool_call.get("name"), frozenset()) - supplied
+
 
 # Strong references to in-flight fire-and-forget coverage tasks. CPython only
 # keeps a weak reference to a pending asyncio.Task, so without this set the GC
@@ -71,8 +89,8 @@ class ModalityConflictError(RuntimeError):
     """Raised when a text turn is attempted while voice is the active modality."""
 
 
-def _format_turns_for_anthropic(turns: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """Convert stored turns into Anthropic messages format.
+def _format_turns_for_llm(turns: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Convert stored turns into gateway messages format.
 
     Tool call rounds collapse to plain user/assistant messages — the LLM doesn't
     replay its own tool calls; tool side-effects are persisted out-of-band in
@@ -89,7 +107,7 @@ def _format_turns_for_anthropic(turns: list[dict[str, Any]]) -> list[dict[str, s
 
 async def run_text_opening(
     supabase_client,
-    anthropic_client,
+    llm,
     model: str,
     session_id: str,
 ) -> AsyncIterator[tuple[str, Any]]:
@@ -120,7 +138,7 @@ async def run_text_opening(
         )
 
     turns = session.get("turns") or []
-    prior = _format_turns_for_anthropic(turns)
+    prior = _format_turns_for_llm(turns)
 
     # Floor rule: the agent speaks only when it owes a reply. If the last
     # meaningful turn is the agent's, the recruiter has the floor — stay silent.
@@ -154,7 +172,7 @@ async def run_text_opening(
     text_parts: list[str] = []
     final_stop_reason: str | None = None
     async for kind, payload in stream_llm_turn(
-        client=anthropic_client,
+        llm=llm,
         model=model,
         system=system_prompt,
         messages=messages,
@@ -183,7 +201,7 @@ async def run_text_opening(
 
 async def run_text_turn(
     supabase_client,
-    anthropic_client,
+    llm,
     model: str,
     session_id: str,
     user_message: str,
@@ -233,7 +251,7 @@ async def run_text_turn(
     # streaming, but is referenced + error-logged via _spawn_coverage_task).
     _spawn_coverage_task(
         supabase_client=supabase_client,
-        anthropic_client=anthropic_client,
+        llm=llm,
         model=model,
         session_id=session_id,
         last_user_turn=user_message,
@@ -243,7 +261,7 @@ async def run_text_turn(
     fresh_session = await aload_session(supabase_client, session_id)
 
     system_prompt = build_dynamic_prompt(fresh_session)
-    messages = _format_turns_for_anthropic(fresh_session.get("turns") or [])
+    messages = _format_turns_for_llm(fresh_session.get("turns") or [])
 
     # Accumulate text across all loop iterations (user sees one combined stream)
     all_text_parts: list[str] = []
@@ -255,11 +273,11 @@ async def run_text_turn(
         iteration_tool_calls: list[dict[str, Any]] = []
 
         async for kind, payload in stream_llm_turn(
-            client=anthropic_client,
+            llm=llm,
             model=model,
             system=system_prompt,
             messages=messages,
-            tools=INTAKE_TOOLS_ANTHROPIC,
+            tools=INTAKE_TOOLS_OPENAI,
         ):
             if kind == "text":
                 iteration_text_parts.append(payload)
@@ -271,24 +289,39 @@ async def run_text_turn(
                 final_stop_reason = payload.get("stop_reason")
 
         # Build the assistant content block list for history
-        assistant_content: list[dict[str, Any]] = []
-        if iteration_text_parts:
-            assistant_content.append({
-                "type": "text",
-                "text": "".join(iteration_text_parts),
-            })
-        for tc in iteration_tool_calls:
-            assistant_content.append({
-                "type": "tool_use",
-                "id": tc["id"],
-                "name": tc["name"],
-                "input": tc.get("input", {}),
-            })
+        # OpenAI-shaped assistant turn: `content` is a STRING, the calls live in a
+        # sibling `tool_calls` array, and `arguments` is a JSON string rather than
+        # the decoded dict the tool_call event carried. Both empty forms are
+        # omitted rather than sent as null / [] — some providers behind the
+        # gateway reject them.
+        assistant: dict[str, Any] = {"role": "assistant"}
+        iteration_text = "".join(iteration_text_parts)
+        if iteration_text or not iteration_tool_calls:
+            assistant["content"] = iteration_text
+        if iteration_tool_calls:
+            assistant["tool_calls"] = [
+                {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": json.dumps(tc.get("input") or {}),
+                    },
+                }
+                for tc in iteration_tool_calls
+            ]
+        messages.append(assistant)
 
-        messages.append({"role": "assistant", "content": assistant_content})
-
-        if final_stop_reason != "tool_use":
-            # Terminal stop — exit the loop
+        # The loop is driven by WHETHER CALLS ARRIVED, not by a stop_reason string.
+        # This was `if final_stop_reason != "tool_use": break`, and stream_turn
+        # passes the provider's finish_reason through untouched — so the value is
+        # "tool_calls" here, and None from a gateway that never sends one. The
+        # comparison failed on the first tool-using turn and the loop exited after
+        # one iteration having executed nothing, with no error. Correcting the
+        # string would leave the same class of bug in place; the presence of calls
+        # is what this loop actually depends on. final_stop_reason is still
+        # reported in the `done` payload.
+        if not iteration_tool_calls:
             break
 
         if iteration == _MAX_TOOL_ITERATIONS - 1:
@@ -296,13 +329,39 @@ async def run_text_turn(
                 "tool_use_loop_guard_hit",
                 session_id=session_id,
                 iterations=_MAX_TOOL_ITERATIONS,
+                stop_reason=final_stop_reason,
             )
             break
 
-        # Execute tool calls, collect results, append tool_result turn
-        tool_results_content: list[dict[str, Any]] = []
+        # One {"role": "tool"} message PER CALL, each naming the id it answers.
+        # Every entry in the assistant turn's tool_calls must be answered before
+        # the next assistant turn or the gateway 400s. This was a single
+        # {"role": "user"} message holding every tool_result block, which OpenAI's
+        # schema cannot accept at all.
         for tc in iteration_tool_calls:
             tool_name = tc.get("name")
+            missing = _missing_args(tc)
+            if missing:
+                # A degraded call is not dispatched, is not yielded to the caller,
+                # and is NOT recorded on the assistant turn — recording it would
+                # make a call that did nothing indistinguishable from one that
+                # worked. Naming the absent properties lets the model retry.
+                logger.warning(
+                    "intake_tool_arguments_incomplete",
+                    session_id=session_id,
+                    name=tool_name,
+                    missing=sorted(missing),
+                )
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": (
+                        "that call was missing required properties: "
+                        f"{', '.join(sorted(missing))}"
+                    ),
+                })
+                continue
+
             try:
                 result = await ahandle_tool_call(
                     supabase_client=supabase_client,
@@ -310,16 +369,7 @@ async def run_text_turn(
                     tool_call=tc,
                     turn_idx=user_turn["idx"],
                 )
-                all_tool_calls.append({
-                    "name": tool_name,
-                    "args": tc.get("input", {}),
-                })
-                yield ("tool_call", tc)
-                tool_results_content.append({
-                    "type": "tool_result",
-                    "tool_use_id": tc["id"],
-                    "content": str(result) if result is not None else "ok",
-                })
+                content = str(result) if result is not None else "ok"
             except Exception as e:
                 logger.warning(
                     "tool_call_failed",
@@ -327,20 +377,14 @@ async def run_text_turn(
                     name=tool_name,
                     error=str(e),
                 )
-                all_tool_calls.append({
-                    "name": tool_name,
-                    "args": tc.get("input", {}),
-                })
-                yield ("tool_call", tc)
-                tool_results_content.append({
-                    "type": "tool_result",
-                    "tool_use_id": tc["id"],
-                    "content": f"error: {e}",
-                    "is_error": True,
-                })
+                content = f"error: {e}"
 
-        messages.append({"role": "user", "content": tool_results_content})
-        # Continue to next iteration — LLM generates follow-up
+            all_tool_calls.append({"name": tool_name, "args": tc.get("input") or {}})
+            yield ("tool_call", tc)
+            messages.append(
+                {"role": "tool", "tool_call_id": tc["id"], "content": content}
+            )
+        # Continue to next iteration — the model generates its follow-up
 
     final_text = "".join(all_text_parts)
     assistant_turn = await append_turn_for_session(

@@ -31,7 +31,8 @@ from app.api.v2.core.dependencies import (
     get_current_user_with_org,
     get_supabase,
 )
-from app.dependencies import get_anthropic_async_client
+from app.config import get_settings
+from app.dependencies import get_llm_client
 from app.services.intake.text_runner import (
     ModalityConflictError,
     run_text_opening,
@@ -43,7 +44,6 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/intake/sessions", tags=["v2/intake-text"])
 
-ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
 
 class TextMessageRequest(BaseModel):
@@ -64,15 +64,15 @@ def _sse_event(event: str, data: object) -> str:
 
 async def _sse_stream(
     supabase_client,
-    anthropic_client,
+    llm,
     session_id: str,
     user_message: str,
 ) -> AsyncIterator[str]:
     try:
         async for kind, payload in run_text_turn(
             supabase_client=supabase_client,
-            anthropic_client=anthropic_client,
-            model=ANTHROPIC_MODEL,
+            llm=llm,
+            model=get_settings().INTAKE_TEXT_MODEL,
             session_id=session_id,
             user_message=user_message,
         ):
@@ -98,7 +98,7 @@ async def post_text_message(
     payload: TextMessageRequest,
     current: CurrentUserWithOrg = Depends(get_current_user_with_org),
     supabase=Depends(get_supabase),
-    anthropic=Depends(get_anthropic_async_client),
+    llm=Depends(get_llm_client),
 ):
     """Stream the agent's response to a user text turn.
 
@@ -143,7 +143,7 @@ async def post_text_message(
     return StreamingResponse(
         _sse_stream(
             supabase_client=supabase,
-            anthropic_client=anthropic,
+            llm=llm,
             session_id=str(session_id),
             user_message=payload.message,
         ),
@@ -157,14 +157,14 @@ async def post_text_message(
 
 async def _sse_opening_stream(
     supabase_client,
-    anthropic_client,
+    llm,
     session_id: str,
 ) -> AsyncIterator[str]:
     try:
         async for kind, payload in run_text_opening(
             supabase_client=supabase_client,
-            anthropic_client=anthropic_client,
-            model=ANTHROPIC_MODEL,
+            llm=llm,
+            model=get_settings().INTAKE_TEXT_MODEL,
             session_id=session_id,
         ):
             if kind == "text":
@@ -183,7 +183,7 @@ async def post_text_opening(
     session_id: UUID,
     current: CurrentUserWithOrg = Depends(get_current_user_with_org),
     supabase=Depends(get_supabase),
-    anthropic=Depends(get_anthropic_async_client),
+    llm=Depends(get_llm_client),
 ):
     """Stream the agent's proactive opening greeting for a text session.
 
@@ -209,7 +209,7 @@ async def post_text_opening(
     return StreamingResponse(
         _sse_opening_stream(
             supabase_client=supabase,
-            anthropic_client=anthropic,
+            llm=llm,
             session_id=str(session_id),
         ),
         media_type="text/event-stream",

@@ -8,14 +8,14 @@ from intake_core.coverage_tracker import run_coverage_tracker, _is_async_client
 
 
 @pytest.mark.asyncio
-async def test_runner_calls_anthropic_and_applies_patch():
+async def test_runner_calls_the_gateway_and_applies_patch():
     mock_sb = MagicMock()
     mock_sb.rpc = AsyncMock()  # async client → uses aload_session / aupdate_current_answers
-    mock_anthropic = AsyncMock()
-    mock_anthropic.messages.create.return_value = MagicMock(
-        content=[MagicMock(text=json.dumps({
+    mock_llm = AsyncMock()
+    mock_llm.complete.return_value = MagicMock(
+        text=(json.dumps({
             "q4_must_haves": {"status": "discussed", "extraction_confidence": "high", "text": "Python"}
-        }))]
+        }))
     )
     session_row = {
         "id": "sess-1",
@@ -26,13 +26,13 @@ async def test_runner_calls_anthropic_and_applies_patch():
          patch("intake_core.coverage_tracker.aupdate_current_answers", new=AsyncMock()) as mock_update:
         result = await run_coverage_tracker(
             supabase_client=mock_sb,
-            anthropic_client=mock_anthropic,
+            llm=mock_llm,
             model="claude-sonnet-4-6",
             session_id="sess-1",
             last_user_turn="Python is the must-have",
         )
     assert result["ok"] is True
-    mock_anthropic.messages.create.assert_called_once()
+    mock_llm.complete.assert_called_once()
     mock_update.assert_called_once()
     call = mock_update.call_args
     patch_arg = call[0][2]
@@ -43,12 +43,12 @@ async def test_runner_calls_anthropic_and_applies_patch():
 async def test_runner_skips_apply_on_empty_patch():
     mock_sb = MagicMock()
     mock_sb.rpc = AsyncMock()
-    mock_anthropic = AsyncMock()
-    mock_anthropic.messages.create.return_value = MagicMock(content=[MagicMock(text="{}")])
+    mock_llm = AsyncMock()
+    mock_llm.complete.return_value = MagicMock(text="{}")
     with patch("intake_core.coverage_tracker.aload_session", new=AsyncMock(return_value={"id": "s", "current_answers": {}, "turns": []})), \
          patch("intake_core.coverage_tracker.aupdate_current_answers", new=AsyncMock()) as mock_update:
         result = await run_coverage_tracker(
-            supabase_client=mock_sb, anthropic_client=mock_anthropic,
+            supabase_client=mock_sb, llm=mock_llm,
             model="x", session_id="s", last_user_turn="hello",
         )
     assert result["ok"] is True
@@ -61,15 +61,15 @@ async def test_runner_swallows_llm_failure():
     """A tracker failure must never crash the caller (fire-and-forget)."""
     mock_sb = MagicMock()
     mock_sb.rpc = AsyncMock()
-    mock_anthropic = AsyncMock()
-    mock_anthropic.messages.create.side_effect = Exception("anthropic down")
+    mock_llm = AsyncMock()
+    mock_llm.complete.side_effect = Exception("gateway down")
     with patch("intake_core.coverage_tracker.aload_session", new=AsyncMock(return_value={"id": "s", "current_answers": {}, "turns": []})):
         result = await run_coverage_tracker(
-            supabase_client=mock_sb, anthropic_client=mock_anthropic,
+            supabase_client=mock_sb, llm=mock_llm,
             model="x", session_id="s", last_user_turn="hi",
         )
     assert result["ok"] is False
-    assert "anthropic down" in result["error"]
+    assert "gateway down" in result["error"]
 
 
 @pytest.mark.asyncio
@@ -79,14 +79,14 @@ async def test_runner_does_not_overwrite_agent_writes():
     Tracker just emits the patch; merge_answers handles deep merge."""
     mock_sb = MagicMock()
     mock_sb.rpc = AsyncMock()
-    mock_anthropic = AsyncMock()
-    mock_anthropic.messages.create.return_value = MagicMock(
-        content=[MagicMock(text=json.dumps({"q4_must_haves": {"status": "discussed"}}))]
+    mock_llm = AsyncMock()
+    mock_llm.complete.return_value = MagicMock(
+        text=(json.dumps({"q4_must_haves": {"status": "discussed"}}))
     )
     with patch("intake_core.coverage_tracker.aload_session", new=AsyncMock(return_value={"id": "s", "current_answers": {}, "turns": []})), \
          patch("intake_core.coverage_tracker.aupdate_current_answers", new=AsyncMock()) as mock_update:
         result = await run_coverage_tracker(
-            supabase_client=mock_sb, anthropic_client=mock_anthropic,
+            supabase_client=mock_sb, llm=mock_llm,
             model="x", session_id="s", last_user_turn="hi",
         )
     assert result["ok"] is True
@@ -128,11 +128,11 @@ async def test_runner_sync_client_applies_patch():
     sync_sb = MagicMock()
     sync_sb.rpc = MagicMock()  # sync rpc → _is_async_client returns False
 
-    mock_anthropic = AsyncMock()
-    mock_anthropic.messages.create.return_value = MagicMock(
-        content=[MagicMock(text=json.dumps({
+    mock_llm = AsyncMock()
+    mock_llm.complete.return_value = MagicMock(
+        text=(json.dumps({
             "q4_must_haves": {"status": "discussed", "extraction_confidence": "high", "text": "Python"}
-        }))]
+        }))
     )
     session_row = {
         "id": "sess-voice-1",
@@ -144,7 +144,7 @@ async def test_runner_sync_client_applies_patch():
          patch("intake_core.coverage_tracker.update_current_answers") as mock_update:
         result = await run_coverage_tracker(
             supabase_client=sync_sb,
-            anthropic_client=mock_anthropic,
+            llm=mock_llm,
             model="claude-sonnet-4-6",
             session_id="sess-voice-1",
             last_user_turn="Python is the must-have",
@@ -168,7 +168,7 @@ async def test_runner_sync_client_load_failure_is_swallowed():
     with patch("intake_core.coverage_tracker.load_session", side_effect=Exception("db timeout")):
         result = await run_coverage_tracker(
             supabase_client=sync_sb,
-            anthropic_client=AsyncMock(),
+            llm=AsyncMock(),
             model="x",
             session_id="s",
             last_user_turn="hi",
@@ -186,14 +186,14 @@ async def test_runner_sync_client_skips_apply_on_empty_patch():
     sync_sb = MagicMock()
     sync_sb.rpc = MagicMock()
 
-    mock_anthropic = AsyncMock()
-    mock_anthropic.messages.create.return_value = MagicMock(content=[MagicMock(text="{}")])
+    mock_llm = AsyncMock()
+    mock_llm.complete.return_value = MagicMock(text="{}")
 
     with patch("intake_core.coverage_tracker.load_session", return_value={"id": "s", "current_answers": {}, "turns": []}), \
          patch("intake_core.coverage_tracker.update_current_answers") as mock_update:
         result = await run_coverage_tracker(
             supabase_client=sync_sb,
-            anthropic_client=mock_anthropic,
+            llm=mock_llm,
             model="x",
             session_id="s",
             last_user_turn="hi",
