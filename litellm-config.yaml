@@ -35,6 +35,29 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
+  # The backend's TEXT intake turn loop, phase 3's main streaming site. Its model
+  # id is hardcoded at backend/app/api/v2/routers/intake_text_messages.py
+  # (claude-sonnet-4-6), and that one variable feeds BOTH the streamed turn and
+  # the coverage tracker spawned beside it, so both move onto this alias together.
+  # Distinct from voice-intake on purpose: same job, different transport, and
+  # tying them together would mean a voice tuning change silently re-tiers text.
+  - model_name: intake-text
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  # workers/intake-context-builder parse_jd. SONNET — settings.py reads
+  # ANTHROPIC_MODEL_SONNET (claude-sonnet-4-6). It must NOT reuse `intake-jd`,
+  # which is HAIKU and belongs to the backend's JD extract: that swap would look
+  # like a tidy-up and would quietly re-tier a sonnet workload onto haiku, which
+  # is exactly what this file's header forbids. Sibling of context-synthesize.
+  - model_name: context-parse-jd
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
   - model_name: screening-generator
     litellm_params:
       model: anthropic/claude-sonnet-5
