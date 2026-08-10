@@ -181,8 +181,9 @@ class Settings(BaseSettings):
     # (haiku today). Both the guardrail and the parser call use this one alias.
     INTAKE_JD_MODEL: str = "intake-jd"
 
-    # Ask-Anything intent router (browse_roles | intake_call | out_of_scope). Sonnet.
-    ASSISTANT_INTENT_MODEL: str = "claude-sonnet-4-6"
+    # Ask-Anything intent router (browse_roles | intake_call | debrief | out_of_scope).
+    # A GATEWAY ALIAS, not a provider model id — litellm-config.yaml maps it.
+    ASSISTANT_INTENT_MODEL: str = "route-intent"
 
     # Screening agent question generator (title/prompt/probe/signal/dimension). Sonnet.
     SCREENING_GENERATOR_MODEL: str = "claude-sonnet-4-6"

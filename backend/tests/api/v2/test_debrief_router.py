@@ -3,8 +3,8 @@
 Auth comes from the conftest `recruiter_client` / `unauthed_client` fixtures.
 Supabase is mocked via respx (rest_url / rpc_url). The Cortex skill HTTP call is
 mocked by patching CortexDebriefClient.generate so no network fires. The intent
-test patches the Anthropic client via app.dependency_overrides (mirrors
-test_assistant_route_api.py).
+test replaces the gateway client with llm-core's FakeLLM via
+app.dependency_overrides (mirrors test_assistant_route_api.py).
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 import app.api.v2.routers.debrief as debrief_router
-from app.dependencies import get_anthropic_async_client
+from app.dependencies import get_llm_client
 from app.main import app
 from tests.helpers.mock_data import ORG_ID, REQ_ID, RECRUITER_USER_ID
 from tests.helpers.supabase_mocks import rest_url, rpc_url
@@ -334,32 +334,9 @@ def test_save_409_when_generating(recruiter_client, respx_mock):
 # ---------------------------------------------------------------------------
 # Intent classification
 # ---------------------------------------------------------------------------
-class _FakeBlock:
-    type = "tool_use"
-    name = "emit_route"
-
-    def __init__(self, intent):
-        self.input = {"intent": intent}
-
-
-class _FakeMsg:
-    def __init__(self, blocks):
-        self.content = blocks
-
-
-def _client_emitting(intent):
-    class _Messages:
-        async def create(self, **kw):
-            return _FakeMsg([_FakeBlock(intent)])
-
-    class _Client:
-        messages = _Messages()
-
-    return _Client()
-
-
-def test_intent_classifies_debrief(recruiter_client):
-    app.dependency_overrides[get_anthropic_async_client] = lambda: _client_emitting("debrief")
+def test_intent_classifies_debrief(recruiter_client, fake_llm):
+    fake_llm.queue_tool_call("emit_route", {"intent": "debrief"})
+    app.dependency_overrides[get_llm_client] = lambda: fake_llm
     resp = recruiter_client.post(
         f"{V2_ROOT}/assistant/route", json={"text": "debrief the PM finalists"}
     )
