@@ -228,3 +228,80 @@ async def test_set_persona_writes_snapshot():
     assert call["patch"]["persona_id"] == "persona-1"
     assert call["patch"]["persona_snapshot"] == snapshot
     assert ("round_id", "round-abc") in call["filters"]
+
+
+# --------------------------------------------------------------------------- #
+# _call_llm — the single LLM seam. Every test above mocks it; these test its body.
+# --------------------------------------------------------------------------- #
+import structlog  # noqa: E402
+from llm_core.errors import LLMError  # noqa: E402
+
+import app.api.v2.services.screening_question_generator as generator_module  # noqa: E402
+
+FORCED = {"type": "function", "function": {"name": "emit_screening_questions"}}
+
+
+@pytest.mark.asyncio
+async def test_call_llm_returns_the_tool_arguments(fake_llm, monkeypatch):
+    monkeypatch.setattr(generator_module, "get_llm_client", lambda: fake_llm)
+    payload = {"questions": [{"title": "Incident", "prompt": "Tell me about one."}]}
+    fake_llm.queue_tool_call("emit_screening_questions", payload)
+
+    out = await ScreeningQuestionGenerator()._call_llm("some prompt")
+
+    assert out == payload
+
+
+@pytest.mark.asyncio
+async def test_call_llm_returns_empty_questions_without_a_tool_call(fake_llm, monkeypatch):
+    """Defence in depth behind the forced tool: generate() must get an empty
+    list rather than an exception, and the event must be visible."""
+    monkeypatch.setattr(generator_module, "get_llm_client", lambda: fake_llm)
+    fake_llm.queue_text("Here are some ideas...")
+
+    with structlog.testing.capture_logs() as logs:
+        out = await ScreeningQuestionGenerator()._call_llm("some prompt")
+
+    assert out == {"questions": []}
+    assert [e["event"] for e in logs] == ["screening_questions_no_tool_call"]
+
+
+@pytest.mark.asyncio
+async def test_call_llm_returns_empty_questions_on_a_truncated_call(fake_llm, monkeypatch):
+    """A call that exists and is named correctly but whose argument JSON was cut
+    off arrives as arguments={}. tool_call_named cannot see it, so the `or`
+    fallback is what keeps generate() from a KeyError on "questions"."""
+    monkeypatch.setattr(generator_module, "get_llm_client", lambda: fake_llm)
+    fake_llm.queue_tool_call("emit_screening_questions", {})
+
+    out = await ScreeningQuestionGenerator()._call_llm("some prompt")
+
+    assert out == {"questions": []}
+
+
+@pytest.mark.asyncio
+async def test_generate_returns_empty_list_on_gateway_error(fake_llm, monkeypatch):
+    monkeypatch.setattr(generator_module, "get_llm_client", lambda: fake_llm)
+    fake_llm.queue_error(LLMError("gateway 429", alias="screening-generator", status=429))
+
+    questions = await ScreeningQuestionGenerator().generate(
+        role_context="PM", must_haves=[], cortex_gaps=[], preferences=None
+    )
+
+    assert questions == []
+
+
+@pytest.mark.asyncio
+async def test_call_llm_sends_the_alias_and_a_forced_openai_tool(fake_llm, monkeypatch):
+    monkeypatch.setattr(generator_module, "get_llm_client", lambda: fake_llm)
+    fake_llm.queue_tool_call("emit_screening_questions", {"questions": []})
+
+    await ScreeningQuestionGenerator()._call_llm("some prompt")
+
+    call = fake_llm.calls[0]
+    assert call["model"] == "screening-generator"   # was "claude-sonnet-4-6"
+    assert call["max_tokens"] == 2000
+    assert call["tool_choice"] == FORCED
+    assert call["tools"][0]["type"] == "function"
+    assert call["tools"][0]["function"]["name"] == "emit_screening_questions"
+    assert call["messages"] == [{"role": "user", "content": "some prompt"}]

@@ -185,8 +185,10 @@ class Settings(BaseSettings):
     # A GATEWAY ALIAS, not a provider model id — litellm-config.yaml maps it.
     ASSISTANT_INTENT_MODEL: str = "route-intent"
 
-    # Screening agent question generator (title/prompt/probe/signal/dimension). Sonnet.
-    SCREENING_GENERATOR_MODEL: str = "claude-sonnet-4-6"
+    # Screening agent question generator (title/prompt/probe/signal/dimension).
+    # A GATEWAY ALIAS, not a provider model id — litellm-config.yaml maps it.
+    # Sole reader since PERSONA_REDUCE_MODEL below was split out.
+    SCREENING_GENERATOR_MODEL: str = "screening-generator"
 
     # Screening persona reduce: synthesizes the org's real interviewer style into
     # persona dimensions. A GATEWAY ALIAS, not a provider model id.

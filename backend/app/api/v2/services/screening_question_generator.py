@@ -4,9 +4,9 @@ Mirrors the intake Lambda's question style (workers/intake-agent/
 src/prompts/scorecard.py): each question carries title / prompt / probe / signal
 / dimension / duration_minutes. The recruiter edits the result before saving.
 
-`_call_llm` is the single seam that touches the real Anthropic helper, so tests
-can monkeypatch it. It uses the tool-use forced-call pattern (same as the JD
-parser) to get structured JSON back without markdown-fence parsing.
+`_call_llm` is the single seam that touches the LLM gateway, so tests can
+monkeypatch it. It uses the tool-use forced-call pattern (same as the JD parser)
+to get structured JSON back without markdown-fence parsing.
 
 The persona text is reused from intake-core rather than re-stated here, so the
 generator and the runtime voice agent stay anchored to the same persona.
@@ -21,57 +21,62 @@ from intake_core.screening.persona import GENERIC_SCREENING_PERSONA
 
 from app.api.v2.schemas.screening import ScreeningQuestion
 from app.config import get_settings
-from app.dependencies import get_anthropic_async_client
+from app.dependencies import get_llm_client
 
 logger = structlog.get_logger(__name__)
 
+_FORCE_TOOL = {"type": "function", "function": {"name": "emit_screening_questions"}}
+
 _TOOL = {
-    "name": "emit_screening_questions",
-    "description": (
-        "Emit 3-5 voice-screening questions for the role. Each question is a single "
-        "conversational opener the interviewer reads aloud, plus a follow-up probe and "
-        "the signal/dimension it targets."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "questions": {
-                "type": "array",
-                "minItems": 3,
-                "maxItems": 5,
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "title": {
-                            "type": "string",
-                            "description": "Short label for the question (2-5 words).",
+    "type": "function",
+    "function": {
+        "name": "emit_screening_questions",
+        "description": (
+            "Emit 3-5 voice-screening questions for the role. Each question is a single "
+            "conversational opener the interviewer reads aloud, plus a follow-up probe and "
+            "the signal/dimension it targets."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "questions": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 5,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Short label for the question (2-5 words).",
+                            },
+                            "prompt": {
+                                "type": "string",
+                                "description": "The open question the interviewer asks aloud.",
+                            },
+                            "probe": {
+                                "type": "string",
+                                "description": "One follow-up to dig a layer deeper if the answer is thin.",
+                            },
+                            "signal": {
+                                "type": "string",
+                                "description": "What this question evaluates (e.g. EXECUTION, DEPTH, OWNERSHIP).",
+                            },
+                            "dimension": {
+                                "type": "string",
+                                "description": "The competency/area the question maps to.",
+                            },
+                            "duration_minutes": {
+                                "type": "integer",
+                                "description": "Rough minutes to spend on this question (3-8).",
+                            },
                         },
-                        "prompt": {
-                            "type": "string",
-                            "description": "The open question the interviewer asks aloud.",
-                        },
-                        "probe": {
-                            "type": "string",
-                            "description": "One follow-up to dig a layer deeper if the answer is thin.",
-                        },
-                        "signal": {
-                            "type": "string",
-                            "description": "What this question evaluates (e.g. EXECUTION, DEPTH, OWNERSHIP).",
-                        },
-                        "dimension": {
-                            "type": "string",
-                            "description": "The competency/area the question maps to.",
-                        },
-                        "duration_minutes": {
-                            "type": "integer",
-                            "description": "Rough minutes to spend on this question (3-8).",
-                        },
+                        "required": ["title", "prompt"],
                     },
-                    "required": ["title", "prompt"],
-                },
-            }
+                }
+            },
+            "required": ["questions"],
         },
-        "required": ["questions"],
     },
 }
 
@@ -130,22 +135,28 @@ Respond ONLY by calling emit_screening_questions."""
     async def _call_llm(self, prompt: str) -> dict[str, Any]:
         """Single LLM seam. Forces the emit_screening_questions tool call and
         returns its parsed input dict (`{"questions": [...]}`)."""
-        client = get_anthropic_async_client()
+        llm = get_llm_client()
         model = get_settings().SCREENING_GENERATOR_MODEL
-        msg = await client.messages.create(
+        reply = await llm.complete(
             model=model,
             max_tokens=2000,
             tools=[_TOOL],
-            tool_choice={"type": "tool", "name": "emit_screening_questions"},
+            tool_choice=_FORCE_TOOL,
             messages=[{"role": "user", "content": prompt}],
         )
-        for block in getattr(msg, "content", []) or []:
-            if (
-                getattr(block, "type", None) == "tool_use"
-                and getattr(block, "name", None) == "emit_screening_questions"
-            ):
-                return getattr(block, "input", {}) or {}
-        return {"questions": []}
+        call = reply.tool_call_named("emit_screening_questions")
+        if call is None:
+            # Defence in depth behind the forced tool: a prose reply, or one
+            # naming another tool. generate() reads {"questions": []} as "the
+            # model produced nothing" and falls back, which is also what a
+            # truncated call arrives as — so the two are separated in the log.
+            logger.warning(
+                "screening_questions_no_tool_call",
+                alias=model,
+                finish_reason=reply.finish_reason,
+            )
+            return {"questions": []}
+        return call.arguments or {"questions": []}
 
     async def generate(
         self,
