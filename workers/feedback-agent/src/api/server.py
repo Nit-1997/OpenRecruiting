@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 load_dotenv(project_root / ".env")
 
 import requests
+
+from src.config import get_settings
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -269,29 +271,39 @@ def extract_speakers(chunks, candidate_name: str) -> tuple[str, str]:
 
 
 def call_sonnet(prompt: str) -> str:
-    api_key = os.environ.get("LLM_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY not set")
+    """Blocking gateway call for this module's nine topic-mapping routes.
+
+    A SECOND egress path, separate from src/clients/llm.py, which the spec's
+    per-service table never mentioned — it hardcoded claude-sonnet-4-6 and read
+    ANTHROPIC_API_KEY directly. It is kept rather than deleted: nothing in either
+    Dockerfile runs this module (the compose image runs app:app, the Lambda runs
+    production.handler.handler), but src/ui/topic_mapper.py documents
+    `uvicorn src.api.server:app` as a developer entry point, so it is a working
+    tool. Migrating it costs nothing and removes the last provider egress from
+    this worker; deleting a dev tool is a separate decision for its owner.
+    """
+    settings = get_settings()
+    if not settings.litellm_master_key:
+        raise ValueError("LITELLM_MASTER_KEY not set")
 
     headers = {
-        "x-api-key": api_key,
+        "authorization": f"Bearer {settings.litellm_master_key}",
         "content-type": "application/json",
-        "anthropic-version": "2023-06-01",
     }
     payload = {
-        "model": "claude-sonnet-4-6",
+        "model": settings.llm_model_sonnet,
         "max_tokens": 4096,
         "temperature": 0,
         "messages": [{"role": "user", "content": prompt}],
     }
     response = requests.post(
-        "https://api.anthropic.com/v1/messages",
+        f"{settings.llm_gateway_url}/v1/chat/completions",
         headers=headers,
         json=payload,
         timeout=120,
     )
     response.raise_for_status()
-    return response.json()["content"][0]["text"]
+    return response.json()["choices"][0]["message"].get("content") or ""
 
 
 def parse_json_response(response: str) -> dict:

@@ -1,6 +1,6 @@
 import json
 
-from src.clients.anthropic import AnthropicClient
+from src.clients.llm import LLMGatewayClient
 from src.logging import get_logger
 from src.models import TopicInput
 from src.parsers import parse_json_response
@@ -14,7 +14,7 @@ class FeedbackPipeline:
         self,
         transcript: str,
         topics: list[TopicInput],
-        client: AnthropicClient | None = None,
+        client: LLMGatewayClient | None = None,
     ) -> dict:
         topics_for_prompt = []
         topics_lookup = {}
@@ -48,7 +48,7 @@ class FeedbackPipeline:
         if client:
             extract_response = await client.call_sonnet(extract_prompt)
         else:
-            async with AnthropicClient() as c:
+            async with LLMGatewayClient() as c:
                 extract_response = await c.call_sonnet(extract_prompt)
 
         extract_result = parse_json_response(extract_response)
@@ -106,7 +106,7 @@ class FeedbackPipeline:
                 if client:
                     condense_response = await client.call_sonnet(condense_prompt)
                 else:
-                    async with AnthropicClient() as c:
+                    async with LLMGatewayClient() as c:
                         condense_response = await c.call_sonnet(condense_prompt)
 
                 condense_result = parse_json_response(condense_response)

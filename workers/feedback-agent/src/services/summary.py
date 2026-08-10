@@ -1,6 +1,6 @@
 import asyncio
 
-from src.clients.anthropic import AnthropicClient
+from src.clients.llm import LLMGatewayClient
 from src.logging import get_logger
 from src.models import FeedbackItem, JudgedFeedbackItem, QuestionSummary, SummaryResult
 from src.parsers import parse_json_response
@@ -20,7 +20,7 @@ class SummaryService:
             item for item in judged_feedback if item.topic_id != "T_OVERALL"
         ]
 
-        async with AnthropicClient() as client:
+        async with LLMGatewayClient() as client:
             coroutines = [
                 self._generate_question_summary(item, client, verbal_verdict=verbal_verdict)
                 for item in question_items
@@ -38,7 +38,7 @@ class SummaryService:
 
         holistic_notes = holistic_notes or []
 
-        async with AnthropicClient() as client:
+        async with LLMGatewayClient() as client:
             round_summary, competency_snapshots = await self._generate_round_summary(
                 question_summaries,
                 judged_feedback,
@@ -74,7 +74,7 @@ class SummaryService:
     async def _generate_question_summary(
         self,
         item: JudgedFeedbackItem,
-        client: AnthropicClient,
+        client: LLMGatewayClient,
         verbal_verdict: str | None = None,
     ) -> QuestionSummary:
         evidence_text = "\n".join(f"- {e}" for e in item.evidence) if item.evidence else "No specific evidence found"
@@ -119,7 +119,7 @@ class SummaryService:
         judged_feedback: list[JudgedFeedbackItem],
         holistic_notes: list[FeedbackItem],
         verbal_verdict: str | None,
-        client: AnthropicClient,
+        client: LLMGatewayClient,
     ) -> tuple[str, str]:
         if not question_summaries:
             return "", ""

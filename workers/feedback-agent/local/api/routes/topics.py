@@ -3,7 +3,7 @@ import json
 
 from fastapi import APIRouter, HTTPException
 
-from src.clients.anthropic import AnthropicClient
+from src.clients.llm import LLMGatewayClient
 from src.models import (
     ChunkData,
     ParticipantDetection,

@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from src.clients.anthropic import AnthropicClient
+from src.clients.llm import LLMGatewayClient
 from src.logging import get_logger
 from src.models import EnrichedFeedbackItem, JudgedFeedbackItem, RoleContext
 from src.parsers import parse_json_response
@@ -18,7 +18,7 @@ class JudgeService:
     ) -> list[JudgedFeedbackItem]:
         role_context = role_context or RoleContext()
 
-        async with AnthropicClient() as client:
+        async with LLMGatewayClient() as client:
             coroutines = [
                 self._judge_single_feedback(item, role_context, client)
                 for item in enriched_feedback
@@ -47,7 +47,7 @@ class JudgeService:
         self,
         item: EnrichedFeedbackItem,
         role_context: RoleContext,
-        client: AnthropicClient,
+        client: LLMGatewayClient,
     ) -> JudgedFeedbackItem:
         prompt = format_prompt(
             "judge",

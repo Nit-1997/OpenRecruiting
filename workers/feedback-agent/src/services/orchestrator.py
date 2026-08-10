@@ -1,6 +1,6 @@
 import asyncio
 
-from src.clients.anthropic import AnthropicClient
+from src.clients.llm import LLMGatewayClient
 from src.logging import get_logger
 from src.models import (
     ChunkContent,
@@ -44,7 +44,7 @@ class FeedbackOrchestrator:
     ) -> CompleteProcessingResponse:
         has_interview = bool(interview_transcript and interview_transcript.strip())
 
-        async with AnthropicClient() as client:
+        async with LLMGatewayClient() as client:
             if has_interview:
                 interview_task = asyncio.create_task(
                     self.interview_pipeline.process(

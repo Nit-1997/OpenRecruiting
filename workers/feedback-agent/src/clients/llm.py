@@ -10,8 +10,10 @@ from src.logging import get_logger
 logger = get_logger(__name__)
 
 
-class AnthropicClient:
-    BASE_URL = "https://api.anthropic.com/v1/messages"
+class LLMGatewayClient:
+    # The LiteLLM gateway, not a provider. Provider choice lives in
+    # litellm-config.yaml, so nothing in this module names one.
+    PATH = "/v1/chat/completions"
 
     def __init__(self):
         self.settings = get_settings()
@@ -20,11 +22,11 @@ class AnthropicClient:
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
-                timeout=httpx.Timeout(self.settings.anthropic_timeout),
+                base_url=self.settings.llm_gateway_url,
+                timeout=httpx.Timeout(self.settings.llm_timeout),
                 headers={
-                    "x-api-key": self.settings.anthropic_api_key,
+                    "authorization": f"Bearer {self.settings.litellm_master_key}",
                     "content-type": "application/json",
-                    "anthropic-version": "2023-06-01",
                 },
             )
         return self._client
@@ -37,9 +39,9 @@ class AnthropicClient:
     ) -> str:
         client = await self._get_client()
         model_id = (
-            self.settings.anthropic_model_haiku
+            self.settings.llm_model_haiku
             if model == "haiku"
-            else self.settings.anthropic_model_sonnet
+            else self.settings.llm_model_sonnet
         )
 
         payload = {
@@ -50,7 +52,7 @@ class AnthropicClient:
         }
 
         last_exception = None
-        for attempt in range(self.settings.anthropic_max_retries):
+        for attempt in range(self.settings.llm_max_retries):
             try:
                 logger.info(
                     "llm_request",
@@ -59,11 +61,15 @@ class AnthropicClient:
                     attempt=attempt + 1,
                 )
                 llm_start = time.monotonic()
-                response = await client.post(self.BASE_URL, json=payload)
+                response = await client.post(self.PATH, json=payload)
                 response.raise_for_status()
 
                 resp_json = response.json()
-                result = resp_json["content"][0]["text"]
+                # OpenAI response shape. `content` can be null when the model
+                # returns nothing, so it is coerced here rather than at each of
+                # the ten call sites — every one of them does string work on the
+                # result and would fail far from the cause.
+                result = (resp_json["choices"][0]["message"].get("content") or "")
                 usage = resp_json.get("usage", {})
                 logger.info(
                     "llm_response",
@@ -130,57 +136,40 @@ class AnthropicClient:
         await self.close()
 
 
-def call_haiku_sync(prompt: str) -> str:
+def _sync_call(prompt: str, model_alias: str, max_tokens: int, timeout: int) -> str:
+    """One blocking gateway call. Shared by the two sync helpers below, which were
+    byte-identical apart from alias, token budget and timeout — and each carried
+    its own copy of the provider URL, headers and response-shape parsing."""
     settings = get_settings()
-    api_key = settings.anthropic_api_key
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY not set")
+    if not settings.litellm_master_key:
+        raise ValueError("LITELLM_MASTER_KEY not set")
 
     headers = {
-        "x-api-key": api_key,
+        "authorization": f"Bearer {settings.litellm_master_key}",
         "content-type": "application/json",
-        "anthropic-version": "2023-06-01",
     }
     payload = {
-        "model": settings.anthropic_model_haiku,
-        "max_tokens": 1024,
+        "model": model_alias,
+        "max_tokens": max_tokens,
         "temperature": 0,
         "messages": [{"role": "user", "content": prompt}],
     }
 
-    with httpx.Client(timeout=60) as client:
+    with httpx.Client(timeout=timeout) as client:
         response = client.post(
-            "https://api.anthropic.com/v1/messages",
+            f"{settings.llm_gateway_url}/v1/chat/completions",
             headers=headers,
             json=payload,
         )
         response.raise_for_status()
-        return response.json()["content"][0]["text"]
+        return response.json()["choices"][0]["message"].get("content") or ""
+
+
+def call_haiku_sync(prompt: str) -> str:
+    settings = get_settings()
+    return _sync_call(prompt, settings.llm_model_haiku, max_tokens=1024, timeout=60)
 
 
 def call_sonnet_sync(prompt: str) -> str:
     settings = get_settings()
-    api_key = settings.anthropic_api_key
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY not set")
-
-    headers = {
-        "x-api-key": api_key,
-        "content-type": "application/json",
-        "anthropic-version": "2023-06-01",
-    }
-    payload = {
-        "model": settings.anthropic_model_sonnet,
-        "max_tokens": 4096,
-        "temperature": 0,
-        "messages": [{"role": "user", "content": prompt}],
-    }
-
-    with httpx.Client(timeout=120) as client:
-        response = client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers=headers,
-            json=payload,
-        )
-        response.raise_for_status()
-        return response.json()["content"][0]["text"]
+    return _sync_call(prompt, settings.llm_model_sonnet, max_tokens=4096, timeout=120)

@@ -1,7 +1,7 @@
 import json
 
 from src.chunking import SemanticChunker
-from src.clients.anthropic import AnthropicClient
+from src.clients.llm import LLMGatewayClient
 from src.logging import get_logger
 from src.models import ChunkData, TopicInput
 from src.parsers import TranscriptParser, parse_json_response
@@ -29,7 +29,7 @@ class InterviewPipeline:
         transcript: str,
         topics: list[TopicInput],
         candidate_name: str | None = None,
-        client: AnthropicClient | None = None,
+        client: LLMGatewayClient | None = None,
         segments: list[dict] | None = None,
     ) -> dict:
         try:
@@ -102,7 +102,7 @@ class InterviewPipeline:
         if client:
             llm_response = await client.call_sonnet(prompt)
         else:
-            async with AnthropicClient() as c:
+            async with LLMGatewayClient() as c:
                 llm_response = await c.call_sonnet(prompt)
 
         mapping_result = parse_json_response(llm_response)
@@ -120,7 +120,7 @@ class InterviewPipeline:
     async def _detect_participants(
         self,
         transcript: str,
-        client: AnthropicClient | None = None,
+        client: LLMGatewayClient | None = None,
         segments: list[dict] | None = None,
     ) -> dict:
         if segments:
@@ -134,7 +134,7 @@ class InterviewPipeline:
                 if client:
                     response = await client.call_haiku(prompt)
                 else:
-                    async with AnthropicClient() as c:
+                    async with LLMGatewayClient() as c:
                         response = await c.call_haiku(prompt)
 
                 result = parse_json_response(response)
@@ -150,7 +150,7 @@ class InterviewPipeline:
         if client:
             response = await client.call_haiku(prompt)
         else:
-            async with AnthropicClient() as c:
+            async with LLMGatewayClient() as c:
                 response = await c.call_haiku(prompt)
 
         result = parse_json_response(response)

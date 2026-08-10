@@ -1,6 +1,6 @@
 import asyncio
 
-from src.clients.anthropic import AnthropicClient
+from src.clients.llm import LLMGatewayClient
 from src.logging import get_logger
 from src.models import ChunkContent, EnrichedFeedbackItem, FeedbackItem, RoleContext, TopicInfo
 from src.parsers import parse_json_response
@@ -67,7 +67,7 @@ class EvidenceService:
                 })
 
         if tasks:
-            async with AnthropicClient() as client:
+            async with LLMGatewayClient() as client:
                 coroutines = [
                     self._extract_single_evidence(
                         task["topic_id"],
@@ -133,7 +133,7 @@ class EvidenceService:
         source_context: str,
         chunks_text: str,
         role_context: RoleContext,
-        client: AnthropicClient,
+        client: LLMGatewayClient,
     ) -> EnrichedFeedbackItem:
         prompt = format_prompt(
             "evidence_extraction",

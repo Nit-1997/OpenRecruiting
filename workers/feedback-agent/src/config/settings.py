@@ -7,11 +7,19 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     environment: Literal["development", "staging", "production"] = "development"
 
-    anthropic_api_key: str = ""
-    anthropic_model_haiku: str = "claude-haiku-4-5-20251001"
-    anthropic_model_sonnet: str = "claude-sonnet-4-6"
-    anthropic_timeout: int = 120
-    anthropic_max_retries: int = 3
+    # The LiteLLM gateway. This worker no longer holds a provider credential:
+    # LITELLM_MASTER_KEY authenticates it to the proxy, and the proxy holds the
+    # provider keys. anthropic_api_key is gone entirely.
+    llm_gateway_url: str = "http://litellm:4000"
+    litellm_master_key: str = ""
+    # GATEWAY ALIASES, not provider model ids. They preserve the tiers the two
+    # call shapes used before phase 5 — feedback-haiku maps to haiku, and
+    # feedback-sonnet to sonnet — so this migration does not silently re-price or
+    # re-time either workload.
+    llm_model_haiku: str = "feedback-haiku"
+    llm_model_sonnet: str = "feedback-sonnet"
+    llm_timeout: int = 120
+    llm_max_retries: int = 3
 
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_cache_dir: str | None = None
