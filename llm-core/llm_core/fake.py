@@ -53,6 +53,9 @@ class FakeLLM:
     def __init__(self) -> None:
         self._queue: list[Any] = []
         self.calls: list[dict[str, Any]] = []
+        # Set by aclose(). Inspectable so a test can assert its caller closed the
+        # client, which is the point of having the method at all.
+        self.closed = False
 
     def queue_text(self, text: str) -> None:
         """Queue a text reply. Streams as MULTIPLE deltas, like the real client.
@@ -212,6 +215,17 @@ class FakeLLM:
                 "tool_choice": tool_choice,
             }
         ).reply
+
+    async def aclose(self) -> None:
+        """Mirror of LLMClient.aclose. Records the call and does nothing else.
+
+        The fake holds no transport, so there is nothing to release — but it must
+        exist and be awaitable, or a Lambda-shaped caller that closes its client
+        in a `finally` would pass its tests against the fake and fail against the
+        real client. That is the substitutability guarantee this whole class is
+        for, and test_fake.py enforces it.
+        """
+        self.closed = True
 
     async def stream_turn(
         self,

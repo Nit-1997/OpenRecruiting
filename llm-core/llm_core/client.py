@@ -459,6 +459,30 @@ class LLMClient:
 
         yield ("done", {"text": "".join(text_parts), "stop_reason": stop_reason})
 
+    async def aclose(self) -> None:
+        """Release the underlying transport.
+
+        Long-lived services (the backend, voice-agent) use the process singleton
+        from get_client() and never call this — the transport lives as long as
+        the process and closing it would tear down a shared resource. This exists
+        for the Lambda-shaped callers that build a client per invocation on a
+        fresh event loop and close that loop afterwards: without it the next warm
+        invocation reuses a connection pool bound to a dead loop, which is a
+        RuntimeError with a misleading message far from its cause.
+
+        Never raises. Every intended caller invokes it from a `finally`, where an
+        exception would replace whatever was already unwinding.
+        """
+        close = getattr(self._client, "close", None)
+        if close is None:
+            return
+        try:
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+        except Exception:  # noqa: BLE001 — see docstring
+            logger.debug("llm_client_close_failed", exc_info=True)
+
     def _to_reply(
         self,
         *,

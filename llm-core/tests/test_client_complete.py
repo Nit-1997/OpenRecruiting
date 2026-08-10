@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import httpx
 import openai
 import pytest
+from unittest.mock import AsyncMock
 import structlog
 
 from llm_core.client import LLMClient
@@ -810,3 +811,32 @@ async def test_the_string_forms_are_a_no_op_on_the_emulated_path(choice):
     assert "emit_job_description" in instruction
     assert "emit_persona" in instruction
     assert reply.tool_call_named("emit_persona").arguments == {"tone": "warm"}
+
+
+async def test_aclose_closes_the_underlying_client():
+    """Lambda-shaped callers build a client per invocation on a fresh event loop
+    and must close it in a finally, or the next warm invocation reuses a
+    transport bound to a dead loop. workers/intake-context-builder is one; its
+    handler.py creates and closes a loop per call."""
+    inner = AsyncMock()
+    client = LLMClient(openai_client=inner, capabilities=FakeCaps())
+    await client.aclose()
+    inner.close.assert_awaited_once()
+
+
+async def test_aclose_is_idempotent():
+    inner = AsyncMock()
+    client = LLMClient(openai_client=inner, capabilities=FakeCaps())
+    await client.aclose()
+    await client.aclose()
+    assert inner.close.await_count == 2
+
+
+async def test_aclose_never_raises_out_of_a_finally_block():
+    """It is called from `finally` in every intended caller. A failure closing a
+    transport must not replace the exception already unwinding, nor invent one
+    where the request itself succeeded."""
+    inner = AsyncMock()
+    inner.close.side_effect = RuntimeError("event loop is closed")
+    client = LLMClient(openai_client=inner, capabilities=FakeCaps())
+    await client.aclose()  # must not raise
