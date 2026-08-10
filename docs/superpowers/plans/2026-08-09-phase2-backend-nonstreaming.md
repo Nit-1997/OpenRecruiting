@@ -2117,7 +2117,12 @@ git commit -m "test(backend): pin the Anthropic surface phase 2 deliberately lea
 - `make test` green at **2132 passed, 5 skipped**, with `--cov-fail-under=85` satisfied.
 - All nine call sites call `llm.complete(...)`; `grep -rn "\.messages\.create(" backend/app` returns nothing.
 - All eight tool specs are `{"type": "function", "function": {...}}`; `grep -rn "input_schema" backend/app` returns only `services/debrief_chat/tool_specs.py`, which is phase 3's.
-- `grep -rn "tool_choice" backend/app` returns nothing.
+- ~~`grep -rn "tool_choice" backend/app` returns nothing.~~ **SUPERSEDED.** This line
+  assumed §1's "there is no `tool_choice`, and no equivalent", which stopped being true
+  when `6c696ca` added the passthrough. All nine sites now FORCE their tool in OpenAI
+  shape, so this grep returns nine forced-tool constants. The property that actually
+  matters — that no *Anthropic-shaped* choice survives — is pinned by
+  `backend/tests/test_anthropic_surface.py`.
 - Five settings hold aliases (`INTAKE_JD_MODEL`, `ASSISTANT_INTENT_MODEL`, `SCREENING_GENERATOR_MODEL`, `SCREENING_ASSESSOR_MODEL`, `RESUME_EXTRACTION_MODEL`), one new setting exists (`PERSONA_REDUCE_MODEL`), and one alias is hardcoded (`parse_intent_service._MODEL`). Every one of the seven resolves in `litellm-config.yaml`; no alias in this phase is undefined, and `persona-reduce` is no longer an orphan.
 - No backend test constructs an Anthropic response shape for a non-streaming site. The eight rewritten files use `fake_llm` exclusively.
 - `backend/Dockerfile.test` installs `llm-core`, so `fake_llm` and `import llm_core` resolve in CI and locally.
