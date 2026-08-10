@@ -25,11 +25,19 @@ class UnsupportedToolSchema(ValueError):
 
 
 def _body(spec: dict[str, Any]) -> dict[str, Any]:
-    if "name" in spec and "input_schema" in spec:
-        return spec
+    """The OpenAI `function` body, or a refusal naming what arrived.
+
+    Only the OpenAI shape is accepted. Accepting the old Anthropic form too would
+    let a stale spec through forever and render it as a parameterless tool, which
+    is silent — see this module's docstring.
+    """
+    function = spec.get("function")
+    if spec.get("type") == "function" and isinstance(function, dict) and "name" in function:
+        return function
     raise UnsupportedToolSchema(
-        f"unrecognised tool spec: keys={sorted(spec)!r}; "
-        "expected an intake-core tool spec"
+        f"unrecognised tool spec: keys={sorted(spec)!r}; expected the OpenAI shape "
+        "{'type': 'function', 'function': {'name', 'description', 'parameters'}}. "
+        "Anthropic-shaped specs using 'input_schema' were retired in phase 4."
     )
 
 
@@ -41,7 +49,7 @@ def function_schemas(specs: list[dict[str, Any]]) -> list[FunctionSchema]:
     schemas = []
     for spec in specs:
         body = _body(spec)
-        parameters = body.get("input_schema") or {}
+        parameters = body.get("parameters") or {}
         schemas.append(
             FunctionSchema(
                 name=body["name"],

@@ -31,7 +31,7 @@ async def main() -> int:
     from src.persona.dynamic_intake import build_voice_intake_prompt
     from src.pipeline.tool_dispatch import dispatch_tool_call
     from intake_core.coverage_tracker import run_coverage_tracker
-    from intake_core.tools.schemas import ALL_TOOLS
+    from intake_core.tools import INTAKE_TOOLS
 
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SECRET_KEY"])
     session_id = os.environ["TEST_SESSION_ID"]
@@ -53,8 +53,12 @@ async def main() -> int:
     print(f"    {len(msgs)} messages")
 
     print("[4] Validating tool schemas...")
-    assert {t['name'] for t in ALL_TOOLS} == {'update_answer', 'mark_status'}
-    print(f"    {len(ALL_TOOLS)} tools: {[t['name'] for t in ALL_TOOLS]}")
+    # Through the same reader the pipeline uses, so this script cannot drift from
+    # the shape factory.build_pipeline actually consumes.
+    from src.pipeline.tool_schemas import tool_name
+
+    assert {tool_name(t) for t in INTAKE_TOOLS} == {'update_answer', 'mark_status'}
+    print(f"    {len(INTAKE_TOOLS)} tools: {[tool_name(t) for t in INTAKE_TOOLS]}")
 
     print("[5] Dispatching a synthetic update_answer tool call...")
     out = dispatch_tool_call(

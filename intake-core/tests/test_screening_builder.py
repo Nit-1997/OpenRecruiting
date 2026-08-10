@@ -81,9 +81,11 @@ def test_all_screening_tools_shape():
     assert isinstance(ALL_SCREENING_TOOLS, list)
     assert len(ALL_SCREENING_TOOLS) == 1
     tool = ALL_SCREENING_TOOLS[0]
-    assert tool["name"] == "mark_question_covered"
-    assert "description" in tool and len(tool["description"]) > 20
-    schema = tool["input_schema"]
+    assert tool["type"] == "function"
+    fn = tool["function"]
+    assert fn["name"] == "mark_question_covered"
+    assert "description" in fn and len(fn["description"]) > 20
+    schema = fn["parameters"]
     assert schema["type"] == "object"
     assert "question_id" in schema["properties"]
     assert "question_id" in schema["required"]

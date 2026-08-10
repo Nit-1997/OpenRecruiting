@@ -32,7 +32,7 @@ for _name in (
     sys.modules.setdefault(_name, MagicMock())
 
 from intake_core.screening import ALL_SCREENING_TOOLS  # noqa: E402
-from intake_core.tools import INTAKE_TOOLS_ANTHROPIC  # noqa: E402
+from intake_core.tools import INTAKE_TOOLS  # noqa: E402
 
 from src.pipeline.tool_schemas import (  # noqa: E402
     UnsupportedToolSchema,
@@ -49,7 +49,7 @@ def _kwargs_of(schemas):
 
 
 def test_every_intake_tool_yields_a_name():
-    assert [tool_name(t) for t in INTAKE_TOOLS_ANTHROPIC] == [
+    assert [tool_name(t) for t in INTAKE_TOOLS] == [
         "update_answer",
         "mark_status",
     ]
@@ -63,7 +63,7 @@ def test_properties_are_never_empty_for_the_intake_tools():
     """The silent-failure guard. A tool handed to the model with no properties
     cannot be called with arguments, so update_answer would record nothing and
     nothing anywhere would raise."""
-    schemas = function_schemas(INTAKE_TOOLS_ANTHROPIC)
+    schemas = function_schemas(INTAKE_TOOLS)
     for kwargs in _kwargs_of(schemas):
         assert kwargs["properties"], kwargs["name"]
         assert "qid" in kwargs["properties"], kwargs["name"]

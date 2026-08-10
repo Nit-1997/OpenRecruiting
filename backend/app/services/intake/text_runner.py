@@ -22,7 +22,7 @@ import structlog
 from intake_core.coverage_tracker import run_coverage_tracker as coverage_tracker_run
 from intake_core.persistence import aload_session
 from intake_core.prompts.builder import build_dynamic_prompt
-from intake_core.tools import INTAKE_TOOLS_OPENAI, ahandle_tool_call
+from intake_core.tools import INTAKE_TOOLS, ahandle_tool_call
 
 from app.services.intake.llm_stream import stream_llm_turn
 from app.services.intake.turn_writer import append_turn_for_session
@@ -39,7 +39,7 @@ _REQUIRED_ARGS = {
     spec["function"]["name"]: frozenset(
         spec["function"]["parameters"].get("required") or []
     )
-    for spec in INTAKE_TOOLS_OPENAI
+    for spec in INTAKE_TOOLS
 }
 
 
@@ -277,7 +277,7 @@ async def run_text_turn(
             model=model,
             system=system_prompt,
             messages=messages,
-            tools=INTAKE_TOOLS_OPENAI,
+            tools=INTAKE_TOOLS,
         ):
             if kind == "text":
                 iteration_text_parts.append(payload)

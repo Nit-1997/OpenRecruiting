@@ -40,7 +40,7 @@ from src.pipeline.turn_persist import TurnPersistFrameProcessor
 from src.pipeline.tool_dispatch import dispatch_tool_call
 from src.session_loader import load_intake_session_for_voice, format_turns_for_llm
 from src.persona.screening import build_voice_screening_prompt
-from intake_core.tools.schemas import ALL_TOOLS
+from intake_core.tools import INTAKE_TOOLS
 from intake_core.coverage_tracker import run_coverage_tracker
 from intake_core.screening import (
     ALL_SCREENING_TOOLS,
@@ -2192,7 +2192,7 @@ async def v2_intake_offer(request: Request, background_tasks: BackgroundTasks):
         flux_eager_eot_threshold=settings.flux_eager_eot_threshold,
         flux_eot_timeout_ms=settings.flux_eot_timeout_ms,
         seed_messages=seed_messages,
-        tools=ALL_TOOLS,
+        tools=INTAKE_TOOLS,
         intake_session_id=session_id,
         intake_supabase_client=sb,
         intake_tool_dispatch=lambda name, args, idx: dispatch_tool_call(

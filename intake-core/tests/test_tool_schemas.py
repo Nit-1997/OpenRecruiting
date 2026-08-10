@@ -1,78 +1,80 @@
-"""Validate tool schemas conform to Anthropic tool-use shape."""
+"""Validate tool schemas conform to the OpenAI function shape.
 
-from intake_core.tools.schemas import UPDATE_ANSWER_TOOL, MARK_STATUS_TOOL, ALL_TOOLS
+One shape only. The dual export phase 3 shipped (Anthropic `ALL_TOOLS` plus a
+derived `ALL_TOOLS_OPENAI`) is gone, so phase 3's sentinel
+`test_the_anthropic_export_is_untouched_for_the_voice_agent` is RETIRED rather
+than deleted quietly: it existed to stop the Anthropic export vanishing while
+voice-agent still consumed it, and phase 4 removes it on purpose. Its actual job
+— nobody may silently change what voice-agent consumes — now lives in
+voice-agent/tests/pipeline/test_tool_schemas.py, which tests the real reader.
+
+What survives here is the invariant that outlives the shape change: every spec
+carries the `required` list that both degraded-reply guards are keyed on
+(backend text_runner._missing_args and debrief runner._missing_args).
+"""
+
+from intake_core.tools.schemas import (
+    UPDATE_ANSWER_TOOL,
+    MARK_STATUS_TOOL,
+    ALL_TOOLS_OPENAI,
+)
+
+
+def _fn(spec):
+    return spec["function"]
 
 
 def test_update_answer_tool_shape():
     t = UPDATE_ANSWER_TOOL
-    assert t["name"] == "update_answer"
-    assert "description" in t and len(t["description"]) > 20
-    schema = t["input_schema"]
+    assert t["type"] == "function"
+    assert _fn(t)["name"] == "update_answer"
+    schema = _fn(t)["parameters"]
     assert schema["type"] == "object"
-    props = schema["properties"]
-    assert set(props.keys()) >= {"qid", "text", "confidence"}
-    assert "qid" in schema["required"]
-    assert "text" in schema["required"]
-    assert "confidence" in schema["required"]
-    assert set(props["confidence"]["enum"]) == {"none", "low", "medium", "high"}
+    assert "qid" in schema["properties"]
+    assert "text" in schema["properties"]
+    assert "confidence" in schema["properties"]
 
 
 def test_mark_status_tool_shape():
     t = MARK_STATUS_TOOL
-    assert t["name"] == "mark_status"
-    schema = t["input_schema"]
-    assert set(schema["properties"]["status"]["enum"]) == {
-        "untouched", "needs_probe", "discussed", "validated", "skipped"
-    }
-    assert "qid" in schema["required"]
-    assert "status" in schema["required"]
+    assert t["type"] == "function"
+    assert _fn(t)["name"] == "mark_status"
+    schema = _fn(t)["parameters"]
+    assert set(schema["required"]) == {"qid", "status"}
 
 
-def test_all_tools_is_list_of_two():
-    assert isinstance(ALL_TOOLS, list)
-    assert len(ALL_TOOLS) == 2
-    names = {t["name"] for t in ALL_TOOLS}
-    assert names == {"update_answer", "mark_status"}
+def test_qid_enum_covers_every_intake_question():
+    from intake_core.questions import INTAKE_QUESTIONS
+
+    enum = _fn(UPDATE_ANSWER_TOOL)["parameters"]["properties"]["qid"]["enum"]
+    assert enum == [q["id"] for q in INTAKE_QUESTIONS]
+    assert len(enum) == 9
 
 
-def test_qid_enum_lists_nine_questions():
-    """qid parameter should be constrained to the 9 known question IDs."""
-    expected = {
-        "q1_role_overview", "q2_rounds", "q3_focus_areas", "q4_must_haves",
-        "q5_nice_to_haves", "q6_cultural_fit", "q7_team_structure",
-        "q8_red_flags", "q9_anything_else",
-    }
-    for tool in [UPDATE_ANSWER_TOOL, MARK_STATUS_TOOL]:
-        assert set(tool["input_schema"]["properties"]["qid"]["enum"]) == expected
+def test_all_tools_is_the_only_export_and_is_openai_shaped():
+    assert isinstance(ALL_TOOLS_OPENAI, list)
+    assert len(ALL_TOOLS_OPENAI) == 2
+    for spec in ALL_TOOLS_OPENAI:
+        assert set(spec) == {"type", "function"}
+        assert spec["type"] == "function"
+        assert set(_fn(spec)) == {"name", "description", "parameters"}
 
 
-from intake_core.tools.schemas import ALL_TOOLS_OPENAI  # noqa: E402
+def test_every_spec_declares_the_required_list_the_guards_key_on():
+    """Both degraded-reply guards derive their expectations from this list. A
+    spec without one would make a truncated call indistinguishable from a real
+    one at that call site."""
+    for spec in ALL_TOOLS_OPENAI:
+        required = _fn(spec)["parameters"].get("required")
+        assert required, _fn(spec)["name"]
+        properties = _fn(spec)["parameters"]["properties"]
+        for name in required:
+            assert name in properties, f"{_fn(spec)['name']}.{name}"
 
 
-def test_openai_export_mirrors_every_anthropic_spec():
-    assert len(ALL_TOOLS_OPENAI) == len(ALL_TOOLS)
-    for old, new in zip(ALL_TOOLS, ALL_TOOLS_OPENAI):
-        assert set(new) == {"type", "function"}
-        assert new["type"] == "function"
-        assert set(new["function"]) == {"name", "description", "parameters"}
-        assert new["function"]["name"] == old["name"]
-        assert new["function"]["description"] is old["description"]
-        assert new["function"]["parameters"] is old["input_schema"]
-
-
-def test_openai_export_carries_the_computed_qid_enum():
-    """The enum is computed from INTAKE_QUESTIONS, which is why these specs are
-    not literal_eval-able and why the derivation shares the object rather than
-    copying it."""
-    for tool in ALL_TOOLS_OPENAI:
-        enum = tool["function"]["parameters"]["properties"]["qid"]["enum"]
-        assert len(enum) == 9
-        assert "q4_must_haves" in enum
-
-
-def test_the_anthropic_export_is_untouched_for_the_voice_agent():
-    """voice-agent/src/main.py:43 still imports ALL_TOOLS and hands it to
-    pipecat's AnthropicLLMService. Phase 7 moves it; until then this shape is
-    load-bearing and no voice-agent test would catch its removal."""
-    for tool in ALL_TOOLS:
-        assert set(tool) == {"name", "description", "input_schema"}
+def test_no_anthropic_shape_survives():
+    """The flip must be total: a leftover input_schema anywhere would be accepted
+    by nothing (llm_core rejects it, voice-agent's reader refuses it)."""
+    for spec in ALL_TOOLS_OPENAI:
+        assert "input_schema" not in spec
+        assert "input_schema" not in _fn(spec)
