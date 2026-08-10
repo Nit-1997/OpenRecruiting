@@ -143,8 +143,8 @@ async def test_file_parse_is_offloaded_to_thread(fake_llm, monkeypatch):
 async def test_both_tools_reach_the_gateway_in_openai_shape(fake_llm):
     """FakeLLM would already have raised ToolEmulationError on an Anthropic-shaped
     spec. This pins the rest of the contract: the `type` key the gateway needs,
-    the alias, and one tool per call (single-tool calls are what make the emulated
-    path forced without tool_choice)."""
+    the alias, and one tool per call. Which of the two calls forces its tool is
+    asserted in tests/services/intake/test_jd_guardrail.py."""
     _queue_clean_then_parse(fake_llm, {"title": "Backend Engineer"})
     await extract_jd(llm=fake_llm, model="intake-jd", text="A real job description body.")
 
@@ -159,8 +159,10 @@ async def test_both_tools_reach_the_gateway_in_openai_shape(fake_llm):
 
 
 async def test_guardrail_without_a_tool_call_fails_open(fake_llm):
-    """No tool_choice means a model may answer in prose. That must land on the
-    same fail-open branch an Anthropic message with no tool_use block landed on."""
+    """The guardrail forces its tool, so this should be unreachable — but if it
+    ever fires, the pipeline must not block a legitimate recruiter. That the
+    branch is now flagged and logged rather than silent is asserted in
+    tests/services/intake/test_jd_guardrail.py; extract_jd cannot see `errored`."""
     fake_llm.queue_text("I would rather not say.")
     fake_llm.queue_tool_call("emit_job_description", {"title": "Still Parsed"})
     out = await extract_jd(
