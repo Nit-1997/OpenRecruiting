@@ -85,18 +85,21 @@ export function TopBar({ id }: TopBarProps) {
             <BrandIcon id={`${id}-brand-icon`} className="h-[22px] w-[22px] shrink-0" />
             <span
               id={`${id}-brand-stack`}
-              className="hidden flex-col items-start gap-0.5 leading-none sm:inline-flex"
+              className="hidden flex-col items-start gap-1 sm:inline-flex"
             >
+              {/* Pacifico's content area is 1.756em (ascent 1.303 + descent 0.453), so a
+                  1:1 line-height spilled the p/g descenders ~7.5px below the box and into
+                  the caption. 36px contains the glyphs, making the gap below a real gap. */}
               <span
                 id={`${id}-brand-word`}
-                className="font-brand text-[20px] leading-[20px] tracking-tight"
+                className="font-brand text-[20px] leading-[36px] tracking-tight"
               >
                 openrecruiting<span className="text-text-muted">.ai</span>
               </span>
               <span
                 id={`${id}-brand-caption`}
                 className={cn(
-                  'font-mono text-[9px] uppercase tracking-[0.22em]',
+                  'font-mono text-[9px] uppercase leading-none tracking-[0.22em]',
                   isHome ? 'text-text-primary' : 'text-text-faint',
                 )}
               >
