@@ -1,6 +1,6 @@
 'use client';
 
-import { CreditCard, LogOut, User, Users } from 'lucide-react';
+import { Gauge, LogOut, User, Users } from 'lucide-react';
 import { useRef } from 'react';
 import type { SettingsTab } from '@/components/settings-drawer/drawer';
 import { useFocusTrap } from '@/hooks/use-focus-trap';
@@ -23,7 +23,7 @@ interface MenuEntry {
 const ENTRIES: MenuEntry[] = [
   { tab: 'profile', label: 'Profile', Icon: User },
   { tab: 'team', label: 'Team', Icon: Users },
-  { tab: 'billing', label: 'Billing & plan', Icon: CreditCard },
+  { tab: 'billing', label: 'Credit budget', Icon: Gauge },
 ];
 
 export function ProfilePopover({ id, open, onClose, onOpenSettings }: ProfilePopoverProps) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { CreditCard, User, Users, X } from 'lucide-react';
+import { Gauge, User, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { BillingTab } from './billing-tab';
@@ -19,7 +19,10 @@ interface SettingsDrawerProps {
 const TABS: Array<{ key: SettingsTab; label: string; Icon: typeof User }> = [
   { key: 'profile', label: 'Profile', Icon: User },
   { key: 'team', label: 'Team', Icon: Users },
-  { key: 'billing', label: 'Billing', Icon: CreditCard },
+  // Key stays 'billing': it is the ?settings= value and the /billing route
+  // shim's target. Only the label changed — there is no payment surface here,
+  // so a card icon and the word "Billing" both oversold it.
+  { key: 'billing', label: 'Credit budget', Icon: Gauge },
 ];
 
 export function SettingsDrawer({ id, open, initialTab = 'profile', onClose }: SettingsDrawerProps) {

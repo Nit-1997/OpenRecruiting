@@ -11,19 +11,29 @@ export function BillingTab({ id }: { id: string }) {
   }
 
   const periodStart = overview.period_start
-    ? new Date(overview.period_start).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    ? new Date(overview.period_start).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
     : null;
   const periodEnd = overview.period_end
-    ? new Date(overview.period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    ? new Date(overview.period_end).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
     : null;
 
   return (
     <div id={id} className="flex max-w-2xl flex-col gap-6">
       <header>
-        <h3 className="font-display text-[22px] text-text-primary tracking-[-0.01em]">Billing</h3>
+        <h3 className="font-display text-[22px] text-text-primary tracking-[-0.01em]">
+          Credit budget
+        </h3>
         <p className="mt-1 text-[13px] text-text-muted">
-          Your plan and remaining credits. Plan changes are handled through your account contract —
-          contact us for upgrades or invoicing questions.
+          Your plan and the credits left in this period. Nothing is charged here — an administrator
+          sets plans and credits from the admin portal, so contact them for more.
         </p>
       </header>
 
@@ -31,7 +41,9 @@ export function BillingTab({ id }: { id: string }) {
         <p className="font-mono text-[10px] text-text-faint uppercase tracking-[0.14em]">
           Current plan
         </p>
-        <p className="mt-1 font-display text-[24px] text-text-primary">{overview.plan_display_name}</p>
+        <p className="mt-1 font-display text-[24px] text-text-primary">
+          {overview.plan_display_name}
+        </p>
         <dl id={`${id}-plan-meta`} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {periodStart && (
             <MetaRow id={`${id}-plan-start`} label="Date of purchase" value={periodStart} />
@@ -43,7 +55,12 @@ export function BillingTab({ id }: { id: string }) {
               value={periodEnd}
             />
           )}
-          <MetaRow id={`${id}-plan-status`} label="Status" value={overview.subscription_status} mono />
+          <MetaRow
+            id={`${id}-plan-status`}
+            label="Status"
+            value={overview.subscription_status}
+            mono
+          />
         </dl>
       </section>
 
@@ -52,14 +69,14 @@ export function BillingTab({ id }: { id: string }) {
           Credits remaining this period
         </p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <CreditCard
+          <CreditMeter
             id={`${id}-credits-interview`}
             label="Interviews"
             used={overview.interview_used}
             total={overview.interview_total}
             topup={overview.interview_topup}
           />
-          <CreditCard
+          <CreditMeter
             id={`${id}-credits-intake`}
             label="Intakes"
             used={overview.intake_used}
@@ -86,14 +103,18 @@ function MetaRow({
   return (
     <div id={id} className="flex flex-col gap-0.5">
       <dt className="font-mono text-[10px] text-text-faint uppercase tracking-[0.14em]">{label}</dt>
-      <dd className={mono ? 'font-mono text-[12.5px] text-text-primary' : 'text-[13px] text-text-primary'}>
+      <dd
+        className={
+          mono ? 'font-mono text-[12.5px] text-text-primary' : 'text-[13px] text-text-primary'
+        }
+      >
         {value}
       </dd>
     </div>
   );
 }
 
-function CreditCard({
+function CreditMeter({
   id,
   label,
   used,
@@ -117,9 +138,7 @@ function CreditCard({
         {remainingDisplay}
         <span className="ml-1 font-sans text-[12px] text-text-muted">/ {totalDisplay}</span>
       </p>
-      {topup > 0 && (
-        <p className="mt-1 text-[11px] text-text-muted">+{topup} topup</p>
-      )}
+      {topup > 0 && <p className="mt-1 text-[11px] text-text-muted">+{topup} topup</p>}
     </div>
   );
 }
