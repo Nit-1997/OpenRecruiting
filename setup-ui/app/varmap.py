@@ -128,6 +128,15 @@ GROUPS: list[Group] = [
             Variable("DEEPGRAM_API_KEY", "Deepgram API key",
                      "Unset means the voice agent starts but cannot transcribe.",
                      secret=True, services=["voice-agent", "backend"]),
+            Variable("TURN_SERVER_URL", "TURN relay URL",
+                     "Required for MEETING-BOT voice, not for browser voice. A "
+                     "Recall bot runs in Recall's cloud and its media is UDP, "
+                     "which no HTTP tunnel carries; a TURN relay is what lets it "
+                     "reach an agent behind NAT. e.g. turn:turn.cloudflare.com:3478",
+                     services=["voice-agent"]),
+            Variable("TURN_USERNAME", "TURN username", services=["voice-agent"]),
+            Variable("TURN_CREDENTIAL", "TURN credential",
+                     secret=True, services=["voice-agent"]),
         ],
     ),
     Group(
