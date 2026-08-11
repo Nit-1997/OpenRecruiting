@@ -197,6 +197,36 @@ GROUPS: list[Group] = [
             Variable("MCP_JWT_PRIVATE_KEY_PEM", "MCP signing key (PEM)",
                      secret=True, services=["cortex-mcp", "backend"]),
             Variable("OIDC_ISSUER", "OIDC issuer", services=["backend", "cortex-mcp"]),
+            Variable("MCP_JWT_ISSUER", "MCP token issuer",
+                     "Must EQUAL the OIDC issuer above — it is stamped on every "
+                     "token minted and checked on every token accepted. It also "
+                     "builds the OAuth discovery URLs a remote client fetches, so "
+                     "point both at the public host to connect one.",
+                     services=["backend", "cortex-mcp"]),
+            Variable("MCP_ALLOWED_AUDIENCES", "Audiences the backend will mint for",
+                     "Comma-separated. Keep cortex-mcp (internal service tokens) "
+                     "and add the public MCP URL when exposing it, or the client's "
+                     "authorize call fails with invalid_target.",
+                     services=["backend"]),
+            Variable("OIDC_AUDIENCE", "Audiences cortex-mcp will accept",
+                     "Comma-separated. Must cover everything in the backend list "
+                     "above, or valid tokens are rejected.",
+                     services=["cortex-mcp"]),
+            Variable("CORTEX_PUBLIC_URL", "Cortex MCP public URL",
+                     "Advertised to clients in the 401 challenge and the "
+                     "protected-resource document. Must be reachable BY THE "
+                     "CLIENT, so localhost only works for a local one.",
+                     services=["cortex-mcp"]),
+            Variable("MCP_CONSENT_URL", "OAuth consent page",
+                     "Landing's /oauth/consent. Unset falls back to an inline form "
+                     "that needs a session cookie on the backend's own origin — "
+                     "impossible over a tunnel, and the sign-in loops.",
+                     services=["backend"]),
+            Variable("NEXT_PUBLIC_CORTEX_MCP_URL", "MCP URL shown in the app",
+                     "What the integrations page offers for pasting into an "
+                     "assistant. Resolved by the CLIENT, not the browser. Blank "
+                     "shows a 'not configured' state instead of a bad URL.",
+                     services=["recruiter-app"]),
         ],
     ),
     Group(
@@ -217,6 +247,11 @@ GROUPS: list[Group] = [
                      "Blank for localhost. Set for cross-subdomain SSO.",
                      services=_FRONTENDS),
             Variable("NEXT_PUBLIC_ASSESSMENT_UI_URL", "Assessment UI URL", services=_FRONTENDS),
+            Variable("BACKEND_INTERNAL_URL", "Backend URL (server-side)",
+                     "Used by landing's OAuth consent routes, which run in the "
+                     "container — so this is the compose service name, NOT the "
+                     "browser's localhost value.",
+                     services=["landing"]),
         ],
     ),
     Group(
@@ -350,7 +385,11 @@ UNMANAGED: dict[str, str] = {
             "RECALL_TRANSCRIPT_LANGUAGE", "RECALL_TRANSCRIPT_PROVIDER",
             "RECALL_TRANSCRIPT_SEPARATE_STREAMS", "RECALL_TRANSCRIPT_WORD_BOOST",
             "DEBUG", "ENV", "LOG_LEVEL", "RUN_BACKGROUND_WORKERS",
-            "MCP_ALLOWED_AUDIENCES", "MCP_CONSENT_URL", "MCP_JWT_ISSUER",
+            # MCP_ALLOWED_AUDIENCES / MCP_CONSENT_URL / MCP_JWT_ISSUER were here
+            # as "defaults are correct". They are not: every one of them has to
+            # change before a remote MCP client can authenticate, and leaving
+            # them hidden is what made that a multi-hour debug. Same misfiling as
+            # VOICE_AGENT_URL (01cbfba) — they are in the Connectors group now.
             "ASSESSMENT_UI_URL",
             "VOICE_ENABLED", "VOICE_TTS_VOICE",
             "VOICE_AGENT_V2_URL", "VOICE_AGENT_V2_DRAIN_TIMEOUT_S",

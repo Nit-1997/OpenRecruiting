@@ -82,9 +82,7 @@ describe('AtsCard', () => {
   test('prefetches a session token onto the knit-auth element', async () => {
     const { container } = renderCard();
     await waitFor(() => {
-      expect(
-        container.querySelector('knit-auth')?.getAttribute('authsessiontoken'),
-      ).toBe('tok');
+      expect(container.querySelector('knit-auth')?.getAttribute('authsessiontoken')).toBe('tok');
     });
   });
 
@@ -124,14 +122,23 @@ describe('AtsCard', () => {
     expect((completed[0] as { integrationId: string }).integrationId).toBe('int-1');
   });
 
-  test('not_found status renders the coming-soon state without a connect button', async () => {
+  // ATS_INTEGRATIONS_ENABLED=false 404s the whole surface. This used to render a
+  // "Coming soon" badge, which still advertised a feature the operator had
+  // deliberately switched off — so the card now renders nothing at all.
+  test('not_found status renders nothing, so a disabled ATS is absent from the UI', async () => {
     statusHandler = async () => {
       throw notFoundError();
     };
     renderCard();
+
     await waitFor(() => {
-      expect(screen.getByText('Coming soon')).toBeTruthy();
+      expect(document.getElementById('ats-card')).toBeFalsy();
     });
+    // Nothing of the card survives — not the title, badge, or connect button.
+    // (container is not asserted empty: the Toast/Confirm providers wrapping the
+    // card in renderCard() render their own nodes regardless.)
+    expect(screen.queryByText('Applicant Tracking System')).toBeNull();
+    expect(document.getElementById('ats-card-badge')).toBeFalsy();
     expect(document.getElementById('ats-card-connect')).toBeFalsy();
   });
 });

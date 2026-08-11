@@ -154,6 +154,14 @@ export function AtsCard({ id }: AtsCardProps) {
     }
   }
 
+  // ATS_INTEGRATIONS_ENABLED=false makes the whole /integrations/ats surface a
+  // 404, which refreshStatus() turns into unavailable. Render nothing at all:
+  // an operator who switched the feature off in the setup UI means "my users
+  // should not see this", and the previous "Coming soon" badge still advertised
+  // it. Deliberately after the hooks above — bailing before them would change
+  // hook order between renders.
+  if (unavailable) return null;
+
   return (
     <article id={id} className="rounded-[14px] border border-border bg-white">
       <div id={`${id}-row`} className="flex flex-wrap items-start gap-4 p-4">
@@ -181,13 +189,6 @@ export function AtsCard({ id }: AtsCardProps) {
               >
                 <Check strokeWidth={1.75} className="h-2.5 w-2.5" />
                 Connected
-              </span>
-            ) : unavailable ? (
-              <span
-                id={`${id}-badge`}
-                className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 font-mono text-[9.5px] text-text-muted uppercase tracking-[0.14em]"
-              >
-                Coming soon
               </span>
             ) : (
               <span
@@ -225,7 +226,6 @@ export function AtsCard({ id }: AtsCardProps) {
           )}
         </div>
         {!loading &&
-          !unavailable &&
           (connected ? (
             <button
               id={`${id}-disconnect`}
