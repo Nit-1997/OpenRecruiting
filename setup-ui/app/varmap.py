@@ -152,8 +152,15 @@ GROUPS: list[Group] = [
             Variable("RECALL_WEBHOOK_SECRET", "Webhook signing secret",
                      secret=True, services=["backend"]),
             Variable("WEBHOOK_BASE_URL", "Public webhook base URL",
-                     "Your tunnel, e.g. https://abc.ngrok-free.app. Unset means "
-                     "bots record but callbacks never arrive.",
+                     "Your tunnel hostname. Unset means bots record but callbacks "
+                     "never arrive.",
+                     services=["backend"]),
+            Variable("VOICE_AGENT_URL", "Public voice page URL",
+                     "The SAME tunnel hostname. Recall's cloud browser loads "
+                     "<this>/<session-token> and streams the page into the "
+                     "meeting as the bot's camera. Leaving it EMPTY does not "
+                     "degrade anything visibly — it makes the backend skip "
+                     "output_media entirely, so the bot joins and is silent.",
                      services=["backend"]),
         ],
     ),
@@ -345,7 +352,7 @@ UNMANAGED: dict[str, str] = {
             "DEBUG", "ENV", "LOG_LEVEL", "RUN_BACKGROUND_WORKERS",
             "MCP_ALLOWED_AUDIENCES", "MCP_CONSENT_URL", "MCP_JWT_ISSUER",
             "ASSESSMENT_UI_URL",
-            "VOICE_ENABLED", "VOICE_TTS_VOICE", "VOICE_AGENT_URL",
+            "VOICE_ENABLED", "VOICE_TTS_VOICE",
             "VOICE_AGENT_V2_URL", "VOICE_AGENT_V2_DRAIN_TIMEOUT_S",
             "VOICE_DEEPGRAM_API_KEY",
             "INTAKE_TRANSCRIPT_WORKER_URL",
