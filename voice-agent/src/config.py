@@ -43,7 +43,16 @@ class Settings(BaseSettings):
     flux_eager_eot_threshold: float | None = None
     flux_eot_timeout_ms: int | None = 3000
 
+    # STUN is enough for browser-to-agent voice. A Recall meeting bot needs a
+    # TURN RELAY — see src/ice.py.
     ice_stun_servers: list = ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]
+    # Cloudflare TURN: a server-side key that MINTS short-lived credentials.
+    # Static username/password cannot be used with it, which is why src/ice.py
+    # exists rather than this being pure config.
+    cloudflare_turn_token_id: str = ""
+    cloudflare_turn_api_token: str = ""
+    # Any relay with long-term credentials (coturn, metered.ca). Takes priority
+    # when set, and is what keeps a non-Cloudflare relay a zero-code swap.
     turn_server_url: str = ""
     turn_username: str = ""
     turn_credential: str = ""

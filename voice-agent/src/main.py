@@ -31,6 +31,7 @@ from pipecat.processors.frameworks.rtvi import RTVIObserver, RTVIProcessor
 from pipecat.frames.frames import EndFrame, ErrorFrame, LLMRunFrame, TTSSpeakFrame
 
 from src.config import get_settings
+from src.ice import get_ice_servers
 from src.pipeline.factory import PipelineFactory, PipelineConfig
 from src.persona.generator import generate_persona, RoleContext, ScorecardItem
 from src.pipeline.markdown_stripper import normalize_phonetic_name
@@ -76,16 +77,24 @@ def _verify_internal_secret(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
-def _build_ice_servers() -> list[RTCIceServer]:
-    settings = get_settings()
-    servers = [RTCIceServer(urls=url) for url in settings.ice_stun_servers]
-    if settings.turn_server_url:
-        servers.append(RTCIceServer(
-            urls=settings.turn_server_url,
-            username=settings.turn_username,
-            credential=settings.turn_credential,
-        ))
-    return servers
+async def _refresh_ice_servers() -> None:
+    """Give the WebRTC handler fresh ICE servers before an offer is answered.
+
+    Cloudflare TURN credentials are short-lived, so they are minted per offer
+    rather than once at boot. src/ice.py caches them until shortly before
+    expiry, so this is cheap; the point is that a call is never set up with a
+    credential that is about to die. `handle_web_request` reads _ice_servers at
+    connection time (request_handler.py:206), which is what makes this work.
+    """
+    if _webrtc_handler is None:
+        return
+    try:
+        _webrtc_handler.update_ice_servers(await get_ice_servers())
+    except Exception as exc:  # never block a call on the relay lookup
+        logger.error("ice_refresh_failed", extra={
+            "event": "ice_refresh_failed", "error": str(exc),
+            "detail": "Proceeding with the previous ICE servers.",
+        })
 
 
 def _get_headers() -> dict:
@@ -420,8 +429,7 @@ def format_intake_transcript(messages: list[dict]) -> str:
 async def lifespan(app: FastAPI):
     global _webrtc_handler
     settings = get_settings()
-    ice_servers = _build_ice_servers()
-    _webrtc_handler = SmallWebRTCRequestHandler(ice_servers=ice_servers)
+    _webrtc_handler = SmallWebRTCRequestHandler(ice_servers=await get_ice_servers())
     logger.info("Scout Voice Agent starting")
     logger.info(
         "LLM aliases: intake=%s screening=%s feedback=%s",
@@ -429,7 +437,6 @@ async def lifespan(app: FastAPI):
         settings.voice_screening_model,
         settings.voice_feedback_model,
     )
-    logger.info(f"ICE servers: {[s.urls for s in ice_servers]}")
     yield
     if _webrtc_handler:
         await _webrtc_handler.close()
@@ -686,6 +693,7 @@ async def voice_offer(session_token: str, request: Request, background_tasks: Ba
     async def on_connection(connection):
         background_tasks.add_task(_run_feedback_pipeline, connection, recall_bot)
 
+    await _refresh_ice_servers()
     answer = await _webrtc_handler.handle_web_request(sdp_request, on_connection)
     return answer
 
@@ -903,6 +911,7 @@ async def intake_offer(session_token: str, request: Request, background_tasks: B
     async def on_connection(connection):
         background_tasks.add_task(_run_intake_pipeline, connection, requisition)
 
+    await _refresh_ice_servers()
     answer = await _webrtc_handler.handle_web_request(sdp_request, on_connection)
     return answer
 
@@ -1513,6 +1522,7 @@ async def fallback_feedback_offer(
             session_token,
         )
 
+    await _refresh_ice_servers()
     answer = await _webrtc_handler.handle_web_request(sdp_request, on_connection)
     return answer
 
@@ -2121,6 +2131,7 @@ async def screening_offer(
             role_context_text,
         )
 
+    await _refresh_ice_servers()
     answer = await _webrtc_handler.handle_web_request(sdp_request, on_connection)
     return answer
 
@@ -2235,6 +2246,7 @@ async def v2_intake_offer(request: Request, background_tasks: BackgroundTasks):
             sb,
         )
 
+    await _refresh_ice_servers()
     answer = await _webrtc_handler.handle_web_request(sdp_request, _on_connection)
     return answer
 

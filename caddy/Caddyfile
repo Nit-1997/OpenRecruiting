@@ -1,0 +1,45 @@
+# One public hostname, path-routed to the local services.
+#
+# This exists because the frontend expects voice-agent at /voice-ws-v2 on the
+# SAME ORIGIN (recruiter-app IntakeCallProvider.tsx:57), and voice-frontend's
+# status URL uses window.location.host off localhost. Four separate tunnels
+# would give four hostnames and break both. The reverse proxy that used to
+# provide this lived in deploy-config/, which is not in this repo.
+#
+# Terminating TLS is Cloudflare's job — cloudflared connects to :80 inside the
+# compose network, so nothing here is exposed to the host.
+
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	log {
+		output stdout
+		format console
+	}
+
+	# WebRTC signalling for the voice agent. Must come before the catch-all.
+	handle_path /voice-ws-v2/* {
+		reverse_proxy voice-agent:8011
+	}
+
+	# The MCP server an assistant connects to.
+	handle_path /mcp/* {
+		reverse_proxy cortex-mcp:8020
+	}
+
+	# Backend: Recall webhooks land here, and voice-frontend's same-origin
+	# status polling resolves to /api/* on this host.
+	handle /api/* {
+		reverse_proxy backend:8004
+	}
+
+	# Everything else is the page Recall's cloud browser loads as the bot's
+	# camera. It is the catch-all on purpose: the bot is handed
+	# https://<host>/<session-token>, a bare path with no prefix to match on.
+	handle {
+		reverse_proxy voice-frontend:3000
+	}
+}

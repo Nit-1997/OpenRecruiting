@@ -279,6 +279,27 @@ services:
     user: "65534:${DOCKER_SOCKET_GID:-0}"
     restart: unless-stopped
 
+  # ── Public access: one hostname, path-routed ─────────────────────────────
+  # Only reachable from inside the compose network and via the tunnel. No host
+  # port is published, so running this does NOT expose anything by itself —
+  # cloudflared below is what makes it public, and only while it runs.
+  caddy:
+    image: caddy:2-alpine
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    expose: ["80"]
+    restart: unless-stopped
+
+  # Outbound-only connection to Cloudflare. Opens no inbound ports on your
+  # machine or router — the tunnel dials out and Cloudflare routes back down it.
+  # Set CLOUDFLARE_TOKEN in .env; with it unset this container simply idles,
+  # which keeps `docker compose up` working on an unconfigured install.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN:-}
+    depends_on: [caddy]
+    restart: unless-stopped
+
 networks:
   default:
     name: openrecruiting
