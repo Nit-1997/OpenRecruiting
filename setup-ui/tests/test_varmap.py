@@ -11,7 +11,7 @@ import pytest
 import yaml
 
 from app.envfile import parse
-from app.varmap import GROUPS, affected_services, all_variables, is_secret
+from app.varmap import GROUPS, UNMANAGED, affected_services, all_variables, is_secret
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -99,3 +99,48 @@ def test_an_unknown_variable_affects_nothing_rather_than_everything():
 def test_is_secret_matches_the_group_definitions():
     assert is_secret("SUPABASE_SECRET_KEY") is True
     assert is_secret("SUPABASE_URL") is False
+
+
+def _backend_settings() -> set[str]:
+    """Every UPPER_CASE field on the backend Settings class."""
+    import re
+
+    cfg = REPO / "backend" / "app" / "config.py"
+    if not cfg.exists():
+        pytest.skip("backend/app/config.py not reachable")
+    return set(re.findall(r"^\s{4}([A-Z][A-Z0-9_]+)\s*:", cfg.read_text(encoding="utf-8"), re.M))
+
+
+def test_every_backend_setting_is_either_managed_or_explicitly_excluded():
+    """The guard that .env.example could not provide.
+
+    The first version of this map was built from .env.example and silently
+    omitted the entire Email group — eight settings including RESEND_API_KEY,
+    ZEPTOMAIL_API_TOKEN and two more keys — because that file documents only 21
+    of the backend's 101 settings. Nothing failed; the fields simply were not
+    there, and it took someone asking "why is there no Resend key" to find it.
+
+    Reading the Settings class instead makes the omission impossible: a new
+    backend setting must be given a group or an explicit reason for not having
+    one.
+    """
+    unaccounted = sorted(_backend_settings() - all_variables() - set(UNMANAGED))
+
+    assert unaccounted == [], (
+        "these backend settings are neither in a UI group nor in UNMANAGED. Add "
+        f"them to one or the other — silence is how a credential goes missing: {unaccounted}"
+    )
+
+
+def test_every_exclusion_carries_a_reason():
+    """An UNMANAGED entry with an empty reason is the same unexplained gap in a
+    different place."""
+    blank = sorted(name for name, reason in UNMANAGED.items() if not reason.strip())
+
+    assert blank == []
+
+
+def test_nothing_is_both_managed_and_excluded():
+    overlap = sorted(all_variables() & set(UNMANAGED))
+
+    assert overlap == []

@@ -41,13 +41,24 @@ docker = DockerControl(DOCKER_PROXY)
 
 
 def _read_env() -> dict[str, str]:
-    if ENV_PATH.exists():
-        return parse(ENV_PATH.read_text(encoding="utf-8"))
+    """The user's .env, layered over .env.example's documented defaults.
+
+    Layered rather than either/or, because an existing deployment's .env
+    predates any setting added later: reading it alone shows blanks for
+    everything new, and reading only the example would discard the user's real
+    values. This way their values always win and a newly documented default —
+    EMAIL_PROVIDER=zoho, a base URL — still appears instead of an empty box the
+    user has to research.
+
+    Nothing here is written back. A default only becomes real in .env if the
+    user saves it.
+    """
+    values: dict[str, str] = {}
     if ENV_EXAMPLE_PATH.exists():
-        # First run with no .env at all: seed the form from the example so the
-        # user sees the documented defaults rather than 43 blank fields.
-        return parse(ENV_EXAMPLE_PATH.read_text(encoding="utf-8"))
-    return {}
+        values.update(parse(ENV_EXAMPLE_PATH.read_text(encoding="utf-8")))
+    if ENV_PATH.exists():
+        values.update(parse(ENV_PATH.read_text(encoding="utf-8")))
+    return values
 
 
 def require_auth(request: Request) -> None:

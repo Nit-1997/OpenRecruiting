@@ -6,10 +6,14 @@ when a value is saved, so a variable missing from here would be written to
 "looks applied, isn't" failure this codebase keeps producing.
 `tests/test_varmap.py` fails if any key in `.env.example` is absent.
 
-Deviation from the spec, recorded deliberately: the spec listed an "Email" group
-(from the architecture doc's degradation table), but `.env.example` declares no
-email variables at all. Rendering an empty section would be noise, so the group
-is dropped and the eight URL/CORS settings get a group instead.
+⚠️ `.env.example` IS NOT THE SOURCE OF TRUTH, and trusting it cost real coverage.
+The first version of this map was built from that file and shipped without an
+Email group, because `.env.example` declares no email variables — while
+`backend/app/config.py` declares eight, including three API keys, all read by
+`services/email/zoho_provider.py`. Eighty of its 101 settings are undocumented
+there. So the completeness test now reads the Settings class itself, and every
+field must be either mapped above or listed in UNMANAGED with a reason. An
+unexplained gap is how the Resend key stayed invisible until someone asked.
 """
 
 from __future__ import annotations
@@ -200,6 +204,51 @@ GROUPS: list[Group] = [
         ],
     ),
     Group(
+        id="email",
+        title="Email",
+        blurb=(
+            "Outbound mail: interview invitations, feedback links, password "
+            "resets. Two providers are implemented — Zoho (ZeptoMail) and "
+            "Resend. Unset means no mail is sent."
+        ),
+        variables=[
+            Variable("EMAIL_PROVIDER", "Provider",
+                     "zoho or resend. SendGrid and Postmark exist in the enum but "
+                     "raise NotImplementedError at send time, so they are not "
+                     "offered here — a field that looks configured and fails on "
+                     "the first send is worse than no field.",
+                     services=["backend"]),
+            Variable("EMAIL_FROM_ADDRESS", "From address", services=["backend"]),
+            Variable("EMAIL_FROM_NAME", "From name", services=["backend"]),
+            Variable("ZEPTOMAIL_API_TOKEN", "ZeptoMail API token",
+                     "Required when the provider is zoho.", secret=True, services=["backend"]),
+            Variable("ZEPTOMAIL_BASE_URL", "ZeptoMail base URL", services=["backend"]),
+            Variable("RESEND_API_KEY", "Resend API key",
+                     "Required when the provider is resend.", secret=True, services=["backend"]),
+        ],
+    ),
+    Group(
+        id="integrations",
+        title="Integrations & storage",
+        blurb="ATS sync, resume storage, and the async worker callback.",
+        variables=[
+            Variable("KNIT_API_KEY", "Knit API key",
+                     "ATS integrations. Unset disables ATS sync.",
+                     secret=True, services=["backend"]),
+            Variable("ATS_INTEGRATIONS_ENABLED", "Enable ATS sync", services=["backend"]),
+            Variable("AWS_ACCESS_KEY_ID", "AWS access key id",
+                     "S3 resume/blog storage and Lambda invocation.",
+                     secret=True, services=["backend"]),
+            Variable("AWS_SECRET_ACCESS_KEY", "AWS secret access key",
+                     secret=True, services=["backend"]),
+            Variable("AWS_REGION", "AWS region", services=["backend"]),
+            Variable("S3_RESUME_BUCKET", "Resume bucket", services=["backend"]),
+            Variable("LAMBDA_CALLBACK_SECRET", "Lambda callback secret",
+                     "Authenticates worker callbacks to the backend.",
+                     secret=True, services=["backend"]),
+        ],
+    ),
+    Group(
         id="advanced",
         title="Advanced",
         blurb="Internal wiring. Defaults are correct for compose.",
@@ -214,6 +263,62 @@ GROUPS: list[Group] = [
         ],
     ),
 ]
+
+# Backend settings this UI deliberately does NOT surface. Every entry needs a
+# reason, because the alternative — an unexplained gap — is how eight email
+# settings including three API keys stayed invisible until someone asked why
+# there was no Resend field. `tests/test_varmap.py` fails on any backend setting
+# that is neither mapped above nor listed here.
+UNMANAGED: dict[str, str] = {
+    # Not implemented: the provider factory raises NotImplementedError for both,
+    # so a field would look configured and fail on the first send.
+    "SENDGRID_API_KEY": "provider not implemented",
+    "POSTMARK_SERVER_TOKEN": "provider not implemented",
+    # SaaS-only billing. Self-hosted instances get the built-in free tier.
+    "DODO_PAYMENTS_API_KEY": "hosted billing only",
+    "DODO_WEBHOOK_SECRET": "hosted billing only",
+    "DODO_ENVIRONMENT": "hosted billing only",
+    # Per-workload model ALIASES. Managed in the Models per task section, which
+    # edits litellm-config.yaml — the layer that decides what an alias serves.
+    **{
+        name: "set in Models per task"
+        for name in (
+            "LLM_MODEL", "LLM_TEMPERATURE", "LLM_MAX_TOKENS",
+            "ASSISTANT_INTENT_MODEL", "CANDIDATE_DETECT_MODEL", "DEBRIEF_CHAT_MODEL",
+            "END_STATE_MODEL", "INTAKE_JD_MODEL", "INTAKE_TEXT_MODEL",
+            "PERSONA_REDUCE_MODEL", "RECALL_TRANSCRIPT_MODEL", "RESUME_EXTRACTION_MODEL",
+            "SCREENING_ASSESSOR_MODEL", "SCREENING_GENERATOR_MODEL",
+            "DEBRIEF_CHAT_MAX_ITERS", "DEBRIEF_CHAT_MAX_TOKENS",
+        )
+    },
+    # Tuning knobs with correct defaults. Surfacing 40 of these would bury the
+    # six settings that actually block a first run.
+    **{
+        name: "tuning knob, default is correct"
+        for name in (
+            "ATS_ENRICHMENT_BATCH", "ATS_ENRICHMENT_INTERVAL_S", "ATS_ENRICHMENT_MAX_RETRIES",
+            "ATS_INTERVIEW_RECONCILE_BATCH", "ATS_INTERVIEW_RECONCILE_INTERVAL_S",
+            "ATS_RESUME_MAX_BYTES", "ATS_SYNC_DRAIN_BATCH", "ATS_SYNC_DRAIN_INTERVAL_S",
+            "ATS_SYNC_MAX_RETRIES", "KNIT_API_BASE_URL",
+            "CANDIDATE_DETECT_CHAR_THRESHOLD", "CANDIDATE_DETECT_CONFIDENCE_THRESHOLD",
+            "CANDIDATE_DETECT_ENABLED", "CANDIDATE_DETECT_MIN_PARTICIPANTS",
+            "END_STATE_CONFIDENCE_THRESHOLD", "END_STATE_DETECT_ENABLED",
+            "END_STATE_GRACE_SECONDS",
+            "RECALL_BASE_URL", "RECALL_BOT_EXIT_TIMEOUT", "RECALL_BOT_NOONE_JOINED_TIMEOUT",
+            "RECALL_BOT_SILENCE_TIMEOUT", "RECALL_REALTIME_WEBHOOK_PATH",
+            "RECALL_TRANSCRIPT_LANGUAGE", "RECALL_TRANSCRIPT_PROVIDER",
+            "RECALL_TRANSCRIPT_SEPARATE_STREAMS", "RECALL_TRANSCRIPT_WORD_BOOST",
+            "DEBUG", "ENV", "LOG_LEVEL", "RUN_BACKGROUND_WORKERS",
+            "MCP_ALLOWED_AUDIENCES", "MCP_CONSENT_URL", "MCP_JWT_ISSUER",
+            "S3_BLOG_BUCKET", "ASSESSMENT_UI_URL",
+            "VOICE_ENABLED", "VOICE_TTS_VOICE", "VOICE_AGENT_URL",
+            "VOICE_AGENT_V2_URL", "VOICE_AGENT_V2_DRAIN_TIMEOUT_S",
+            "VOICE_DEEPGRAM_API_KEY",
+            "FEEDBACK_LAMBDA_ARN", "INTAKE_LAMBDA_ARN", "INTAKE_LAMBDA_ARN_V2",
+            "INTAKE_CONTEXT_BUILDER_LAMBDA_ARN", "INTAKE_TRANSCRIPT_WORKER_URL",
+        )
+    },
+}
 
 _BY_NAME: dict[str, Variable] = {
     var.name: var for group in GROUPS for var in group.variables

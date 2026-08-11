@@ -139,9 +139,11 @@
     $("gate-sub").textContent = needsSetup
       ? "Choose a password. It protects this page, which can edit every setting and restart containers."
       : "Sign in to continue.";
+    // The reset hint has to live on BOTH screens. It used to appear only on
+    // first-run copy — the one screen you cannot see when you are locked out.
     $("gate-help").textContent = needsSetup
-      ? "At least 8 characters. Forgot it later? Delete the setup-ui state volume."
-      : "";
+      ? "At least 8 characters. This is stored hashed on a local volume, not in .env."
+      : "Forgot it?  docker compose exec setup-ui rm /state/password.json  — then reload.";
     $("gate-password").setAttribute("autocomplete", needsSetup ? "new-password" : "current-password");
     $("gate-password").focus();
   }
