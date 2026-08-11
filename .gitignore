@@ -52,3 +52,7 @@ lighthouse-*.json
 
 # Subagent-driven-development scratch (ledgers, briefs, review packages)
 .superpowers/
+
+# Timestamped .env backups written by setup-ui before each save.
+.env.bak.*
+litellm-config.yaml.bak.*

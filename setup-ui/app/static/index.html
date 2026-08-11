@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en" id="setup-html">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenRecruiting — Setup</title>
+  <style>
+    :root {
+      --bg: #fbfaf9; --fg: #17150f; --muted: #6b665c; --line: #e4e0d8;
+      --card: #fff; --ok: #1a7f4b; --warn: #a8620b; --bad: #b3261e; --accent: #17150f;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#111110; --fg:#f2efe9; --muted:#a09a8e; --line:#2c2a26;
+              --card:#191817; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --accent:#f2efe9; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+    #setup-main { max-width: 860px; margin: 0 auto; padding: 40px 20px 96px; }
+    h1 { font-size: 24px; margin: 0 0 4px; letter-spacing:-0.01em; }
+    .sub { color: var(--muted); margin: 0 0 28px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin-bottom:14px; }
+    .card > h2 { font-size:16px; margin:0 0 4px; display:flex; align-items:center; gap:8px; }
+    .blurb { color:var(--muted); font-size:13.5px; margin:0 0 14px; }
+    label { display:block; font-size:13px; font-weight:600; margin:12px 0 4px; }
+    .help { font-weight:400; color:var(--muted); font-size:12.5px; margin-top:2px; }
+    input[type=text], input[type=password] {
+      width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:8px;
+      background:var(--bg); color:var(--fg); font:13.5px ui-monospace,SFMono-Regular,Menlo,monospace;
+    }
+    input:focus { outline:2px solid var(--accent); outline-offset:-1px; }
+    button {
+      background:var(--accent); color:var(--bg); border:0; border-radius:8px;
+      padding:9px 16px; font-size:14px; font-weight:600; cursor:pointer;
+    }
+    button.ghost { background:transparent; color:var(--fg); border:1px solid var(--line); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .pill { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); font-weight:600; }
+    .pill.ok { color:var(--ok); border-color:currentColor; }
+    .pill.bad { color:var(--bad); border-color:currentColor; }
+    .pill.warn { color:var(--warn); border-color:currentColor; }
+    .row { display:flex; gap:8px; align-items:center; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:8px; }
+    .svc { display:flex; justify-content:space-between; gap:8px; border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:13px; }
+    #setup-bar { position:fixed; left:0; right:0; bottom:0; background:var(--card);
+      border-top:1px solid var(--line); padding:12px 20px; display:none; }
+    #setup-bar .inner { max-width:860px; margin:0 auto; display:flex; align-items:center; gap:12px; justify-content:space-between; }
+    .msg { padding:10px 12px; border-radius:8px; font-size:13.5px; margin-bottom:12px; white-space:pre-wrap; }
+    .msg.err { background:color-mix(in srgb, var(--bad) 12%, transparent); color:var(--bad); }
+    .msg.good { background:color-mix(in srgb, var(--ok) 12%, transparent); color:var(--ok); }
+    code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body id="setup-body">
+<main id="setup-main">
+
+  <!-- ── gate ─────────────────────────────────────────────────────── -->
+  <section id="gate-section">
+    <h1 id="gate-title">OpenRecruiting setup</h1>
+    <p class="sub" id="gate-sub">Loading…</p>
+    <div class="card" id="gate-card">
+      <div class="msg err hidden" id="gate-error"></div>
+      <label for="gate-password" id="gate-password-label">Password</label>
+      <input type="password" id="gate-password" autocomplete="current-password" />
+      <p class="help" id="gate-help"></p>
+      <div class="row" style="margin-top:14px">
+        <button id="gate-submit">Continue</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── app ──────────────────────────────────────────────────────── -->
+  <section id="app-section" class="hidden">
+    <h1 id="app-title">OpenRecruiting setup</h1>
+    <p class="sub" id="app-sub">Fill in what you have. Everything except the database is optional — an unset value disables that feature rather than breaking the stack.</p>
+
+    <div class="msg err hidden" id="app-error"></div>
+    <div class="msg good hidden" id="app-result"></div>
+
+    <div class="card" id="health-card">
+      <h2 id="health-title">Services</h2>
+      <p class="blurb" id="health-blurb">Live container state.</p>
+      <div class="grid" id="health-grid"></div>
+    </div>
+
+    <div id="groups-container"></div>
+  </section>
+</main>
+
+<div id="setup-bar">
+  <div class="inner">
+    <div id="bar-summary"></div>
+    <div class="row">
+      <button class="ghost" id="bar-discard">Discard</button>
+      <button id="bar-save">Review &amp; apply</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  let TOKEN = null;
+  let CONFIG = null;
+  const pending = new Map();
+
+  const api = async (path, opts = {}) => {
+    const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
+    if (TOKEN) headers["x-setup-token"] = TOKEN;
+    const res = await fetch(path, Object.assign({}, opts, { headers }));
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || `Request failed (${res.status})`);
+    return body;
+  };
+
+  const show = (el, on) => el.classList.toggle("hidden", !on);
+  const setMsg = (el, text) => { el.textContent = text; show(el, Boolean(text)); };
+
+  // ── gate ────────────────────────────────────────────────────────
+  let needsSetup = false;
+
+  async function initGate() {
+    const state = await api("/api/session");
+    needsSetup = state.needs_setup;
+    $("gate-sub").textContent = needsSetup
+      ? "Choose a password. It protects this page, which can edit every setting and restart containers."
+      : "Sign in to continue.";
+    $("gate-help").textContent = needsSetup
+      ? "At least 8 characters. Forgot it later? Delete the setup-ui state volume."
+      : "";
+    $("gate-password").setAttribute("autocomplete", needsSetup ? "new-password" : "current-password");
+    $("gate-password").focus();
+  }
+
+  $("gate-submit").addEventListener("click", async () => {
+    setMsg($("gate-error"), "");
+    const password = $("gate-password").value;
+    try {
+      const path = needsSetup ? "/api/password" : "/api/login";
+      const { token } = await api(path, { method: "POST", body: JSON.stringify({ password }) });
+      TOKEN = token;
+      show($("gate-section"), false);
+      show($("app-section"), true);
+      await Promise.all([loadConfig(), loadHealth()]);
+      setInterval(loadHealth, 10000);
+    } catch (err) { setMsg($("gate-error"), err.message); }
+  });
+
+  $("gate-password").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") $("gate-submit").click();
+  });
+
+  // ── health ──────────────────────────────────────────────────────
+  async function loadHealth() {
+    try {
+      const { services, error } = await api("/api/health");
+      const grid = $("health-grid");
+      if (error) { grid.innerHTML = `<div class="svc" id="health-error"><span>${error}</span></div>`; return; }
+      grid.innerHTML = services.map((s) => {
+        const cls = s.ok ? "ok" : (s.state === "running" ? "warn" : "bad");
+        const label = s.ok ? "ok" : (s.health || s.state);
+        return `<div class="svc" id="svc-${s.name}"><span>${s.name}</span><span class="pill ${cls}" id="svc-pill-${s.name}">${label}</span></div>`;
+      }).join("");
+    } catch (err) { /* health is advisory; never block the form on it */ }
+  }
+
+  // ── config ──────────────────────────────────────────────────────
+  async function loadConfig() {
+    CONFIG = await api("/api/config");
+    const container = $("groups-container");
+    container.innerHTML = "";
+    for (const group of CONFIG.groups) {
+      const missing = group.missing_required.length;
+      const card = document.createElement("div");
+      card.className = "card";
+      card.id = `group-${group.id}`;
+      card.innerHTML = `
+        <h2 id="group-title-${group.id}">${group.title}
+          <span class="pill ${missing ? "bad" : "ok"}" id="group-pill-${group.id}">${missing ? missing + " required missing" : "ready"}</span>
+        </h2>
+        <p class="blurb" id="group-blurb-${group.id}">${group.blurb}</p>
+        <div id="group-fields-${group.id}"></div>`;
+      container.appendChild(card);
+
+      const fields = card.querySelector(`#group-fields-${group.id}`);
+      for (const v of group.variables) {
+        const wrap = document.createElement("div");
+        wrap.id = `field-${v.name}`;
+        const status = v.secret && v.set ? " — <span class='pill ok'>set</span>" : "";
+        wrap.innerHTML = `
+          <label for="input-${v.name}" id="label-${v.name}">${v.label}${v.required ? " *" : ""}${status}</label>
+          <input id="input-${v.name}" type="${v.secret ? "password" : "text"}"
+                 placeholder="${v.secret && v.set ? "•••••••• (unchanged)" : ""}"
+                 value="${v.secret ? "" : String(v.value).replace(/"/g, "&quot;")}" />
+          ${v.help ? `<p class="help" id="help-${v.name}">${v.help}</p>` : ""}`;
+        fields.appendChild(wrap);
+
+        wrap.querySelector("input").addEventListener("input", (e) => {
+          const original = v.secret ? "" : v.value;
+          if (e.target.value === original) pending.delete(v.name);
+          else pending.set(v.name, e.target.value);
+          renderBar();
+        });
+      }
+    }
+  }
+
+  function renderBar() {
+    const n = pending.size;
+    $("setup-bar").style.display = n ? "block" : "none";
+    $("bar-summary").textContent = n === 1 ? "1 change" : `${n} changes`;
+  }
+
+  $("bar-discard").addEventListener("click", () => { pending.clear(); loadConfig(); renderBar(); });
+
+  $("bar-save").addEventListener("click", async () => {
+    setMsg($("app-error"), ""); setMsg($("app-result"), "");
+    const changes = Object.fromEntries(pending);
+    try {
+      const plan = await api("/api/plan", { method: "POST", body: JSON.stringify({ changes }) });
+      const lines = [
+        `Save ${plan.changes.length} setting(s).`,
+        plan.restarts.length
+          ? `These containers will restart:\n  ${plan.restarts.join(", ")}`
+          : "No containers need restarting.",
+        plan.warning,
+      ].filter(Boolean).join("\n\n");
+      if (!window.confirm(lines)) return;
+
+      $("bar-save").disabled = true;
+      $("bar-save").textContent = "Applying…";
+      const result = await api("/api/apply", { method: "POST", body: JSON.stringify({ changes }) });
+      const failed = result.restarts.filter((r) => !r.ok);
+      setMsg($("app-result"),
+        `Saved ${result.saved.length} setting(s). Backup: ${result.backup || "none"}.\n` +
+        (result.restarts.length
+          ? result.restarts.map((r) => `${r.ok ? "ok" : "FAILED"}  ${r.service}${r.detail ? " — " + r.detail : ""}`).join("\n")
+          : "Nothing needed restarting."));
+      if (failed.length) setMsg($("app-error"), `${failed.length} service(s) did not come back healthy. Check: docker compose logs ${failed.map((f) => f.service).join(" ")}`);
+      pending.clear(); renderBar();
+      await Promise.all([loadConfig(), loadHealth()]);
+    } catch (err) {
+      setMsg($("app-error"), err.message);
+    } finally {
+      $("bar-save").disabled = false;
+      $("bar-save").textContent = "Review & apply";
+    }
+  });
+
+  initGate().catch((err) => setMsg($("gate-error"), err.message));
+})();
+</script>
+</body>
+</html>

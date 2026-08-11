@@ -197,9 +197,92 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # ── Self-host setup UI ───────────────────────────────────────────────────
+  # Always boots, with no dependencies, so it is reachable on a completely
+  # unconfigured stack — that is the whole point. It owns .env and
+  # litellm-config.yaml as FILES (still hand-editable) and restarts only the
+  # containers a change affects.
+  #
+  # Bound to 127.0.0.1 deliberately: it can edit every secret in the deployment
+  # and restart containers, so it must not be reachable from a network. Remote
+  # operators tunnel: ssh -L 3010:localhost:3010 user@host
+  setup-ui:
+    build:
+      context: .
+      dockerfile: setup-ui/Dockerfile
+    ports: ["127.0.0.1:3010:3010"]
+    environment:
+      SETUP_ENV_PATH: /repo/.env
+      SETUP_ENV_EXAMPLE_PATH: /repo/.env.example
+      SETUP_STATE_PATH: /state/password.json
+      SETUP_DOCKER_PROXY: http://socket-proxy:2375
+    volumes:
+      # The repo ROOT, not the individual files. Bind-mounting a single FILE
+      # pins its inode, so os.replace() onto it fails with EBUSY — atomic writes
+      # need the containing directory to be the mount. Found by saving a setting
+      # and watching it fail: "Device or resource busy: '/repo/.env.1.tmp' ->
+      # '/repo/.env'". Writing in place instead would drop atomicity, and a
+      # half-written .env takes down every container on its next restart.
+      #
+      # setup-ui only ever writes the two paths named in its environment above;
+      # SETUP_ENV_PATH and the litellm config are the only targets in the code.
+      - ./:/repo
+      - setup-ui-state:/state
+    depends_on: [socket-proxy]
+    restart: unless-stopped
+
+  # The ONLY container that sees the Docker socket, and the one piece of this
+  # design that has to be exactly right. /var/run/docker.sock is root-equivalent
+  # on the host: anything that can reach it can create a privileged container
+  # bind-mounting /, which is a full host compromise. setup-ui therefore never
+  # gets the socket — it gets an HTTP endpoint that permits exactly two calls.
+  #
+  # DO NOT swap this for tecnativa/docker-socket-proxy with POST=1. That was the
+  # first implementation and it is NOT safe for this use: its POST flag is a
+  # blanket allow across every enabled path group, so POST /containers/create is
+  # permitted. Verified against the running proxy, not assumed — a well-formed
+  # privileged create with "Binds": ["/:/host"] returned 201 and the container
+  # was really created. Per-endpoint flags like EXEC=0 gate path PREFIXES and do
+  # not help, because /containers/create lives under CONTAINERS=1.
+  #
+  # wollomatic/socket-proxy takes a regex allowlist of METHOD|PATH instead, so
+  # "list containers" and "restart THIS container by id" can be permitted while
+  # create, exec, images, volumes, networks and everything else are refused by
+  # default rather than by omission.
+  socket-proxy:
+    image: wollomatic/socket-proxy:1
+    command:
+      - '-loglevel=info'
+      - '-listenip=0.0.0.0'
+      - '-allowfrom=setup-ui'
+      # GET  /v1.xx/containers/json          -> the health grid
+      # POST /v1.xx/containers/<id>/restart  -> apply a config change
+      - '-allowGET=/v[\d\.]+/containers/json'
+      - '-allowPOST=/v[\d\.]+/containers/[a-zA-Z0-9_.-]+/restart'
+      - '-watchdoginterval=600'
+      - '-stoponwatchdog=false'
+      - '-shutdowngracetime=5'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose: ["2375"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges"]
+    # Runs as nobody, in the group that owns the socket. That gid is
+    # host-specific and must be read from INSIDE a container, not from the host:
+    # on Docker Desktop the host shows gid 1 while the container sees root:root
+    # (gid 0), because the socket is proxied into the VM. On Linux it is the
+    # docker group, typically 999 or 998. Find yours with:
+    #   docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
+    #     alpine stat -c '%g' /var/run/docker.sock
+    # Then export DOCKER_SOCKET_GID before `docker compose up`.
+    user: "65534:${DOCKER_SOCKET_GID:-0}"
+    restart: unless-stopped
+
 networks:
   default:
     name: openrecruiting
 
 volumes:
   neo4j-data:
+  setup-ui-state:
