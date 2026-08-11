@@ -99,14 +99,9 @@ services:
   # its own session cookie (openrecruiting-admin-auth), deliberately separate
   # from the recruiter app's, so signing into one is not signing into the other.
   admin-app:
+    # No build args: browser config is read at request time from env_file.
     build:
       context: ./admin-app
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8004}
-        NEXT_PUBLIC_API_V2_URL: ${NEXT_PUBLIC_API_V2_URL:-http://localhost:8004}
-        NEXT_PUBLIC_ASSESSMENT_UI_URL: ${NEXT_PUBLIC_ASSESSMENT_UI_URL:-}
     ports: ["3001:3000"]
     env_file: [.env]
     restart: unless-stopped

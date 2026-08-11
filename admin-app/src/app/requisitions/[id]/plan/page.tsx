@@ -24,6 +24,7 @@ import {
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { AuthGuard } from "@/components/auth-guard";
 import { createClient } from "@/lib/supabase/client";
+import { getRuntimeConfig } from "@/lib/runtime-config";
 
 interface Requisition {
   id: string;
@@ -141,11 +142,11 @@ export default function PlanInputPage() {
     return defaults;
   };
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = getRuntimeConfig().apiUrl || "http://localhost:8004";
 
   // V2 backend base — admin endpoints ported to /api/v2/admin.
 
-  const API_V2_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8004";
+  const API_V2_URL = getRuntimeConfig().apiV2Url || "http://localhost:8004";
 
   const getHeaders = async () => {
     const supabase = createClient();

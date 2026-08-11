@@ -6,10 +6,10 @@ import { FileText, Plus, Pencil, Trash2, Loader2, X, AlertTriangle } from "lucid
 import { AuthGuard } from "@/components/auth-guard";
 import { AdminNav } from "@/components/admin-nav";
 import { createClient } from "@/lib/supabase/client";
+import { getRuntimeConfig } from "@/lib/runtime-config";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 // V2 backend base — these admin endpoints are ported to /api/v2/admin.
-const API_V2_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8004";
+const API_V2_URL = getRuntimeConfig().apiV2Url || "http://localhost:8004";
 
 interface BlogPost {
   id: string;

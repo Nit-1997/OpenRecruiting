@@ -3,10 +3,10 @@
 import { useState, useRef, useCallback } from "react";
 import { RichEditor } from "@/components/rich-editor";
 import { ImageIcon, X, Loader2 } from "lucide-react";
+import { getRuntimeConfig } from "@/lib/runtime-config";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 // V2 backend base — these admin endpoints are ported to /api/v2/admin.
-const API_V2_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8004";
+const API_V2_URL = getRuntimeConfig().apiV2Url || "http://localhost:8004";
 
 function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");

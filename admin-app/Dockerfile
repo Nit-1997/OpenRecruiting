@@ -14,16 +14,11 @@ FROM oven/bun:1 AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_API_V2_URL
-ARG NEXT_PUBLIC_ASSESSMENT_UI_URL
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
-    NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
-    NEXT_PUBLIC_API_V2_URL=$NEXT_PUBLIC_API_V2_URL \
-    NEXT_PUBLIC_ASSESSMENT_UI_URL=$NEXT_PUBLIC_ASSESSMENT_UI_URL
+# No NEXT_PUBLIC_* build args, deliberately. Next.js inlines those into the
+# CLIENT BUNDLE at build time, freezing browser-visible settings into the image
+# so a corrected .env needed a rebuild rather than a restart. They are now read
+# at REQUEST time by the Node server (output: 'standalone') and injected as
+# window.__OR_CONFIG__ by src/app/layout.tsx. See src/lib/runtime-config.ts.
 RUN bun run build
 
 FROM oven/bun:1 AS run

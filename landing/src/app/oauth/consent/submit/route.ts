@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8004";
 
 const REQUIRED_FIELDS = [
   "decision",

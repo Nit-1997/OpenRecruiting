@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 
       // Always call complete-signup so the backend gate applies to all providers.
       // The endpoint is idempotent: existing profiles return is_new:false.
-      const apiUrl = process.env.NEXT_PUBLIC_API_V2_URL || 'http://localhost:8000'
+      const apiUrl = process.env.NEXT_PUBLIC_API_V2_URL || 'http://localhost:8004'
 
       // Sign-out helper: clears the session cookie before redirecting away.
       // Best-effort signOut PLUS explicit cookie deletion so a signOut failure

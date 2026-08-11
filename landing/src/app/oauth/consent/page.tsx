@@ -5,7 +5,7 @@ import { ConsentForm } from "./consent-form";
 
 export const dynamic = "force-dynamic";
 
-const API_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8004";
 const LOGIN_PATH = "/login";
 
 interface ClientMetadata {
