@@ -275,7 +275,7 @@ def call_sonnet(prompt: str) -> str:
 
     A SECOND egress path, separate from src/clients/llm.py, which the spec's
     per-service table never mentioned — it hardcoded claude-sonnet-4-6 and read
-    ANTHROPIC_API_KEY directly. It is kept rather than deleted: nothing in either
+    the provider credential directly. It is kept rather than deleted: nothing in either
     Dockerfile runs this module (the compose image runs app:app, the Lambda runs
     production.handler.handler), but src/ui/topic_mapper.py documents
     `uvicorn src.api.server:app` as a developer entry point, so it is a working

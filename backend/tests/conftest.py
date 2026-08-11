@@ -9,8 +9,9 @@ os.environ.update({
     "RECALL_WEBHOOK_SECRET": "test-webhook-secret",
     "WEBHOOK_BASE_URL": "http://localhost:8004",
     "ASSESSMENT_UI_URL": "http://localhost:3002",
-    "OPENAI_API_KEY": "test-openai-key",
-    "ANTHROPIC_API_KEY": "test-anthropic-key",
+    # No provider API keys: this backend reaches every model through the gateway,
+    # so LLM_GATEWAY_URL + LITELLM_MASTER_KEY below are the only LLM credentials
+    # a test environment needs.
     "EMAIL_PROVIDER": "zoho",
     "ZEPTOMAIL_API_TOKEN": "test-zepto-token",
     "AWS_ACCESS_KEY_ID": "test-aws-key",

@@ -17,6 +17,13 @@ passed while the backend was still egressing to a provider directly — which is
 exactly why `test_no_module_posts_to_a_provider_endpoint` now exists. No phase in
 the spec's rollout covered them; phase 1 had created their aliases and nothing
 ever used them.
+
+Phase 7 finished the migration and added the one assertion that is not about
+this backend: `test_no_application_module_holds_a_provider_credential` scans
+EVERY service's source tree. Everything above it scans backend/app alone, and a
+per-service scan structurally cannot see a repo-wide property — which is how
+voice-agent held the last provider credential in the repository while every
+suite here stayed green.
 """
 
 from pathlib import Path
@@ -115,3 +122,74 @@ def test_no_module_sends_a_provider_auth_header():
     scheme gives it away. The gateway takes `Authorization: Bearer`, never these."""
     assert _modules_containing('"x-api-key"') == set()
     assert _modules_containing("anthropic-version") == set()
+
+
+# The OTHER services' source trees (backend/app is scanned via _APP, which is the
+# live mount rather than a baked copy). `workers/*/src` is a glob so a new worker
+# is covered the day it is added, not the day someone remembers this file.
+_OTHER_SERVICE_TREES = (
+    "voice-agent/src",
+    "intake-core/intake_core",
+    "llm-core/llm_core",
+    "workers/*/src",
+)
+
+# Baked into the test image by backend/Dockerfile.test, because `make test`
+# mounts only backend/. Falls back to the repo checkout for a host-side run.
+_SCAN_ROOT = Path("/repo-scan") if Path("/repo-scan").is_dir() else _REPO
+
+_CREDENTIAL_MARKERS = (
+    "api.anthropic.com",
+    "api.openai.com",
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    '"x-api-key"',
+    "from anthropic import",
+)
+
+
+def test_no_application_module_holds_a_provider_credential():
+    """The migration's deliverable, repo-wide — the assertion the whole effort
+    was for.
+
+    Every other test in this file scans backend/app only, so each service could
+    satisfy its own suite while the repo as a whole still egressed to a provider:
+    that is exactly how two backend modules POSTed raw httpx to a provider
+    through seven phases, and how voice-agent kept the last provider credential
+    until phase 7. A per-service check cannot see a repo-wide property.
+
+    Scanned as SOURCE TEXT, because the regression is someone reintroducing a
+    direct client — which no import check inside one service's suite would ever
+    see. Prose that needs to discuss a credential says so without spelling the
+    literal (phase 8's precedent): reword the comment, never weaken the scan.
+
+    litellm-config.yaml and .env are the legitimate holders and are not scanned.
+    The proxy is the egress point; that is the whole design.
+
+    This guard does NOT skip. The other services' source is baked into the test
+    image (backend/Dockerfile.test) for the same reason litellm-config.yaml is:
+    a guard that skips in the acceptance gate is not a guard. It asserts it
+    actually saw every service, so a COPY going missing fails loudly instead of
+    quietly narrowing the scan to nothing.
+    """
+    trees = [t for pattern in _OTHER_SERVICE_TREES
+             for t in sorted(_SCAN_ROOT.glob(pattern)) if t.is_dir()]
+    assert len(trees) >= 6, (
+        f"expected at least 6 service source trees under {_SCAN_ROOT}, saw "
+        f"{[str(t) for t in trees]} — the scan silently covered almost nothing. "
+        "Check the /repo-scan COPY lines in backend/Dockerfile.test."
+    )
+
+    offenders: dict[str, list[str]] = {}
+    for tree in [_APP, *trees]:
+        root = _BACKEND if tree is _APP else _SCAN_ROOT
+        for path in tree.rglob("*.py"):
+            body = path.read_text(encoding="utf-8")
+            hits = [marker for marker in _CREDENTIAL_MARKERS if marker in body]
+            if hits:
+                offenders[path.relative_to(root).as_posix()] = hits
+
+    assert offenders == {}, (
+        "provider credentials or direct provider egress found in application "
+        f"code: {offenders}"
+    )

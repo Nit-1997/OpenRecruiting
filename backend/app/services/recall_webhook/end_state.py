@@ -11,8 +11,10 @@ unambiguous facts:
   * a candidate who dropped but is present again  -> phase=mid  (cancel)
   * trigger == call_ended                         -> phase=ended (forced)
 
-LLM call mirrors candidate_detection_service Tier 3 (one-shot httpx to the
-Anthropic Messages API; ANTHROPIC_API_KEY auth; JSON-only response).
+LLM call mirrors candidate_detection_service Tier 3: one non-streaming,
+non-tool completion through llm-core on the `end-state` gateway alias, with a
+JSON-only response. Phase 8 moved both off the raw provider POST they used to
+share; this module holds no provider credential and names no provider host.
 """
 
 from __future__ import annotations

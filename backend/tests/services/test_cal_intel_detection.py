@@ -164,7 +164,6 @@ def _settings(**overrides):
     s.CANDIDATE_DETECT_MIN_PARTICIPANTS = 2
     s.CANDIDATE_DETECT_CONFIDENCE_THRESHOLD = 0.9
     s.CANDIDATE_DETECT_MODEL = "candidate-detect"   # a gateway alias since phase 8
-    s.ANTHROPIC_API_KEY = "test-key"
     for k, v in overrides.items():
         setattr(s, k, v)
     return s

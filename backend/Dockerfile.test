@@ -34,4 +34,18 @@ RUN pip install --no-cache-dir /tmp/llm-core && rm -rf /tmp/llm-core
 # a guard, and this plan forbids new skips.
 COPY litellm-config.yaml /litellm-config.yaml
 
+# Every other service's SOURCE, for the one repo-wide assertion this migration
+# ends on: test_no_application_module_holds_a_provider_credential. Each service's
+# own suite can only see its own tree, and "no application anywhere holds a
+# provider credential" is precisely the property no per-service scan can check —
+# it is how two backend modules egressed to a provider for seven phases and how
+# voice-agent kept the last provider key while every suite stayed green.
+# Baked for the same reason as litellm-config.yaml above: `make test` mounts only
+# backend/, and a guard that skips is not a guard. Source only, ~2.4 MB, and the
+# image is rebuilt on every `make test` so these cannot go stale.
+COPY voice-agent/src /repo-scan/voice-agent/src
+COPY intake-core/intake_core /repo-scan/intake-core/intake_core
+COPY llm-core/llm_core /repo-scan/llm-core/llm_core
+COPY workers /repo-scan/workers
+
 COPY backend/ /app/

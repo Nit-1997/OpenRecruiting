@@ -108,10 +108,13 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.0
     LLM_MAX_TOKENS: int = 4096
 
-    # API keys for LLM providers (set the one you're using)
-    OPENAI_API_KEY: str = ""
-    ANTHROPIC_API_KEY: str = ""
-    GEMINI_API_KEY: str = ""
+    # No provider API keys live here. Every LLM call in this backend goes through
+    # the LiteLLM gateway, authenticated with LITELLM_MASTER_KEY; the proxy is the
+    # only holder of provider credentials (litellm-config.yaml reads them from the
+    # environment). The OPENAI/ANTHROPIC/GEMINI key settings that used to sit here
+    # were removed once the last direct egress went through the gateway in phase
+    # 8 — all three already had zero readers. Re-adding one is the regression
+    # test_no_application_module_holds_a_provider_credential exists to catch.
 
     # Deepgram API key for real-time transcription
     DEEPGRAM_API_KEY: str = ""
@@ -176,8 +179,11 @@ class Settings(BaseSettings):
     VOICE_AGENT_V2_URL: str = "http://host.docker.internal:8011"
     VOICE_AGENT_V2_DRAIN_TIMEOUT_S: float = 10.0
     VOICE_DEEPGRAM_API_KEY: str = ""
-    VOICE_ANTHROPIC_API_KEY: str = ""
-    VOICE_ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
+    # The two VOICE_ANTHROPIC_* settings (a provider key and a provider model id)
+    # were removed in phase 7. They had zero readers here — voice-agent reads its
+    # own settings, and its provider credential is gone entirely; it now names
+    # three gateway aliases (VOICE_INTAKE_MODEL / VOICE_SCREENING_MODEL /
+    # VOICE_FEEDBACK_MODEL).
     VOICE_TTS_VOICE: str = "aura-2-helena-en"
 
     # Intake JD extract pipeline (sanitize -> injection guardrail -> parse).

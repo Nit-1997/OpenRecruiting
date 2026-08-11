@@ -12,8 +12,8 @@ class Settings:
     # GATEWAY ALIASES, not provider model ids. Two, not one: parse_jd and
     # synthesize shared anthropic_model_sonnet before phase 4, which made them
     # impossible to repoint independently — and litellm-config.yaml already
-    # defined a distinct alias for each. ANTHROPIC_API_KEY is deliberately gone:
-    # only the proxy holds provider credentials now.
+    # defined a distinct alias for each. The provider credential setting is
+    # deliberately gone: only the proxy holds provider keys now.
     parse_jd_model: str
     synthesize_model: str
     supabase_url: str
