@@ -92,10 +92,13 @@ Settings will therefore be `TURN_KEY_ID` + `TURN_API_TOKEN` for Cloudflare,
 with the existing static `TURN_SERVER_URL`/`USERNAME`/`CREDENTIAL` retained for
 static-credential providers. Both paths should stay supported: the static one is
 what makes coturn or metered.ca a zero-code fallback if Cloudflare disappoints.
-- ✅ **Done in this session:** `TURN_SERVER_URL`, `TURN_USERNAME` and
-  `TURN_CREDENTIAL` are now in `.env.example` and in the settings UI's Voice
-  group. They previously existed in `voice-agent/src/config.py` but had nowhere
-  to be entered — Cloudflare credentials would have had no home.
+
+✅ **Shipped in this session:** `TURN_SERVER_URL`, `TURN_USERNAME` and
+`TURN_CREDENTIAL` are now in `.env.example` and in the settings UI's Voice
+group. They existed in `voice-agent/src/config.py` but had nowhere to be
+entered. Note the correction above: those three carry a STATIC-credential
+provider. Cloudflare additionally needs `TURN_KEY_ID` + `TURN_API_TOKEN` and the
+minting code.
 
 ## Design
 
