@@ -5,6 +5,7 @@ import { useRef } from 'react';
 import type { SettingsTab } from '@/components/settings-drawer/drawer';
 import { useFocusTrap } from '@/hooks/use-focus-trap';
 import { useAuthStore } from '@/stores';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 
 interface ProfilePopoverProps {
   id: string;
@@ -62,7 +63,7 @@ export function ProfilePopover({ id, open, onClose, onOpenSettings }: ProfilePop
         onClick={() => {
           onClose();
           signOut();
-          window.location.href = `${process.env.NEXT_PUBLIC_LANDING_URL || 'http://localhost:3000'}/login`;
+          window.location.href = `${getRuntimeConfig().landingUrl || 'http://localhost:3000'}/login`;
         }}
         className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-status-danger-fg transition-colors hover:bg-status-danger-bg"
       >

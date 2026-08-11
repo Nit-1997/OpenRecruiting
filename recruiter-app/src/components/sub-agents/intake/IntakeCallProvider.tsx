@@ -7,6 +7,7 @@ import { type AgentState, micShouldEnableOnResume } from '@/hooks/intake/voice-m
 import { postSessionHeartbeat } from '@/lib/intake/api';
 import { trackIntake } from '@/lib/intake/telemetry';
 import { useIntakeStore } from '@/stores/intake-store';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 
 type CallStatus = 'idle' | 'connecting' | 'live' | 'paused' | 'ended';
 
@@ -43,7 +44,7 @@ const ICE_SERVERS = [
  * the query string because the pipecat client only sends {sdp,type,pc_id}.
  */
 function getV2IntakeOfferUrl(sessionId: string): string {
-  const override = process.env.NEXT_PUBLIC_INTAKE_VOICE_OFFER_URL;
+  const override = getRuntimeConfig().intakeVoiceOfferUrl;
   const base = (() => {
     if (override && override.length > 0) return override;
     if (typeof window !== 'undefined') {

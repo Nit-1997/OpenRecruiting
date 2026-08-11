@@ -15,26 +15,29 @@
 
 import { createBrowserClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 
 const COOKIE_NAME = 'openrecruiting-auth';
-
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-// Supabase rebranded "anon public" → "publishable" — same key, different env
-// var name. Accept either.
-const anonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 let _client: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {
   if (_client) return _client;
+  // Read at CALL time from the runtime config, not at module load from
+  // process.env. The old module-level reads were inlined into the client bundle
+  // at build time, so a self-hoster who fixed their Supabase credentials and
+  // restarted still got the stale ones and could not log in, with no error
+  // saying why. The "anon public" → "publishable" rename is handled inside
+  // serverRuntimeConfig(); both names still work.
+  const { supabaseUrl: url, supabaseAnonKey: anonKey, cookieDomain } = getRuntimeConfig();
   if (!url || !anonKey) {
     throw new Error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY ' +
-        '(or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY).',
+      'Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and ' +
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY), ' +
+        'then restart the recruiter-app container — these are read at runtime, ' +
+        'so no image rebuild is needed.',
     );
   }
-  const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
   _client = createBrowserClient(url, anonKey, {
     auth: {
       storageKey: COOKIE_NAME,

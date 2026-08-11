@@ -21,6 +21,7 @@ import {
   appendUserTurn,
   type TranscriptTurn,
 } from '@/components/feedback/feedback-transcript';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 
 // WebRTC voice provider for the candidate SCREENING portal. Cloned from
 // FeedbackCallProvider — same lifecycle, same Pipecat client wiring — but pointed
@@ -63,7 +64,7 @@ const ICE_SERVERS = [
  * resolution so prod/local hosts behave identically. Exported for testability.
  */
 export function getScreeningOfferUrl(voiceSessionToken: string): string {
-  const override = process.env.NEXT_PUBLIC_SCREENING_VOICE_OFFER_URL;
+  const override = getRuntimeConfig().screeningVoiceOfferUrl;
   const base = (() => {
     if (override && override.length > 0) return override.replace(/\/$/, '');
     if (typeof window !== 'undefined') {

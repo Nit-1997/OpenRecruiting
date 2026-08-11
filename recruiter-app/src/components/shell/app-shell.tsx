@@ -12,6 +12,7 @@ import { RightRail } from './right-rail';
 import { SplitShell } from './split-shell';
 import { TopBar } from './top-bar';
 import { VoicePopout } from './voice-popout';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 
 interface AppShellProps {
   id: string;
@@ -47,7 +48,7 @@ export function AppShell({ id, children }: AppShellProps) {
       // Single login surface is landing (shared openrecruiting-auth cookie). Use a
       // full-page nav (cross-origin) rather than router.replace. Middleware is
       // the primary gate; this is the client-side backstop.
-      const landing = process.env.NEXT_PUBLIC_LANDING_URL || 'http://localhost:3000';
+      const landing = getRuntimeConfig().landingUrl || 'http://localhost:3000';
       const redirect =
         pathname && pathname !== '/' ? `?redirect=${encodeURIComponent(pathname)}` : '';
       window.location.href = `${landing}/login${redirect}`;

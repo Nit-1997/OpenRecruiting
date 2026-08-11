@@ -74,6 +74,14 @@ const themeBootstrap = `(() => {
  * The cost is real but small here: this is an authenticated app whose middleware
  * already runs on every request, and no shell route can render meaningfully
  * without live config anyway.
+ *
+ * NEXT 16 NOTE (this repo runs 16.2.4, and `dynamic` is no longer in the route
+ * segment config options table — it is documented under the "previous model",
+ * guides/caching-without-cache-components). It still applies here because
+ * next.config.ts does NOT enable `cacheComponents`. If that is ever turned on,
+ * `dynamic` is removed — but the docs state every page is then dynamic by
+ * default, so the requirement this line exists for is satisfied either way.
+ * Delete it as part of THAT migration, not on its own.
  */
 export const dynamic = 'force-dynamic';
 

@@ -1,14 +1,21 @@
 // Runtime env access for the v2 backend.
 //
 // The mock-DB path is no longer the default — the FE talks to /api/v2/*
-// out of the box. The only remaining purpose of `isV2ApiEnabled` is to
-// let unit tests opt OUT (set `NEXT_PUBLIC_V2_API=false`) so they can
-// drive code against the in-memory mock-db helpers without hitting HTTP.
+// out of the box. The test-only opt-out now lives in lib/test-flags.ts and is
+// re-exported below so existing import sites keep working.
 
-// Single base-URL resolver for the v2 backend. Read at CALL TIME (never cached
-// at module load) so it reflects the current env.
+// Single base-URL resolver for the v2 backend. Read at CALL TIME from the
+// RUNTIME CONFIG, not from process.env.
 //
-// Variable precedence (FE-F4):
+// It used to read the raw NEXT_PUBLIC_ environment entries here, and the
+// comment claimed doing so "reflects the current env". That was false in the
+// browser: Next.js substitutes those reads at BUILD time, so every client caller
+// held whatever value was set when the image was built, and a restart could not
+// change it.
+// This is the base URL for every backend call the app makes, so it was the most
+// consequential instance of that bug in the repo. See lib/runtime-config.ts.
+//
+// Variable precedence (FE-F4) is unchanged:
 //  1. NEXT_PUBLIC_API_V2_URL — the documented prod var for recruiter-app.
 //  2. NEXT_PUBLIC_API_URL    — legacy alias still set in .env-nextjs-v2.
 //
@@ -16,11 +23,16 @@
 // production, an UNSET base is a misconfiguration: we throw a clear error
 // rather than silently pointing every request at localhost (which would 5xx in
 // confusing ways or, worse, hit a developer's machine).
+import { getRuntimeConfig } from '@/lib/runtime-config';
+
+export { isV2ApiEnabled, USE_V2_API } from '@/lib/test-flags';
+
 const DEV_FALLBACK_BASE = 'http://localhost:8004';
 
 export function getV2ApiBase(): string {
   if (typeof process === 'undefined') return DEV_FALLBACK_BASE;
-  const base = process.env.NEXT_PUBLIC_API_V2_URL || process.env.NEXT_PUBLIC_API_URL;
+  const cfg = getRuntimeConfig();
+  const base = cfg.apiV2Url || cfg.apiUrl;
   if (base && base.length > 0) return base;
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
@@ -41,19 +53,3 @@ export const V2_API_BASE: string = (() => {
     return DEV_FALLBACK_BASE;
   }
 })();
-
-/**
- * Returns `true` unless the env var is explicitly set to `"false"`. The
- * default flipped — previously this was opt-IN to v2; now v2 is the
- * default and tests opt OUT.
- *
- * Long-term, every call site of this should be removed and the dead
- * mock-path branches deleted. Until then the helper stays as a single
- * choke point.
- */
-export function isV2ApiEnabled(): boolean {
-  if (typeof process === 'undefined') return true;
-  return process.env.NEXT_PUBLIC_V2_API !== 'false';
-}
-
-export const USE_V2_API: boolean = isV2ApiEnabled();

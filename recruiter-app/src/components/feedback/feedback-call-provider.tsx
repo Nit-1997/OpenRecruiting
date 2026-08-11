@@ -17,6 +17,7 @@ import {
   useState,
 } from 'react';
 import { appendBotTurn, appendUserTurn, type TranscriptTurn } from './feedback-transcript';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 
 // WebRTC voice provider for the interviewer feedback portal. Cloned from the
 // intake IntakeCallProvider but stripped of intake-only concerns (heartbeat,
@@ -59,7 +60,7 @@ const ICE_SERVERS = [
  * resolution so prod/local hosts behave identically.
  */
 function getFeedbackOfferUrl(voiceSessionToken: string): string {
-  const override = process.env.NEXT_PUBLIC_FEEDBACK_VOICE_OFFER_URL;
+  const override = getRuntimeConfig().feedbackVoiceOfferUrl;
   const base = (() => {
     if (override && override.length > 0) return override.replace(/\/$/, '');
     if (typeof window !== 'undefined') {

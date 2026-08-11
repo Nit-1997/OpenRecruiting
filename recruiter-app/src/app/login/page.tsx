@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 
 // landing is the single login surface (shared `openrecruiting-auth` cookie). app-v2
 // has no login screen of its own — bounce any direct hit on /login to landing,
@@ -11,7 +12,7 @@ function LoginRedirect() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const landing = process.env.NEXT_PUBLIC_LANDING_URL || 'http://localhost:3000';
+    const landing = getRuntimeConfig().landingUrl || 'http://localhost:3000';
     const redirect = searchParams.get('redirect');
     const qs = redirect ? `?redirect=${encodeURIComponent(redirect)}` : '';
     window.location.href = `${landing}/login${qs}`;
