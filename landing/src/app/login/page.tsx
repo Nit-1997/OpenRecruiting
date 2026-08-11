@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { gateAndRedirect } from "@/lib/auth/gate";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import dynamic from "next/dynamic";
+import { getRuntimeConfig } from "@/lib/runtime-config";
 
 const CalendlyModal = dynamic(
   () => import("@/components/ui/calendly-modal").then((mod) => ({ default: mod.CalendlyModal })),
@@ -17,7 +18,7 @@ const CalendlyModal = dynamic(
 );
 
 const capturedHash = typeof window !== "undefined" ? window.location.hash : "";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3005";
+const APP_URL = getRuntimeConfig().appUrl || "http://localhost:3005";
 
 function isValidRedirect(path: string): boolean {
   if (!path || !path.startsWith('/') || path.startsWith('//')) return false;

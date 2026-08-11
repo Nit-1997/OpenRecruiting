@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getRuntimeConfig } from "@/lib/runtime-config";
 
 const COOKIE_NAME = "openrecruiting-auth";
 
@@ -14,7 +15,7 @@ const COOKIE_NAME = "openrecruiting-auth";
  */
 function clearAuthCookie(): void {
   if (typeof document === "undefined") return;
-  const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
+  const cookieDomain = getRuntimeConfig().cookieDomain;
   const domainAttr = cookieDomain ? `; domain=${cookieDomain}` : "";
   document.cookie = `${COOKIE_NAME}=; path=/${domainAttr}; max-age=0; SameSite=Lax`;
 }
@@ -44,7 +45,7 @@ export async function gateAndRedirect({
   accessToken,
   target,
 }: GateAndRedirectArgs): Promise<void> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8000";
+  const apiUrl = getRuntimeConfig().apiV2Url || "http://localhost:8004";
 
   const failClosed = async (errorTarget: string) => {
     try {

@@ -11,9 +11,10 @@ import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { gateAndRedirect } from "@/lib/auth/gate";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { getRuntimeConfig } from "@/lib/runtime-config";
 
-const API_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8000";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3005";
+const API_URL = getRuntimeConfig().apiV2Url || "http://localhost:8004";
+const APP_URL = getRuntimeConfig().appUrl || "http://localhost:3005";
 
 export default function SetPasswordPage() {
   const router = useRouter();

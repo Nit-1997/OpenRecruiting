@@ -15,20 +15,15 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_COOKIE_DOMAIN
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ARG NEXT_PUBLIC_API_V2_URL
-ARG NEXT_PUBLIC_APP_URL
-ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
-    NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
-    NEXT_PUBLIC_COOKIE_DOMAIN=$NEXT_PUBLIC_COOKIE_DOMAIN \
-    NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
-    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
-    NEXT_PUBLIC_API_V2_URL=$NEXT_PUBLIC_API_V2_URL \
-    NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+# No NEXT_PUBLIC_* build args, deliberately. Next.js inlines those into the
+# CLIENT BUNDLE at build time, which froze every browser-visible setting into
+# the image: a corrected .env then needed a rebuild rather than a restart, and
+# nothing said so. They are now read from the environment at REQUEST time by the
+# Node server (output: 'standalone') and injected as window.__OR_CONFIG__ by
+# src/app/layout.tsx. See src/lib/runtime-config.ts.
+#
+# Re-adding an ARG here silently restores the bug. src/lib/__tests__/
+# no-build-time-config.test.ts guards the source side.
 RUN bun run build
 
 FROM oven/bun:1 AS run
