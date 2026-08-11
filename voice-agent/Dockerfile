@@ -29,8 +29,11 @@ COPY intake-core /tmp/intake-core
 RUN pip install --no-cache-dir /tmp/intake-core && rm -rf /tmp/intake-core
 
 # llm-core is the shared gateway client. The intake coverage tracker moved onto
-# it in phase 3, and this container is one of its two callers. The pipecat LLM
-# service is still Anthropic-bound — that is phase 7.
+# it in phase 3, and phase 7 moved the pipecat LLM service too — src/pipeline/
+# services.py now builds OpenAILLMService against the gateway's base_url, so
+# nothing in this image holds a provider credential or a provider SDK.
+# `pip install anthropic` must stay absent: requirements.txt deliberately drops
+# pipecat's [anthropic] extra, which was the only thing installing it.
 COPY llm-core /tmp/llm-core
 RUN pip install --no-cache-dir /tmp/llm-core && rm -rf /tmp/llm-core
 

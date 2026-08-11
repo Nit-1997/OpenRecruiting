@@ -4,4 +4,6 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+# Staging dirs created by build-with-intake-core.sh for the EC2 deploy path.
 intake-core-pkg/
+llm-core-pkg/
