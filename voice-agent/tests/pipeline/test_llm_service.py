@@ -35,11 +35,20 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_the_service_is_built_against_a_gateway_base_url():
-    from pipecat.services.openai.llm import OpenAILLMService
+    """Observes GatewayLLMService, not OpenAILLMService.
+
+    create_llm returns the subclass that restores the Anthropic adapter's
+    message reshaping (see services.normalize_messages_for_gateway). Under this
+    conftest OpenAILLMService is a MagicMock, so subclassing it makes
+    GatewayLLMService a MagicMock too — the override is NOT real code here and
+    nothing in this suite can exercise it. scripts/smoke_llm_service.py does,
+    against real pipecat.
+    """
+    import src.pipeline.services as services
 
     create_llm(api_key="master-key", model="voice-intake", base_url="http://litellm:4000/v1")
 
-    kwargs = OpenAILLMService.call_args.kwargs
+    kwargs = services.GatewayLLMService.call_args.kwargs
     assert kwargs["base_url"] == "http://litellm:4000/v1"
     assert kwargs["model"] == "voice-intake"
     assert "anthropic" not in str(kwargs).lower()
