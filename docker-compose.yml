@@ -300,6 +300,38 @@ services:
     depends_on: [caddy]
     restart: unless-stopped
 
+  # Recreates compose services when a setting is saved. This is the ONLY way an
+  # .env change takes effect: docker-compose reads env_file at container CREATE
+  # time, so a restart reuses the environment baked in when the container was
+  # made and the save silently does nothing.
+  #
+  # It exists as a separate container because recreation needs
+  # POST /containers/create — the exact call the socket proxy refuses after that
+  # call was shown to allow a privileged container bind-mounting /. setup-ui
+  # therefore never gets it. This container has the socket but NO listening
+  # port: its only input is a request file written by setup-ui, and it validates
+  # every service name against the project's own list before use.
+  applier:
+    image: docker:cli
+    entrypoint: ["/bin/sh", "/applier/apply-loop.sh"]
+    # The repo is mounted at its OWN HOST PATH, and that is load-bearing.
+    # docker compose resolves relative bind mounts (./litellm-config.yaml)
+    # against the project directory and hands the DAEMON an absolute host path.
+    # Running compose from a container path like /repo makes it emit
+    # /repo/litellm-config.yaml, which the daemon cannot share:
+    #   "The path /repo/litellm-config.yaml is not shared from the host"
+    # Mounting ${PWD} at ${PWD} makes the two identical, so every path compose
+    # generates is valid on the host too.
+    working_dir: ${PWD}
+    environment:
+      APPLIER_PROJECT_DIR: ${PWD}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${PWD}:${PWD}
+      - ./setup-ui/applier:/applier:ro
+      - setup-ui-state:/state
+    restart: unless-stopped
+
 networks:
   default:
     name: openrecruiting

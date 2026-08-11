@@ -21,6 +21,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
+from app.applier import Applier, ApplyError
 from app.auth import Auth, AuthError
 from app.docker_ctl import DockerControl, DockerError
 from app.envfile import atomic_write, parse, update
@@ -38,6 +39,9 @@ STATIC_DIR = Path(__file__).parent / "static"
 app = FastAPI(title="OpenRecruiting Setup", docs_url=None, redoc_url=None)
 auth = Auth(STATE_PATH)
 docker = DockerControl(DOCKER_PROXY)
+# RECREATES services. Restarting is not enough — env_file is read at container
+# create time, so a restart reuses the old environment. See app/applier.py.
+applier = Applier(STATE_PATH.parent)
 
 
 def _read_env() -> dict[str, str]:
@@ -176,15 +180,32 @@ async def apply(body: SaveBody) -> JSONResponse:
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {exc}") from exc
 
+    services = affected_services(list(body.changes))
     results = []
-    for service in affected_services(list(body.changes)):
-        try:
-            await docker.restart(service)
-            ok = await docker.wait_until_ok(service)
-            results.append({"service": service, "ok": ok,
-                            "detail": "" if ok else "restarted but not healthy yet"})
-        except DockerError as exc:
-            results.append({"service": service, "ok": False, "detail": str(exc)})
+    try:
+        # RECREATE, not restart. A restart reuses the environment baked in when
+        # the container was created, so the save would appear to work and change
+        # nothing at all.
+        outcome = await applier.recreate(services)
+        for service in services:
+            results.append({
+                "service": service,
+                "ok": bool(outcome.get("ok")),
+                "detail": "" if outcome.get("ok") else str(outcome.get("detail", "")),
+            })
+        # Health is checked separately: compose reports the recreate succeeded,
+        # which is not the same as the service coming back up.
+        if outcome.get("ok"):
+            for result in results:
+                try:
+                    healthy = await docker.wait_until_ok(result["service"])
+                    if not healthy:
+                        result["ok"] = False
+                        result["detail"] = "recreated but not healthy yet"
+                except DockerError as exc:
+                    result["detail"] = f"recreated; health unknown ({exc})"
+    except ApplyError as exc:
+        results = [{"service": s, "ok": False, "detail": str(exc)} for s in services]
 
     return JSONResponse(
         {

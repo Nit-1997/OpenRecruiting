@@ -112,13 +112,16 @@ def test_an_unknown_setting_is_refused_rather_than_written(client):
 def test_applying_writes_the_value_and_preserves_comments(client, monkeypatch):
     c, main, env, headers = _signed_in(client)
 
-    async def no_restart(service):
-        return None
+    # Stub the APPLIER, not docker.restart: applying a setting now RECREATES
+    # services, because a restart reuses the environment baked in at container
+    # create time and silently changes nothing.
+    async def recreated(services):
+        return {"ok": True, "detail": "recreated", "services": " ".join(services)}
 
     async def ok(service, timeout=90.0):
         return True
 
-    monkeypatch.setattr(main.docker, "restart", no_restart)
+    monkeypatch.setattr(main.applier, "recreate", recreated)
     monkeypatch.setattr(main.docker, "wait_until_ok", ok)
 
     resp = c.post(
@@ -137,13 +140,13 @@ def test_a_failed_restart_is_reported_per_service_not_raised(client, monkeypatch
     to know WHICH came back unhealthy."""
     c, main, _, headers = _signed_in(client)
 
-    async def restart(service):
-        return None
+    async def recreated(services):
+        return {"ok": True, "detail": "recreated", "services": " ".join(services)}
 
     async def never_ok(service, timeout=90.0):
         return False
 
-    monkeypatch.setattr(main.docker, "restart", restart)
+    monkeypatch.setattr(main.applier, "recreate", recreated)
     monkeypatch.setattr(main.docker, "wait_until_ok", never_ok)
 
     resp = c.post(
@@ -154,6 +157,7 @@ def test_a_failed_restart_is_reported_per_service_not_raised(client, monkeypatch
     results = resp.json()["restarts"]
     assert all(r["ok"] is False for r in results)
     assert any(r["service"] == "voice-agent" for r in results)
+    assert any("not healthy" in r["detail"] for r in results)
 
 
 def test_the_password_cannot_be_set_twice_over_http(client):
@@ -163,3 +167,27 @@ def test_the_password_cannot_be_set_twice_over_http(client):
     resp = c.post("/api/password", json={"password": "attacker-password"})
 
     assert resp.status_code == 400
+
+
+def test_a_save_never_silently_skips_the_recreate(client, monkeypatch):
+    """The original defect, pinned. If applying cannot run, the response must
+    say so per service — a save that reports success while nothing was applied
+    is the exact bug this replaced."""
+    c, main, env, headers = _signed_in(client)
+
+    from app.applier import ApplyError
+
+    async def unavailable(services):
+        raise ApplyError("the applier state directory is not mounted")
+
+    monkeypatch.setattr(main.applier, "recreate", unavailable)
+
+    resp = c.post("/api/apply", json={"changes": {"DEEPGRAM_API_KEY": "x"}}, headers=headers)
+
+    assert resp.status_code == 200
+    results = resp.json()["restarts"]
+    assert results, "affected services must still be reported"
+    assert all(r["ok"] is False for r in results)
+    assert all("not mounted" in r["detail"] for r in results)
+    # The value is still written — the user should not have to retype it.
+    assert "DEEPGRAM_API_KEY=x" in env.read_text()
