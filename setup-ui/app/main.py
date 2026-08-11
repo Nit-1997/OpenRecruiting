@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from app.auth import Auth, AuthError
 from app.docker_ctl import DockerControl, DockerError
 from app.envfile import atomic_write, parse, update
+from app.supabase_setup import check_schema, manual_instructions
 from app.varmap import GROUPS, affected_services, all_variables, is_secret
 
 ENV_PATH = Path(os.environ.get("SETUP_ENV_PATH", "/repo/.env"))
@@ -195,6 +196,24 @@ async def health() -> dict:
             {"name": c.name, "state": c.state, "health": c.health, "ok": c.ok}
             for c in containers
         ],
+    }
+
+
+@app.get("/api/database", dependencies=[Depends(require_auth)])
+async def database() -> dict:
+    """Whether the Supabase project is provisioned.
+
+    Read-only by necessity, not by choice: the service key can detect the schema
+    but cannot run DDL, so this reports status and hands over exact steps rather
+    than pretending to apply it. See app/supabase_setup.py for the measurement
+    behind that.
+    """
+    values = _read_env()
+    status = await check_schema(values.get("SUPABASE_URL", ""), values.get("SUPABASE_SECRET_KEY", ""))
+    return {
+        "state": status.state,
+        "detail": status.detail,
+        "steps": [] if status.ready else manual_instructions(values.get("SUPABASE_URL", "")),
     }
 
 

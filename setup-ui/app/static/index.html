@@ -83,6 +83,13 @@
       <div class="grid" id="health-grid"></div>
     </div>
 
+    <div class="card" id="database-card">
+      <h2 id="database-title">Database schema <span class="pill" id="database-pill">checking…</span></h2>
+      <p class="blurb" id="database-blurb"></p>
+      <ol id="database-steps" class="hidden" style="margin:0 0 12px 18px;padding:0;font-size:13.5px;line-height:1.7"></ol>
+      <button class="ghost" id="database-recheck">Re-check</button>
+    </div>
+
     <div id="groups-container"></div>
   </section>
 </main>
@@ -142,7 +149,7 @@
       TOKEN = token;
       show($("gate-section"), false);
       show($("app-section"), true);
-      await Promise.all([loadConfig(), loadHealth()]);
+      await Promise.all([loadConfig(), loadHealth(), loadDatabase()]);
       setInterval(loadHealth, 10000);
     } catch (err) { setMsg($("gate-error"), err.message); }
   });
@@ -164,6 +171,26 @@
       }).join("");
     } catch (err) { /* health is advisory; never block the form on it */ }
   }
+
+  // ── database ────────────────────────────────────────────────────
+  async function loadDatabase() {
+    const pill = $("database-pill"), blurb = $("database-blurb"), steps = $("database-steps");
+    pill.className = "pill"; pill.textContent = "checking…";
+    try {
+      const d = await api("/api/database");
+      const map = { ready: ["ok", "ready"], not_applied: ["bad", "not applied"],
+                    unreachable: ["bad", "unreachable"], unconfigured: ["warn", "not configured"] };
+      const [cls, label] = map[d.state] || ["warn", d.state];
+      pill.className = `pill ${cls}`; pill.textContent = label;
+      blurb.textContent = d.detail;
+      steps.innerHTML = d.steps.map((t, i) => `<li id="database-step-${i}">${t}</li>`).join("");
+      show(steps, d.steps.length > 0);
+    } catch (err) {
+      pill.className = "pill bad"; pill.textContent = "error";
+      blurb.textContent = err.message;
+    }
+  }
+  $("database-recheck").addEventListener("click", loadDatabase);
 
   // ── config ──────────────────────────────────────────────────────
   async function loadConfig() {
