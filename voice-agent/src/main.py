@@ -423,7 +423,12 @@ async def lifespan(app: FastAPI):
     ice_servers = _build_ice_servers()
     _webrtc_handler = SmallWebRTCRequestHandler(ice_servers=ice_servers)
     logger.info("Scout Voice Agent starting")
-    logger.info(f"LLM alias: {settings.voice_llm_model}")
+    logger.info(
+        "LLM aliases: intake=%s screening=%s feedback=%s",
+        settings.voice_intake_model,
+        settings.voice_screening_model,
+        settings.voice_feedback_model,
+    )
     logger.info(f"ICE servers: {[s.urls for s in ice_servers]}")
     yield
     if _webrtc_handler:
@@ -489,7 +494,7 @@ async def _run_feedback_pipeline(connection, recall_bot: dict):
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
         llm_api_key=settings.litellm_master_key,
-        llm_model=settings.voice_llm_model,
+        llm_model=settings.voice_feedback_model,
         llm_base_url=settings.llm_gateway_url + "/v1",
         tts_voice=settings.voice_tts_voice,
         persona_text=persona_text,
@@ -707,7 +712,7 @@ async def _run_intake_pipeline(connection, requisition: dict):
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
         llm_api_key=settings.litellm_master_key,
-        llm_model=settings.voice_llm_model,
+        llm_model=settings.voice_intake_model,
         llm_base_url=settings.llm_gateway_url + "/v1",
         tts_voice=settings.voice_tts_voice,
         persona_text=persona_text,
@@ -1232,7 +1237,7 @@ async def _run_fallback_feedback_pipeline(
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
         llm_api_key=settings.litellm_master_key,
-        llm_model=settings.voice_llm_model,
+        llm_model=settings.voice_feedback_model,
         llm_base_url=settings.llm_gateway_url + "/v1",
         tts_voice=settings.voice_tts_voice,
         persona_text=persona_text,
@@ -1849,7 +1854,7 @@ async def _run_v2_screening_pipeline(
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
         llm_api_key=settings.litellm_master_key,
-        llm_model=settings.voice_llm_model,
+        llm_model=settings.voice_screening_model,
         llm_base_url=settings.llm_gateway_url + "/v1",
         tts_voice=config_row.get("voice") or settings.voice_tts_voice,
         persona_text=build_voice_screening_prompt(session),
@@ -2185,7 +2190,7 @@ async def v2_intake_offer(request: Request, background_tasks: BackgroundTasks):
     config = PipelineConfig(
         deepgram_api_key=settings.voice_deepgram_api_key,
         llm_api_key=settings.litellm_master_key,
-        llm_model=settings.voice_llm_model,
+        llm_model=settings.voice_intake_model,
         llm_base_url=settings.llm_gateway_url + "/v1",
         tts_voice=settings.voice_tts_voice,
         persona_text=system_prompt,

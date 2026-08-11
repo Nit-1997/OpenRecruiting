@@ -9,9 +9,12 @@ scripts/smoke_llm_service.py does, inside the built image against a live gateway
 
 The properties pinned here are the ones a wrong swap breaks silently.
 """
+import re
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
+
+import pytest
 
 for _name in (
     "pipecat",
@@ -28,6 +31,7 @@ for _name in (
 from src.pipeline.services import create_llm  # noqa: E402
 
 _SRC = Path(__file__).resolve().parents[2] / "src"
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_the_service_is_built_against_a_gateway_base_url():
@@ -69,3 +73,40 @@ def test_the_model_default_is_an_alias_not_a_provider_id():
 
     assert PipelineConfig().llm_model == "voice-intake"
     assert "claude" not in PipelineConfig().llm_model
+
+
+def test_each_voice_workload_reads_its_own_alias_setting():
+    """Three pipelines, three settings, so any one can be repointed alone.
+
+    Being able to move a single workload — to a local model, to a cheaper tier —
+    IS the deliverable of this migration; a shared knob silently removes it while
+    every test still passes. Re-collapsing these into one setting is exactly the
+    kind of tidy-up that looks like a simplification, so it is pinned here.
+    """
+    from src.config import Settings
+
+    settings = Settings()
+    aliases = {
+        settings.voice_intake_model,
+        settings.voice_screening_model,
+        settings.voice_feedback_model,
+    }
+    assert aliases == {"voice-intake", "voice-screening", "voice-feedback"}
+
+    main = (_SRC / "main.py").read_text(encoding="utf-8")
+    assert "settings.voice_llm_model" not in main, "a shared model knob is back"
+    # Five PipelineConfig sites, each naming one of the three.
+    assert main.count("llm_model=settings.voice_intake_model,") == 2
+    assert main.count("llm_model=settings.voice_feedback_model,") == 2
+    assert main.count("llm_model=settings.voice_screening_model,") == 1
+
+
+def test_every_voice_alias_exists_in_the_gateway_config():
+    """A setting naming an alias litellm does not serve fails only when a
+    recruiter connects, as a 400 from the proxy mid-session."""
+    config = _REPO_ROOT / "litellm-config.yaml"
+    if not config.exists():
+        pytest.skip("repo root not reachable from this checkout")
+
+    served = set(re.findall(r"^\s*-\s*model_name:\s*(\S+)", config.read_text(), re.M))
+    assert {"voice-intake", "voice-screening", "voice-feedback"} <= served

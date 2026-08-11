@@ -150,8 +150,11 @@ All config via environment variables (loaded from `deploy-config/.env-fastapi`):
 | `RECALL_API_KEY` | Recall.ai API key (for leaving meetings) |
 | `RECALL_BASE_URL` | Recall API base URL |
 | `VOICE_DEEPGRAM_API_KEY` | Deepgram API key |
-| `VOICE_ANTHROPIC_API_KEY` | Anthropic API key |
-| `VOICE_ANTHROPIC_MODEL` | Claude model ID (default: claude-sonnet-4-5) |
+| `LLM_GATEWAY_URL` | LiteLLM gateway base URL (default: `http://litellm:4000`) |
+| `LITELLM_MASTER_KEY` | Authenticates this service to the gateway. **This service holds no provider API key** — the gateway does. |
+| `VOICE_INTAKE_MODEL` | Gateway alias for both intake pipelines (default: `voice-intake`) |
+| `VOICE_SCREENING_MODEL` | Gateway alias for the screening pipeline (default: `voice-screening`) |
+| `VOICE_FEEDBACK_MODEL` | Gateway alias for both feedback pipelines (default: `voice-feedback`) |
 | `VOICE_TTS_VOICE` | Deepgram TTS voice (default: aura-2-helena-en) |
 | `ICE_STUN_SERVERS` | STUN server URLs (JSON list) |
 | `TURN_SERVER_URL` | Optional TURN server URL |

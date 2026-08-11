@@ -22,8 +22,17 @@ class Settings(BaseSettings):
     # The old provider-key setting is gone; it was the last one in the repository.
     llm_gateway_url: str = "http://litellm:4000"
     litellm_master_key: str = ""
-    # A GATEWAY ALIAS. Was voice_anthropic_model = claude-sonnet-4-5-20250929.
-    voice_llm_model: str = "voice-intake"
+    # GATEWAY ALIASES, not provider model ids — litellm-config.yaml maps them.
+    # All three were one setting (voice_llm_model, and before phase 7
+    # voice_anthropic_model = claude-sonnet-4-5-20250929). One knob meant voice
+    # screening could not be pointed at a different model without moving voice
+    # intake too; independent repointing is what this migration is for. All three
+    # resolve to the same model today, so the split changes nothing at runtime.
+    # Read from VOICE_INTAKE_MODEL / VOICE_SCREENING_MODEL / VOICE_FEEDBACK_MODEL
+    # (pydantic-settings, case insensitive).
+    voice_intake_model: str = "voice-intake"
+    voice_screening_model: str = "voice-screening"
+    voice_feedback_model: str = "voice-feedback"
     voice_tts_voice: str = "aura-2-helena-en"
 
     max_context_tokens: int = 8000

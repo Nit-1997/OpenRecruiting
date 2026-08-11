@@ -118,7 +118,36 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
+  # ── The three realtime voice pipelines ───────────────────────────────────
+  # All three were one setting (voice-agent Settings.voice_llm_model, and before
+  # phase 7 voice_anthropic_model = claude-sonnet-4-5-20250929, never overridden
+  # in .env). Sonnet tier is preserved; the version carries the same deliberate
+  # phase-1 bump to sonnet-5 that every other alias here took. They are split so
+  # one voice workload can be repointed — at a local model, a cheaper tier —
+  # without dragging the other two with it. That independence is the deliverable
+  # of this migration; they resolve to the same model today, so the split changes
+  # what is POSSIBLE, not what happens.
+
+  # v2 intake (main.py) and v1 intake. SENDS TOOLS (INTAKE_TOOLS). An alias
+  # without native function calling DISABLES intake rather than degrading it:
+  # streaming and emulated tools do not compose, so the emulated JSON arrives as
+  # plain text and is never parsed into a tool call.
   - model_name: voice-intake
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  # The screening agent (main.py, ALL_SCREENING_TOOLS). SENDS TOOLS — the same
+  # native-function-calling warning as voice-intake above applies here.
+  - model_name: voice-screening
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info: {supports_function_calling: true}
+
+  # Feedback v1 and feedback v2/RTVI. Sends no tools.
+  - model_name: voice-feedback
     litellm_params:
       model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
