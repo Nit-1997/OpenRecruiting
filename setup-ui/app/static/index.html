@@ -90,6 +90,12 @@
       <button class="ghost" id="database-recheck">Re-check</button>
     </div>
 
+    <div class="card" id="models-card">
+      <h2 id="models-title">Models per task <span class="pill" id="models-pill">loading…</span></h2>
+      <p class="blurb" id="models-blurb">Every workload picks its own model. Change one without touching the others — that is what the gateway is for. Provider keys live in the AI models section below; only the gateway holds them.</p>
+      <div id="models-list"></div>
+    </div>
+
     <div id="groups-container"></div>
   </section>
 </main>
@@ -149,7 +155,7 @@
       TOKEN = token;
       show($("gate-section"), false);
       show($("app-section"), true);
-      await Promise.all([loadConfig(), loadHealth(), loadDatabase()]);
+      await Promise.all([loadConfig(), loadHealth(), loadDatabase(), loadModels()]);
       setInterval(loadHealth, 10000);
     } catch (err) { setMsg($("gate-error"), err.message); }
   });
@@ -191,6 +197,53 @@
     }
   }
   $("database-recheck").addEventListener("click", loadDatabase);
+
+  // ── models per task ─────────────────────────────────────────────
+  async function loadModels() {
+    const pill = $("models-pill"), list = $("models-list");
+    try {
+      const d = await api("/api/models");
+      if (d.error) { pill.className = "pill bad"; pill.textContent = "unavailable"; list.textContent = d.error; return; }
+      pill.className = "pill ok"; pill.textContent = `${d.aliases.length} workloads`;
+      list.innerHTML = d.aliases.map((a) => `
+        <div id="model-row-${a.name}" style="border-top:1px solid var(--line);padding:11px 0">
+          <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:6px">
+            <div>
+              <strong id="model-name-${a.name}" style="font-size:13.5px">${a.name}</strong>
+              ${a.supports_tools ? '<span class="pill" id="model-tools-' + a.name + '" title="Sends tools. A model without native function calling disables this workload rather than degrading it.">tools</span>' : ""}
+              ${a.drops_temperature ? '<span class="pill" id="model-dt-' + a.name + '" title="temperature is dropped for this deployment.">drops temp</span>' : ""}
+            </div>
+            <span class="pill" id="model-provider-${a.name}">${a.provider || "?"}</span>
+          </div>
+          ${a.description ? `<p class="help" id="model-desc-${a.name}" style="margin:4px 0 6px">${a.description}</p>` : ""}
+          <div class="row">
+            <input type="text" id="model-input-${a.name}" value="${String(a.model).replace(/"/g, "&quot;")}" />
+            <button class="ghost" id="model-save-${a.name}" data-alias="${a.name}">Save</button>
+          </div>
+        </div>`).join("");
+
+      list.querySelectorAll("button[data-alias]").forEach((btn) => {
+        btn.addEventListener("click", () => saveModel(btn.dataset.alias));
+      });
+    } catch (err) {
+      pill.className = "pill bad"; pill.textContent = "error"; list.textContent = err.message;
+    }
+  }
+
+  async function saveModel(alias) {
+    const input = $(`model-input-${alias}`), btn = $(`model-save-${alias}`);
+    setMsg($("app-error"), ""); setMsg($("app-result"), "");
+    if (!window.confirm(`Point "${alias}" at:\n\n  ${input.value}\n\nThe gateway restarts. Other services are unaffected.`)) return;
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      const r = await api("/api/models", { method: "POST", body: JSON.stringify({ alias, model: input.value }) });
+      setMsg($("app-result"),
+        `${r.alias} -> ${r.model}\ngateway ${r.restarted ? "restarted" : "restart FAILED"}${r.detail ? " — " + r.detail : ""}\nbackup: ${r.backup || "none"}`);
+      if (r.warning) setMsg($("app-error"), r.warning);
+      await loadModels();
+    } catch (err) { setMsg($("app-error"), err.message); }
+    finally { btn.disabled = false; btn.textContent = "Save"; }
+  }
 
   // ── config ──────────────────────────────────────────────────────
   async function loadConfig() {

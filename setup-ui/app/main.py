@@ -24,11 +24,13 @@ from pydantic import BaseModel
 from app.auth import Auth, AuthError
 from app.docker_ctl import DockerControl, DockerError
 from app.envfile import atomic_write, parse, update
+from app.litellm_cfg import read_aliases, set_model
 from app.supabase_setup import check_schema, manual_instructions
 from app.varmap import GROUPS, affected_services, all_variables, is_secret
 
 ENV_PATH = Path(os.environ.get("SETUP_ENV_PATH", "/repo/.env"))
 ENV_EXAMPLE_PATH = Path(os.environ.get("SETUP_ENV_EXAMPLE_PATH", "/repo/.env.example"))
+LITELLM_PATH = Path(os.environ.get("SETUP_LITELLM_PATH", "/repo/litellm-config.yaml"))
 STATE_PATH = Path(os.environ.get("SETUP_STATE_PATH", "/state/password.json"))
 DOCKER_PROXY = os.environ.get("SETUP_DOCKER_PROXY", "http://socket-proxy:2375")
 STATIC_DIR = Path(__file__).parent / "static"
@@ -215,6 +217,92 @@ async def database() -> dict:
         "detail": status.detail,
         "steps": [] if status.ready else manual_instructions(values.get("SUPABASE_URL", "")),
     }
+
+
+class ModelBody(BaseModel):
+    alias: str
+    model: str
+
+
+@app.get("/api/models", dependencies=[Depends(require_auth)])
+async def models() -> dict:
+    """The 27 per-workload aliases, as they are configured right now.
+
+    This is what the gateway migration was for — each workload independently
+    repointable. Surfacing it is the difference between "you can change the
+    model" and "you can change the model if you know YAML and which of 27
+    aliases the screening agent uses".
+    """
+    if not LITELLM_PATH.exists():
+        return {"error": f"{LITELLM_PATH} not found", "aliases": []}
+    aliases = read_aliases(LITELLM_PATH.read_text(encoding="utf-8"))
+    return {
+        "error": "",
+        "aliases": [
+            {
+                "name": a.name,
+                "model": a.model,
+                "provider": a.provider,
+                "supports_tools": a.supports_tools,
+                "drops_temperature": a.drops_temperature,
+                "description": a.description,
+            }
+            for a in aliases
+        ],
+    }
+
+
+@app.post("/api/models", dependencies=[Depends(require_auth)])
+async def set_alias_model(body: ModelBody) -> dict:
+    """Repoint one alias and reload the gateway.
+
+    Only litellm restarts: it is the single reader of this file, and every other
+    service reaches models through it by alias. That is precisely the property
+    the migration bought.
+    """
+    if not body.model.strip():
+        raise HTTPException(status_code=400, detail="Model cannot be empty.")
+    if not LITELLM_PATH.exists():
+        raise HTTPException(status_code=500, detail=f"{LITELLM_PATH} not found")
+
+    text = LITELLM_PATH.read_text(encoding="utf-8")
+    try:
+        updated = set_model(text, body.alias, body.model.strip())
+    except LookupError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    warning = ""
+    alias = next((a for a in read_aliases(updated) if a.name == body.alias), None)
+    if alias:
+        if alias.supports_tools and alias.provider == "ollama_chat":
+            warning = (
+                f"{body.alias} sends tools, and local models rarely support native "
+                "function calling. If this alias serves a streaming workload it will "
+                "silently stop recording answers rather than degrade."
+            )
+        elif alias.provider == "openai" and not alias.drops_temperature:
+            warning = (
+                f"{body.alias} now points at OpenAI but does not drop `temperature`. "
+                "Nine call sites send temperature=0 and GPT-5 models accept only the "
+                "default, so those calls will 400 until "
+                'additional_drop_params: ["temperature"] is added.'
+            )
+
+    try:
+        backup = atomic_write(LITELLM_PATH, updated)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not write config: {exc}") from exc
+
+    try:
+        await docker.restart("litellm")
+        ok = await docker.wait_until_ok("litellm")
+        detail = "" if ok else "restarted but not healthy yet"
+    except DockerError as exc:
+        ok, detail = False, str(exc)
+
+    return {"alias": body.alias, "model": body.model.strip(),
+            "backup": backup.name if backup else None,
+            "restarted": ok, "detail": detail, "warning": warning}
 
 
 @app.get("/healthz")
