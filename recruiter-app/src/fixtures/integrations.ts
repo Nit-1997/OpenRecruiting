@@ -1,9 +1,8 @@
-export interface ClaudeIntegrationFixture {
-  connected: boolean;
-  workspace: string;
-  endpoint: string;
-  connected_at: string;
-}
+// The Claude/MCP entry that used to live here is gone on purpose. Its
+// `endpoint` was a hardcoded 'http://localhost:8020/mcp' that the integrations
+// page rendered as the URL to paste into Claude — a value no deployment could
+// ever have used, since Claude's servers resolve it, not this browser. It now
+// comes from RuntimeConfig.cortexMcpUrl. Do not reintroduce a fixture for it.
 
 export interface AvailableIntegrationFixture {
   id: string;
@@ -41,12 +40,6 @@ export const COMMON_TIMEZONES = [
 ] as const;
 
 export const INTEGRATIONS = {
-  claude: {
-    connected: false,
-    workspace: '',
-    endpoint: 'http://localhost:8020/mcp',
-    connected_at: '',
-  } as ClaudeIntegrationFixture,
   available: [
     {
       id: 'ashby',

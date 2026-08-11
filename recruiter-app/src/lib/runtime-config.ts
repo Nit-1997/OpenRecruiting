@@ -35,6 +35,11 @@ export interface RuntimeConfig {
   intakeVoiceOfferUrl: string;
   feedbackVoiceOfferUrl: string;
   screeningVoiceOfferUrl: string;
+  /** Public URL of the Cortex MCP server, shown on the integrations page for
+   *  pasting into Claude. Must be the tunnel host, not a compose-internal or
+   *  localhost address — the client resolving it is Claude, not this browser.
+   *  Blank renders a "not configured" state rather than a fake endpoint. */
+  cortexMcpUrl: string;
 }
 
 /** Every env var this module reads. The tests assert every entry is
@@ -52,6 +57,7 @@ export const RUNTIME_CONFIG_KEYS = [
   'NEXT_PUBLIC_INTAKE_VOICE_OFFER_URL',
   'NEXT_PUBLIC_FEEDBACK_VOICE_OFFER_URL',
   'NEXT_PUBLIC_SCREENING_VOICE_OFFER_URL',
+  'NEXT_PUBLIC_CORTEX_MCP_URL',
 ] as const;
 
 export const RUNTIME_CONFIG_SCRIPT_ID = 'runtime-config';
@@ -77,6 +83,7 @@ export function serverRuntimeConfig(): RuntimeConfig {
     intakeVoiceOfferUrl: env('NEXT_PUBLIC_INTAKE_VOICE_OFFER_URL'),
     feedbackVoiceOfferUrl: env('NEXT_PUBLIC_FEEDBACK_VOICE_OFFER_URL'),
     screeningVoiceOfferUrl: env('NEXT_PUBLIC_SCREENING_VOICE_OFFER_URL'),
+    cortexMcpUrl: env('NEXT_PUBLIC_CORTEX_MCP_URL'),
   };
 }
 

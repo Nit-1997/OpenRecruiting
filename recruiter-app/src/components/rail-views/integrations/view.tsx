@@ -4,8 +4,8 @@ import { Check, Copy } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { useState } from 'react';
 import { ClaudeIcon } from '@/components/icons/brand-icons';
-import { INTEGRATIONS } from '@/fixtures/integrations';
 import { useShellSync } from '@/hooks/use-shell-sync';
+import { getRuntimeConfig } from '@/lib/runtime-config';
 import { AtsCard } from './ats-card';
 
 type BrandIconComponent = ComponentType<{ className?: string; id?: string }>;
@@ -18,6 +18,10 @@ export function IntegrationsView({ id }: IntegrationsViewProps) {
   useShellSync();
 
   const [claudeEndpointCopied, setClaudeEndpointCopied] = useState(false);
+  // Runtime, not a fixture: this URL is resolved by Claude's servers, so it has
+  // to be the public tunnel host. It used to be a hardcoded localhost literal
+  // that no deployment could ever have used.
+  const claudeEndpoint = getRuntimeConfig().cortexMcpUrl;
 
   return (
     <div id={id} className="pt-6 pb-6 sm:pt-10">
@@ -49,10 +53,11 @@ export function IntegrationsView({ id }: IntegrationsViewProps) {
 
         <ClaudeCard
           id={`${id}-claude`}
-          endpoint={INTEGRATIONS.claude.endpoint}
+          endpoint={claudeEndpoint}
           copied={claudeEndpointCopied}
           onCopy={() => {
-            navigator.clipboard.writeText(INTEGRATIONS.claude.endpoint);
+            if (!claudeEndpoint) return;
+            navigator.clipboard.writeText(claudeEndpoint);
             setClaudeEndpointCopied(true);
             setTimeout(() => setClaudeEndpointCopied(false), 2000);
           }}
@@ -97,14 +102,19 @@ function ClaudeCard({ id, endpoint, copied, onCopy }: ClaudeCardProps) {
           </p>
 
           <div id={`${id}-endpoint`} className="mt-3 flex items-center gap-2">
-            <code className="flex-1 rounded-[8px] border border-border bg-surface px-3 py-1.5 font-mono text-[11.5px] text-text-primary truncate">
-              {endpoint}
+            <code
+              className={`flex-1 truncate rounded-[8px] border border-border bg-surface px-3 py-1.5 font-mono text-[11.5px] ${
+                endpoint ? 'text-text-primary' : 'text-text-faint'
+              }`}
+            >
+              {endpoint || 'NEXT_PUBLIC_CORTEX_MCP_URL is not set'}
             </code>
             <button
               id={`${id}-copy`}
               type="button"
               onClick={onCopy}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 font-medium font-sans text-[12px] text-text-muted transition-colors hover:border-text-primary hover:text-text-primary"
+              disabled={!endpoint}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 font-medium font-sans text-[12px] text-text-muted transition-colors hover:border-text-primary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:text-text-muted"
             >
               {copied ? (
                 <>
