@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8004";
+// Read at CALL time, not module load. This is a server route handler, so
+// process.env is live — but a module-level const captures whatever was set when
+// the module was first imported, which meant the env var was effectively
+// ignored and the fallback below always won. Its test set the var and then
+// asserted the fallback value, so it passed for the wrong reason and proved
+// nothing; the two only agreed because the fallback was also wrong (:8000,
+// while the backend listens on :8004).
+function apiBase(): string {
+  return process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8004";
+}
 
 const REQUIRED_FIELDS = [
   "decision",
@@ -67,7 +76,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   let backendResp: Response;
   try {
-    backendResp = await fetch(`${API_URL}/api/v2/mcp/oauth/authorize/decision`, {
+    backendResp = await fetch(`${apiBase()}/api/v2/mcp/oauth/authorize/decision`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session.access_token}`,
