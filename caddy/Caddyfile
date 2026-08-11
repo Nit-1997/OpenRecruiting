@@ -35,6 +35,21 @@
 		reverse_proxy cortex-mcp:8020
 	}
 
+	# OAuth discovery for the MCP connector. RFC 9728 / RFC 8414 put these on
+	# the RESOURCE and ISSUER origins respectively, which means the app root —
+	# not under /mcp or /api. Without explicit routes the catch-all answers them
+	# with voice-frontend HTML, and the connector handshake dies on step 2.
+	#   oauth-protected-resource -> cortex-mcp (it is the resource server)
+	#   oauth-authorization-server + jwks.json -> backend (it mints the tokens)
+	handle /.well-known/oauth-protected-resource {
+		reverse_proxy cortex-mcp:8020
+	}
+
+	@mcp_authz path /.well-known/oauth-authorization-server /.well-known/jwks.json
+	handle @mcp_authz {
+		reverse_proxy backend:8004
+	}
+
 	# Backend: Recall webhooks land here, and voice-frontend's same-origin
 	# status polling resolves to /api/* on this host.
 	handle /api/* {
