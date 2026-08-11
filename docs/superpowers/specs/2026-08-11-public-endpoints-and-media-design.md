@@ -59,7 +59,39 @@ while WebRTC media is UDP.
 
 - `voice-agent/src/main.py:79-88` `_build_ice_servers()` already appends a TURN
   server when `turn_server_url` is set and passes it to
-  `SmallWebRTCRequestHandler`. **The media fix is configuration, not code.**
+  `SmallWebRTCRequestHandler`.
+
+### ⚠️ CORRECTION — Cloudflare TURN needs code, not just config
+
+An earlier revision of this spec said "the media fix is configuration, not
+code." That is TRUE for a provider with long-term static credentials
+(self-hosted coturn, metered.ca) and FALSE for the provider chosen in D3.
+
+Cloudflare TURN issues **ephemeral** credentials: you hold a TURN key
+(`TURN_KEY_ID` + API token) server-side and mint short-lived username/password
+pairs from
+`https://rtc.live.cloudflare.com/v1/turn/keys/$TURN_KEY_ID/credentials/generate-ice-servers`.
+`_build_ice_servers()` reads STATIC values, once, at lifespan startup — so the
+`TURN_USERNAME` / `TURN_CREDENTIAL` fields shipped alongside this spec cannot
+carry Cloudflare credentials.
+
+The change is small but it is real, and it has a lifetime problem attached: ICE
+servers are currently built ONCE at boot (`main.py:423`) and handed to
+`SmallWebRTCRequestHandler`, while minted credentials expire. Whichever of these
+the plan picks must be a deliberate choice:
+
+  * mint per WebRTC offer — always fresh, one extra API call per session;
+  * mint at boot with a long TTL and refresh on a timer — fewer calls, but a
+    stale credential silently breaks every new call until the refresh fires, and
+    "silently breaks" is this codebase's recurring failure shape.
+
+Per-offer is the safer default. The TTL must in any case exceed the longest
+expected call, or media dies mid-interview.
+
+Settings will therefore be `TURN_KEY_ID` + `TURN_API_TOKEN` for Cloudflare,
+with the existing static `TURN_SERVER_URL`/`USERNAME`/`CREDENTIAL` retained for
+static-credential providers. Both paths should stay supported: the static one is
+what makes coturn or metered.ca a zero-code fallback if Cloudflare disappoints.
 - ✅ **Done in this session:** `TURN_SERVER_URL`, `TURN_USERNAME` and
   `TURN_CREDENTIAL` are now in `.env.example` and in the settings UI's Voice
   group. They previously existed in `voice-agent/src/config.py` but had nowhere
