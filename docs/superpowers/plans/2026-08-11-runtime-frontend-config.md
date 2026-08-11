@@ -283,6 +283,34 @@ Then, as the **first child inside `<head>`** (before any other script so it is d
 
 If the layout has no explicit `<head>`, place it as the first child of `<body>` instead — App Router hoists it either way. The `id` satisfies the project-wide unique-id rule.
 
+- [ ] **Step 6b: Force dynamic rendering — WITHOUT THIS THE FIX DOES NOTHING**
+
+Discovered while executing Task 1 on `recruiter-app`, and it will bite on every
+app. Next prerenders shell routes at **build** time, which freezes
+`window.__OR_CONFIG__` into static HTML with **empty** values (a build has no
+`.env`), so the browser receives blanks regardless of the running container's
+environment. That is the same build-time-baking bug relocated from the JS bundle
+to the prerendered HTML. Measured before the fix:
+
+```
+.next/server/app/login.html:  window.__OR_CONFIG__={"supabaseUrl":"","supabaseAnonKey":"", ...}
+```
+
+Add to the root layout, above the component:
+
+```typescript
+export const dynamic = 'force-dynamic';
+```
+
+Verify no route prerenders the config any more:
+
+```bash
+rm -rf .next && NEXT_PUBLIC_SUPABASE_URL="https://build-time-value.example" bun run build
+find .next/server/app -name "*.html" | xargs grep -l "build-time-value" ; echo "exit=$? (1 == clean)"
+```
+Expected: **no file matches.** On `recruiter-app` the only surviving prerender is
+`_global-error.html`, which carries no config script. **Paste the file list.**
+
 - [ ] **Step 7: Build, run the suite, and commit**
 
 ```bash

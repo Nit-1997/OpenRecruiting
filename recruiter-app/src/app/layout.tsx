@@ -3,6 +3,11 @@ import { DM_Mono, DM_Sans, Instrument_Serif, Pacifico } from 'next/font/google';
 import './globals.css';
 import { V2Bootstrap } from '@/lib/v2-bootstrap';
 import { cn } from '@/lib/utils';
+import {
+  RUNTIME_CONFIG_SCRIPT_ID,
+  runtimeConfigScript,
+  serverRuntimeConfig,
+} from '@/lib/runtime-config';
 
 const instrumentSerif = Instrument_Serif({
   subsets: ['latin'],
@@ -53,6 +58,25 @@ const themeBootstrap = `(() => {
   } catch {}
 })();`;
 
+/**
+ * Every route renders per request, and this is load-bearing — do not remove it
+ * to "restore static optimisation".
+ *
+ * The layout injects window.__OR_CONFIG__ from process.env (see
+ * src/lib/runtime-config.ts). Without this, Next prerenders the shell routes at
+ * BUILD time and freezes that object into static HTML — with empty values, since
+ * a build has no .env — so the browser would receive blanks no matter what the
+ * running container's environment says. That is precisely the build-time-baking
+ * bug the runtime config exists to fix, just relocated from the JS bundle to the
+ * prerendered HTML. Verified: before this line, .next/server/app/login.html
+ * shipped `window.__OR_CONFIG__={"supabaseUrl":"", ...}`.
+ *
+ * The cost is real but small here: this is an authenticated app whose middleware
+ * already runs on every request, and no shell route can render meaningfully
+ * without live config anyway.
+ */
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
@@ -68,7 +92,18 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       )}
     >
       <head>
+        {/* MUST stay first: every client module reads window.__OR_CONFIG__ via
+            getRuntimeConfig(), so it has to exist before hydration runs. These
+            values are read from process.env at REQUEST time, which is what lets
+            a container restart apply a changed .env without an image rebuild.
+            See src/lib/runtime-config.ts. */}
         <script
+          id={RUNTIME_CONFIG_SCRIPT_ID}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: serialising server-resolved public config into the page is the mechanism itself; runtimeConfigScript escapes `<` so a value cannot close the tag
+          dangerouslySetInnerHTML={{ __html: runtimeConfigScript(serverRuntimeConfig()) }}
+        />
+        <script
+          id="theme-bootstrap"
           // biome-ignore lint/security/noDangerouslySetInnerHtml: tiny inline boot script that runs before hydration to apply persisted dark mode
           dangerouslySetInnerHTML={{ __html: themeBootstrap }}
         />
