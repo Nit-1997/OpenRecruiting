@@ -93,16 +93,10 @@ services:
     restart: unless-stopped
 
   recruiter-app:
+    # No build args: browser config is read at request time from env_file below,
+    # not baked into the image. See recruiter-app/src/lib/runtime-config.ts.
     build:
       context: ./recruiter-app
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
-        NEXT_PUBLIC_API_V2_URL: ${NEXT_PUBLIC_API_V2_URL:-http://localhost:8004}
-        NEXT_PUBLIC_LANDING_URL: ${NEXT_PUBLIC_LANDING_URL:-http://localhost:3000}
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3005}
-        NEXT_PUBLIC_COOKIE_DOMAIN: ${NEXT_PUBLIC_COOKIE_DOMAIN:-}
     ports: ["3005:3000"]
     env_file: [.env]
     restart: unless-stopped
