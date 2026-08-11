@@ -193,3 +193,61 @@ def test_no_application_module_holds_a_provider_credential():
         "provider credentials or direct provider egress found in application "
         f"code: {offenders}"
     )
+
+
+_MANIFESTS = (
+    "voice-agent/requirements.txt",
+    "intake-core/pyproject.toml",
+    "llm-core/pyproject.toml",
+    "workers/*/requirements*.txt",
+    "workers/*/production/requirements*.txt",
+    "workers/*/pyproject.toml",
+)
+
+
+def _declares_provider_sdk(line: str) -> bool:
+    """A dependency LINE that installs a provider SDK. Comments are prose."""
+    stripped = line.split("#")[0].strip()
+    if not stripped:
+        return False
+    return "anthropic" in stripped.lower()
+
+
+def test_no_service_installs_a_provider_sdk():
+    """The blind spot that outlived the source migration, twice.
+
+    Every scan above reads source text, and source text cannot see a package
+    that is INSTALLED but never imported. Two survived to the end of this effort
+    that way, both in services whose source was already clean:
+
+      * voice-agent kept pipecat's `[anthropic]` extra, the only thing that
+        installs the SDK, so `import anthropic` still succeeded (0.49.0);
+      * intake-context-builder kept a direct `anthropic==0.40.0` pin that phase 4
+        left behind — `pip show` reported an empty Required-by.
+
+    An installed SDK is a loaded gun: a direct client can be typed back in and
+    every source guard in this file still passes. `anthropic` appearing in a
+    COMMENT is fine and expected — several manifests explain why it is absent —
+    so only the dependency part of each line is examined.
+    """
+    manifests = [m for pattern in _MANIFESTS
+                 for m in sorted(_SCAN_ROOT.glob(pattern)) if m.is_file()]
+    assert len(manifests) >= 4, (
+        f"expected at least 4 dependency manifests under {_SCAN_ROOT}, saw "
+        f"{[str(m) for m in manifests]}. Check the /repo-scan COPY lines in "
+        "backend/Dockerfile.test."
+    )
+
+    offenders = {
+        m.relative_to(_SCAN_ROOT).as_posix(): [
+            line.strip() for line in m.read_text(encoding="utf-8").splitlines()
+            if _declares_provider_sdk(line)
+        ]
+        for m in manifests
+    }
+    offenders = {path: lines for path, lines in offenders.items() if lines}
+
+    assert offenders == {}, (
+        f"a provider SDK is still installed by: {offenders}. Source being clean "
+        "is not enough — see this test's docstring."
+    )

@@ -1,4 +1,9 @@
-anthropic==0.40.0
+# No provider SDK. Phase 4 moved both stages onto llm-core, but left this pin
+# behind — so the image still shipped anthropic 0.40.0 with nothing importing it
+# (`pip show anthropic` reported an empty Required-by). Unimported is not
+# uninstalled: while it was installed, a direct provider client could be typed
+# back in and no source grep would notice. This was the last provider SDK in any
+# application container.
 supabase>=2.15,<3.0
 structlog==24.1.0
 httpx==0.27.0

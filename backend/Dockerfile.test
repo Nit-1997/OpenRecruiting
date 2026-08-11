@@ -48,4 +48,15 @@ COPY intake-core/intake_core /repo-scan/intake-core/intake_core
 COPY llm-core/llm_core /repo-scan/llm-core/llm_core
 COPY workers /repo-scan/workers
 
+# ...and every service's DEPENDENCY manifest, for
+# test_no_service_installs_a_provider_sdk. A source scan is structurally blind to
+# an installed-but-unimported SDK, and that blind spot hid two of them until the
+# end of this migration: pipecat's [anthropic] extra in voice-agent, and an
+# orphan `anthropic==0.40.0` pin in intake-context-builder that phase 4 left
+# behind. Both left a provider SDK importable in a container whose source was
+# already clean. (workers/ manifests come in with the COPY above.)
+COPY voice-agent/requirements.txt /repo-scan/voice-agent/requirements.txt
+COPY intake-core/pyproject.toml /repo-scan/intake-core/pyproject.toml
+COPY llm-core/pyproject.toml /repo-scan/llm-core/pyproject.toml
+
 COPY backend/ /app/
