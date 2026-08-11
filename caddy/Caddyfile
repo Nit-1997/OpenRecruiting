@@ -25,8 +25,13 @@
 		reverse_proxy voice-agent:8011
 	}
 
-	# The MCP server an assistant connects to.
-	handle_path /mcp/* {
+	# The MCP server an assistant connects to. `handle`, not `handle_path`:
+	# cortex-mcp mounts the streamable-HTTP transport AT /mcp (src/main.py), so
+	# stripping the prefix proxied / and 404'd. Both matchers because /mcp/*
+	# alone does not match a bare /mcp — that fell through to the catch-all and
+	# served the voice-frontend HTML with a 200, which is worse than a 404.
+	@mcp path /mcp /mcp/*
+	handle @mcp {
 		reverse_proxy cortex-mcp:8020
 	}
 
