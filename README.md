@@ -13,25 +13,52 @@ feedback, a WebRTC voice agent, and a recruiting knowledge graph. Apache-2.0.
 ```bash
 git clone https://github.com/Nit-1997/OpenRecruiting.git && cd OpenRecruiting
 cp .env.example .env
+docker compose up -d --build
 ```
 
-Then, in order:
+Then open **<http://127.0.0.1:3010>** — the setup UI. Choose a password, and it
+walks you through the rest: every setting grouped by what it enables, live
+container health, and a Save button that restarts only the services a change
+affects. No hand-editing `.env` first.
 
-1. **[`docs/setup/supabase.md`](docs/setup/supabase.md)** — create a free
-   project, run [`schema.sql`](schema.sql) in the SQL editor, paste three keys
-   into `.env`. Ten minutes, and the only required step.
-1. *(optional)* **[`staff_user.sql`](staff_user.sql)** — edit the CONFIG block
-   and run it to provision a staff account for the admin portal on :3001.
-2. *(optional)* **[`docs/setup/recall.md`](docs/setup/recall.md)** — an API key
-   and a tunnel, if you want real meeting capture.
+It boots even when nothing else is configured, which is the point. Every
+dependency except the database is optional — an unset key disables that feature
+rather than breaking the stack, and the UI tells you which.
+
+**The one thing it cannot do for you** is create your database. Supabase needs a
+project (free tier is fine) and `schema.sql` pasted into its SQL editor: the
+service key can read your data but cannot run DDL, so nothing here can apply a
+schema on your behalf without a database superuser password we deliberately do
+not ask for. The setup UI detects whether the schema is applied and gives you
+the exact steps and your project's own link. See
+[`docs/setup/supabase.md`](docs/setup/supabase.md).
+
+Optional, when you want them:
+
+- **[`staff_user.sql`](staff_user.sql)** — provisions a staff account for the
+  admin portal on :3001. Edit the CONFIG block and run it.
+- **[`docs/setup/recall.md`](docs/setup/recall.md)** — an API key and a tunnel,
+  for real meeting capture.
 
 ```bash
-docker compose up -d --build
 make verify
 ```
 
 `make verify` prints one line per service and the URL map. Open
 <http://localhost:3005>.
+
+<details>
+<summary>Prefer editing <code>.env</code> by hand?</summary>
+
+Nothing stops you — `.env` is still the source of truth and the setup UI is only
+a front end to it, comments and ordering preserved. It writes a timestamped
+backup before every save. If you never open :3010, the stack behaves exactly as
+it always did.
+
+The setup UI binds to `127.0.0.1` and is not reachable from the network, because
+it can edit every secret and restart containers. To reach it on a remote host,
+tunnel: `ssh -L 3010:localhost:3010 user@host`.
+</details>
 
 ## What runs where
 

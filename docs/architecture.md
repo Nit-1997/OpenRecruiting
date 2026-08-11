@@ -144,6 +144,7 @@ feature rather than breaking the stack:
 
 | Port | Service |
 |---|---|
+| 3010 | setup-ui (127.0.0.1 only — configures the stack from a browser) |
 | 3000 | landing |
 | 3001 | admin-app (staff only) |
 | 3003 | voice-frontend |
