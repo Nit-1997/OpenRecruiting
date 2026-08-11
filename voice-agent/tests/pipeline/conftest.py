@@ -39,6 +39,28 @@ class LLMContextFrame(Frame):
         self.context = context
 
 
+class LLMTextFrame(Frame):
+    def __init__(self, text=""):
+        self.text = text
+
+
+class FunctionCallsStartedFrame(Frame):
+    """Broadcast by pipecat only when at least one tool call survived
+    (services/llm_service.py:626-631 returns early on an empty list), which is
+    what makes it the signal EmptyTurnDetector keys on."""
+
+    def __init__(self, function_calls=()):
+        self.function_calls = function_calls
+
+
+class InterruptionFrame(Frame):
+    pass
+
+
+class StartInterruptionFrame(InterruptionFrame):
+    pass
+
+
 # ── FrameDirection stub ───────────────────────────────────────────────────────
 
 class FrameDirection:
@@ -66,6 +88,10 @@ _frames_mod.LLMFullResponseStartFrame = LLMFullResponseStartFrame
 _frames_mod.LLMFullResponseEndFrame = LLMFullResponseEndFrame
 _frames_mod.LLMRunFrame = LLMRunFrame
 _frames_mod.LLMContextFrame = LLMContextFrame
+_frames_mod.LLMTextFrame = LLMTextFrame
+_frames_mod.FunctionCallsStartedFrame = FunctionCallsStartedFrame
+_frames_mod.InterruptionFrame = InterruptionFrame
+_frames_mod.StartInterruptionFrame = StartInterruptionFrame
 
 _fp_mod = MagicMock()
 _fp_mod.FrameProcessor = FrameProcessor

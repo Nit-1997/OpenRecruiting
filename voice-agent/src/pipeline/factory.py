@@ -25,6 +25,7 @@ from src.pipeline.input_gate import PostEndInputGate
 from src.pipeline.tool_schemas import function_schemas, tool_name
 from src.pipeline.interrupt_context_cleaner import InterruptContextCleaner
 from src.pipeline.metrics_logger import MetricsLogger
+from src.pipeline.empty_turn import EmptyTurnDetector
 
 
 @dataclass
@@ -126,6 +127,11 @@ class PipelineFactory:
         input_gate = PostEndInputGate(end_event)
         interrupt_cleaner = InterruptContextCleaner(messages)
         metrics = MetricsLogger()
+        # Sits immediately after `llm` below: a turn that produced neither speech
+        # nor a surviving tool call is otherwise completely silent. See
+        # empty_turn.py — a dropped tool call is a regression the gateway swap
+        # introduced, and this is what makes it greppable.
+        empty_turn = EmptyTurnDetector(model=config.llm_model)
 
         # v2 intake wiring: PromptRefreshProcessor (pre-LLM) + TurnPersistFrameProcessor (post-LLM).
         pre_llm_processors = []   # run before context_aggregator.user()
@@ -238,6 +244,7 @@ class PipelineFactory:
             context_aggregator.user(),
             filler,
             llm,
+            empty_turn,
             md_stripper,
             end_detector,
             tts,
