@@ -261,3 +261,44 @@ async def test_the_streaming_aliases_declare_native_tool_support():
         assert alias in by_name, f"{alias} is not defined in litellm-config.yaml"
         info = by_name[alias].get("model_info") or {}
         assert info.get("supports_function_calling") is True, alias
+
+
+# Nine call sites in this repo send temperature=0 for deterministic extraction:
+# candidate_detection_service, recall_webhook/end_state, intake-core's
+# coverage_tracker, feedback-agent's and intake-agent's llm clients,
+# feedback-agent's api server, and intake-context-builder's parse_jd + synthesize.
+_TEMPERATURE_ZERO_CALLERS = 9
+
+
+def test_openai_deployments_drop_the_temperature_this_repo_sends():
+    """Being able to repoint a workload at another PROVIDER is the whole point of
+    the gateway, and openai reasoning models are the case that breaks it.
+
+    GPT-5 models accept only the default temperature; sending 0 returns
+    400 "Unsupported value: 'temperature' does not support 0 with this model."
+    Every one of this repo's nine temperature=0 call sites would 400 the moment
+    its alias pointed at one. Verified live against the running proxy, where the
+    fix took three attempts — the two obvious ones do NOT work and are recorded
+    in litellm-config.yaml so they are not retried:
+
+      * litellm_settings.drop_params (already true globally) drops UNSUPPORTED
+        params; openai supports temperature, so it never looks at the value.
+      * litellm_params.temperature is a DEFAULT and loses to the explicit 0.
+
+    Only additional_drop_params removes it. This asserts the config statically,
+    which is where it is cheapest to catch, and it fails the day someone adds a
+    second openai deployment and forgets.
+    """
+    config = _load_gateway_config()
+    openai_entries = [
+        entry for entry in config["model_list"]
+        if str(entry.get("litellm_params", {}).get("model", "")).startswith("openai/")
+    ]
+    assert openai_entries, "no openai deployment left; this guard has lost its subject"
+
+    for entry in openai_entries:
+        dropped = entry["litellm_params"].get("additional_drop_params") or []
+        assert "temperature" in dropped, (
+            f"{entry['model_name']} does not drop temperature, so all "
+            f"{_TEMPERATURE_ZERO_CALLERS} temperature=0 call sites 400 against it"
+        )

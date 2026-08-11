@@ -205,10 +205,38 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
+  # The only openai-provider entry in this file, and the cross-provider smoke
+  # test — repointing a workload at another provider is what this whole gateway
+  # exists to make possible, so this alias is how that stays honest.
+  #
+  # temperature is DECLARED UNSUPPORTED here, and it is load-bearing. GPT-5
+  # reasoning models accept only the default (1): sending 0 returns
+  #   400 "Unsupported value: 'temperature' does not support 0 with this model."
+  # NINE call sites across this repo send temperature=0 (candidate_detection,
+  # end_state, coverage_tracker, both worker llm clients, feedback-agent's api
+  # server, parse_jd, synthesize), so without this every one of them 400s the
+  # moment its alias is pointed at an openai reasoning model.
+  #
+  # THREE things that DO NOT work, all tried against the running proxy — do not
+  # "simplify" this into any of them:
+  #   * `litellm_settings.drop_params: true` (already set globally). It drops
+  #     params a provider does not SUPPORT; openai supports temperature, it is
+  #     the VALUE that is rejected, so drop_params never considers it.
+  #   * `litellm_params: {temperature: 1}`. Those are DEFAULTS — an explicit
+  #     temperature=0 in the request overrides them and the 400 survives.
+  #   * `model_info: {supported_openai_params: [...]}`. Not honoured for dropping
+  #     on this path either; the 400 survives unchanged.
+  # `additional_drop_params` is the one that works: it removes the named params
+  # from the request for THIS deployment only, before it reaches openai.
+  #
+  # The determinism the call sites ask for with 0 is not lost here — it is
+  # unavailable on these models at all. Anthropic and ollama aliases still honour
+  # temperature=0 normally; nothing outside this entry changes.
   - model_name: smoke-openai
     litellm_params:
       model: openai/gpt-5.6-terra
       api_key: os.environ/OPENAI_API_KEY
+      additional_drop_params: ["temperature"]
     model_info: {supports_function_calling: true}
 
   - model_name: smoke-local
