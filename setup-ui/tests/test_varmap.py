@@ -144,3 +144,48 @@ def test_nothing_is_both_managed_and_excluded():
     overlap = sorted(all_variables() & set(UNMANAGED))
 
     assert overlap == []
+
+
+def _backend_defaults() -> dict[str, str]:
+    """Literal defaults on the backend Settings class, as written."""
+    import re
+
+    cfg = REPO / "backend" / "app" / "config.py"
+    if not cfg.exists():
+        pytest.skip("backend/app/config.py not reachable")
+    out: dict[str, str] = {}
+    for name, raw in re.findall(
+        r"^\s{4}([A-Z][A-Z0-9_]+)\s*:[^=\n]+=\s*([^\n#]+)", cfg.read_text(encoding="utf-8"), re.M
+    ):
+        out[name] = raw.strip().strip('"').strip("'").strip()
+    return out
+
+
+def test_env_example_never_contradicts_a_real_default():
+    """.env.example is what a new self-hoster copies, so a value there that
+    disagrees with the code silently changes behaviour on a fresh install.
+
+    This exists because it happened: ATS_INTEGRATIONS_ENABLED=false was written
+    into .env.example while the Settings default is True, which would have
+    turned ATS sync off for everyone who followed the quick start — with nothing
+    failing and nothing to notice.
+
+    Compared only where BOTH sides are non-empty. A blank in .env.example
+    (`KEY=`) is an invitation to fill something in, and an empty default in the
+    code means it has no opinion — so a placeholder like
+    INTERNAL_API_SECRET=change-me-local-only is guidance, not a contradiction.
+    The failure this catches is a real default being silently overridden.
+    """
+    defaults = _backend_defaults()
+    example = parse((REPO / ".env.example").read_text(encoding="utf-8"))
+
+    mismatches = {
+        key: (value, defaults[key])
+        for key, value in example.items()
+        if value and defaults.get(key) and value.lower() != defaults[key].lower()
+    }
+
+    assert mismatches == {}, (
+        "these .env.example values disagree with backend/app/config.py "
+        f"(example, actual): {mismatches}"
+    )

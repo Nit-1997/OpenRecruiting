@@ -229,22 +229,26 @@ GROUPS: list[Group] = [
     ),
     Group(
         id="integrations",
-        title="Integrations & storage",
-        blurb="ATS sync, resume storage, and the async worker callback.",
+        title="Integrations",
+        blurb=(
+            "ATS sync and the worker callback secret. No cloud account is "
+            "needed for either — the workers run as containers alongside "
+            "everything else."
+        ),
         variables=[
             Variable("KNIT_API_KEY", "Knit API key",
                      "ATS integrations. Unset disables ATS sync.",
                      secret=True, services=["backend"]),
-            Variable("ATS_INTEGRATIONS_ENABLED", "Enable ATS sync", services=["backend"]),
-            Variable("AWS_ACCESS_KEY_ID", "AWS access key id",
-                     "S3 resume/blog storage and Lambda invocation.",
-                     secret=True, services=["backend"]),
-            Variable("AWS_SECRET_ACCESS_KEY", "AWS secret access key",
-                     secret=True, services=["backend"]),
-            Variable("AWS_REGION", "AWS region", services=["backend"]),
-            Variable("S3_RESUME_BUCKET", "Resume bucket", services=["backend"]),
-            Variable("LAMBDA_CALLBACK_SECRET", "Lambda callback secret",
-                     "Authenticates worker callbacks to the backend.",
+            Variable("ATS_INTEGRATIONS_ENABLED", "Enable ATS sync",
+                     "On by default; the Knit key above is what actually decides "
+                     "whether sync can run.",
+                     services=["backend"]),
+            Variable("LAMBDA_CALLBACK_SECRET", "Worker callback secret",
+                     "Shared secret background workers present when reporting "
+                     "results. Despite the name this is NOT Lambda-only — the "
+                     "backend rejects every worker callback when it is unset, "
+                     "including on the default http path, so feedback results "
+                     "never come back.",
                      secret=True, services=["backend"]),
         ],
     ),
@@ -291,6 +295,27 @@ UNMANAGED: dict[str, str] = {
             "DEBRIEF_CHAT_MAX_ITERS", "DEBRIEF_CHAT_MAX_TOKENS",
         )
     },
+    # AWS. boto3 IS installed and s3_service.py IS real, so this is not dead
+    # code — but it has exactly two callers: the admin blog CMS image upload and
+    # ATS resume enrichment. Neither is part of a self-hosted install, and
+    # JOB_INVOKER defaults to "http", which posts to the local worker containers
+    # rather than Lambda. Surfacing AWS credentials in a setup UI implies an AWS
+    # account is required for setup. It is not.
+    **{
+        name: "only the admin blog CMS and ATS resume enrichment; no AWS needed to self-host"
+        for name in (
+            "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION",
+            "S3_RESUME_BUCKET", "S3_BLOG_BUCKET",
+        )
+    },
+    # The legacy boto3 job path, reachable only with JOB_INVOKER=lambda.
+    **{
+        name: "legacy Lambda path; JOB_INVOKER defaults to http"
+        for name in (
+            "FEEDBACK_LAMBDA_ARN", "INTAKE_LAMBDA_ARN", "INTAKE_LAMBDA_ARN_V2",
+            "INTAKE_CONTEXT_BUILDER_LAMBDA_ARN",
+        )
+    },
     # Tuning knobs with correct defaults. Surfacing 40 of these would bury the
     # six settings that actually block a first run.
     **{
@@ -310,12 +335,11 @@ UNMANAGED: dict[str, str] = {
             "RECALL_TRANSCRIPT_SEPARATE_STREAMS", "RECALL_TRANSCRIPT_WORD_BOOST",
             "DEBUG", "ENV", "LOG_LEVEL", "RUN_BACKGROUND_WORKERS",
             "MCP_ALLOWED_AUDIENCES", "MCP_CONSENT_URL", "MCP_JWT_ISSUER",
-            "S3_BLOG_BUCKET", "ASSESSMENT_UI_URL",
+            "ASSESSMENT_UI_URL",
             "VOICE_ENABLED", "VOICE_TTS_VOICE", "VOICE_AGENT_URL",
             "VOICE_AGENT_V2_URL", "VOICE_AGENT_V2_DRAIN_TIMEOUT_S",
             "VOICE_DEEPGRAM_API_KEY",
-            "FEEDBACK_LAMBDA_ARN", "INTAKE_LAMBDA_ARN", "INTAKE_LAMBDA_ARN_V2",
-            "INTAKE_CONTEXT_BUILDER_LAMBDA_ARN", "INTAKE_TRANSCRIPT_WORKER_URL",
+            "INTAKE_TRANSCRIPT_WORKER_URL",
         )
     },
 }
