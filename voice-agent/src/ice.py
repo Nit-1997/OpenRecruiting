@@ -37,7 +37,11 @@ from __future__ import annotations
 import time
 
 import httpx
-from pipecat.transports.smallwebrtc.connection import IceServer
+# aiortc's RTCIceServer, not pipecat's IceServer: this is what main.py already
+# handed to SmallWebRTCRequestHandler, and pipecat.transports.smallwebrtc is
+# stubbed as a non-package by tests/screening/conftest.py, so importing a
+# submodule of it breaks collection for the whole suite.
+from aiortc import RTCIceServer
 
 from src.config import get_settings
 from src.logging_config import get_logger
@@ -53,21 +57,21 @@ _TTL_SECONDS = 24 * 60 * 60
 _REFRESH_MARGIN_SECONDS = 60 * 60
 _TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
-_cache: tuple[float, list[IceServer]] | None = None
+_cache: tuple[float, list[RTCIceServer]] | None = None
 
 
-def _stun_only() -> list[IceServer]:
+def _stun_only() -> list[RTCIceServer]:
     settings = get_settings()
-    return [IceServer(urls=url) for url in settings.ice_stun_servers]
+    return [RTCIceServer(urls=url) for url in settings.ice_stun_servers]
 
 
-def _static_turn() -> list[IceServer] | None:
+def _static_turn() -> list[RTCIceServer] | None:
     """A non-Cloudflare relay configured with long-term credentials."""
     settings = get_settings()
     if not settings.turn_server_url:
         return None
     return _stun_only() + [
-        IceServer(
+        RTCIceServer(
             urls=settings.turn_server_url,
             username=settings.turn_username,
             credential=settings.turn_credential,
@@ -75,7 +79,7 @@ def _static_turn() -> list[IceServer] | None:
     ]
 
 
-async def _mint_cloudflare() -> list[IceServer] | None:
+async def _mint_cloudflare() -> list[RTCIceServer] | None:
     """Short-lived Cloudflare TURN credentials, or None if unavailable."""
     settings = get_settings()
     key_id = settings.cloudflare_turn_token_id
@@ -108,16 +112,16 @@ async def _mint_cloudflare() -> list[IceServer] | None:
     # The response is a LIST: entry 0 is STUN-only, entry 1 carries the TURN
     # urls plus username/credential. Reading [0] yields a credential-less STUN
     # block that looks like a successful mint — a mistake worth naming here.
-    servers: list[IceServer] = []
+    servers: list[RTCIceServer] = []
     for entry in payload.get("iceServers") or []:
         urls = entry.get("urls") or []
         urls = [urls] if isinstance(urls, str) else urls
         username, credential = entry.get("username"), entry.get("credential")
         for url in urls:
             if username and credential:
-                servers.append(IceServer(urls=url, username=username, credential=credential))
+                servers.append(RTCIceServer(urls=url, username=username, credential=credential))
             else:
-                servers.append(IceServer(urls=url))
+                servers.append(RTCIceServer(urls=url))
 
     if not any(s.username for s in servers):
         logger.error("turn_mint_returned_no_credentials", extra={
@@ -137,7 +141,7 @@ async def _mint_cloudflare() -> list[IceServer] | None:
     return servers
 
 
-async def get_ice_servers() -> list[IceServer]:
+async def get_ice_servers() -> list[RTCIceServer]:
     """STUN plus a TURN relay when one is configured.
 
     Cached until shortly before the minted credentials expire, so a busy
