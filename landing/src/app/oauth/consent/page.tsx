@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { Header } from "@/components/ui/header";
+import { serverBackendUrl } from "@/lib/backend-url";
 import { createClient } from "@/lib/supabase/server";
 import { ConsentForm } from "./consent-form";
 
 export const dynamic = "force-dynamic";
 
-const API_URL = process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8004";
 const LOGIN_PATH = "/login";
 
 interface ClientMetadata {
@@ -28,9 +28,10 @@ interface ConsentParams {
 
 async function fetchClientMetadata(clientId: string): Promise<ClientMetadata | null> {
   try {
-    const resp = await fetch(`${API_URL}/api/v2/mcp/oauth/clients/${encodeURIComponent(clientId)}`, {
-      cache: "no-store",
-    });
+    const resp = await fetch(
+      `${serverBackendUrl()}/api/v2/mcp/oauth/clients/${encodeURIComponent(clientId)}`,
+      { cache: "no-store" },
+    );
     if (!resp.ok) return null;
     return (await resp.json()) as ClientMetadata;
   } catch {

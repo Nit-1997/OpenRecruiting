@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverBackendUrl } from "@/lib/backend-url";
 import { createClient } from "@/lib/supabase/server";
 
 // Read at CALL time, not module load. This is a server route handler, so
@@ -8,8 +9,10 @@ import { createClient } from "@/lib/supabase/server";
 // asserted the fallback value, so it passed for the wrong reason and proved
 // nothing; the two only agreed because the fallback was also wrong (:8000,
 // while the backend listens on :8004).
+// Server-side only, so it must not use the browser's localhost value — see
+// serverBackendUrl(). Still read at call time, for the reason above.
 function apiBase(): string {
-  return process.env.NEXT_PUBLIC_API_V2_URL || "http://localhost:8004";
+  return serverBackendUrl();
 }
 
 const REQUIRED_FIELDS = [

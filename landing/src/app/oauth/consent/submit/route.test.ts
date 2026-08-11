@@ -13,7 +13,12 @@ vi.mock("@/lib/supabase/server", () => ({
 // Import AFTER mocks
 import { POST } from "./route";
 
-const API_URL = "http://localhost:8000";
+// Deliberately not a real host: the route must read the server-only
+// BACKEND_INTERNAL_URL, so a value nothing else could produce proves it did.
+// The old constant here was http://localhost:8000 — a port the backend has
+// never listened on — set into NEXT_PUBLIC_API_V2_URL and then asserted back,
+// which proved nothing (see the note in route.ts).
+const BACKEND_URL = "http://backend-under-test:8004";
 const REDIRECT_URI = "https://claude.ai/api/mcp/auth_callback";
 
 function makeForm(overrides: Record<string, string> = {}) {
@@ -44,7 +49,7 @@ function makeRequest(form: FormData): Request {
 describe("/oauth/consent/submit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NEXT_PUBLIC_API_V2_URL = API_URL;
+    process.env.BACKEND_INTERNAL_URL = BACKEND_URL;
     mockGetSession.mockResolvedValue({
       data: { session: { access_token: "supabase-jwt-here" } },
     });
@@ -81,7 +86,7 @@ describe("/oauth/consent/submit", () => {
     expect(body.redirect_url).toBe(`${REDIRECT_URI}?code=abc123&state=abc`);
 
     const call = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(call[0]).toBe(`${API_URL}/api/v2/mcp/oauth/authorize/decision`);
+    expect(call[0]).toBe(`${BACKEND_URL}/api/v2/mcp/oauth/authorize/decision`);
     expect(call[1].method).toBe("POST");
     expect(call[1].headers.Authorization).toBe("Bearer supabase-jwt-here");
     expect(call[1].redirect).toBe("manual");
