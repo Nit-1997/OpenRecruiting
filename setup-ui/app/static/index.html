@@ -79,16 +79,16 @@
   <!-- ── app ──────────────────────────────────────────────────────── -->
   <section id="app-section" class="hidden">
     <h1 id="app-title">OpenRecruiting setup</h1>
-    <p class="sub" id="app-sub">Fill in what you have. Everything except the database is optional — an unset value disables that feature rather than breaking the stack.</p>
+    <p class="sub" id="app-sub">Fill in Get started and apply the schema. Everything below that already has a working default — an unset value disables that one feature rather than breaking the stack.</p>
 
     <div class="msg err hidden" id="app-error"></div>
     <div class="msg good hidden" id="app-result"></div>
 
-    <div class="card" id="health-card">
-      <h2 id="health-title">Services</h2>
-      <p class="blurb" id="health-blurb">Live container state.</p>
-      <div class="grid" id="health-grid"></div>
-    </div>
+    <!-- Order is the point of this page. The two things a first run must do come
+         first; diagnostics and per-workload tuning are reference material and go
+         last, collapsed. They used to sit above the fields, so the one section
+         that actually gets you running was three cards and 27 model rows down. -->
+    <div id="groups-start"></div>
 
     <div class="card" id="database-card">
       <h2 id="database-title">Database schema <span class="pill" id="database-pill">checking…</span></h2>
@@ -97,13 +97,19 @@
       <button class="ghost" id="database-recheck">Re-check</button>
     </div>
 
-    <div class="card" id="models-card">
-      <h2 id="models-title">Models per task <span class="pill" id="models-pill">loading…</span></h2>
-      <p class="blurb" id="models-blurb">Every workload picks its own model. Change one without touching the others — that is what the gateway is for. Provider keys live in the AI models section below; only the gateway holds them.</p>
-      <div id="models-list"></div>
-    </div>
+    <div id="groups-rest"></div>
 
-    <div id="groups-container"></div>
+    <details class="card" id="health-card">
+      <summary id="health-title">Services <span class="pill" id="health-pill">live state</span></summary>
+      <p class="blurb" id="health-blurb">Live container state.</p>
+      <div class="grid" id="health-grid"></div>
+    </details>
+
+    <details class="card" id="models-card">
+      <summary id="models-title">Models per task <span class="pill" id="models-pill">loading…</span></summary>
+      <p class="blurb" id="models-blurb">Every workload picks its own model. Change one without touching the others — that is what the gateway is for. Provider keys are in Get started; only the gateway holds them.</p>
+      <div id="models-list"></div>
+    </details>
   </section>
 </main>
 
@@ -257,8 +263,12 @@
   // ── config ──────────────────────────────────────────────────────
   async function loadConfig() {
     CONFIG = await api("/api/config");
-    const container = $("groups-container");
-    container.innerHTML = "";
+    // Two slots: the start tier renders above the schema step, everything else
+    // below it. Keeping them in one container is what buried Get started.
+    const startSlot = $("groups-start");
+    const restSlot = $("groups-rest");
+    startSlot.innerHTML = "";
+    restSlot.innerHTML = "";
     // Tiers, in order. Only "start" is open: a first run should be able to
     // finish without ever expanding anything, and 54 of the 63 settings already
     // have a working default.
@@ -266,6 +276,7 @@
     for (const group of CONFIG.groups) {
       const missing = group.missing_required.length;
       const collapsed = group.tier !== "start";
+      const container = collapsed ? restSlot : startSlot;
 
       if (collapsed && !restLabelled) {
         const heading = document.createElement("p");
