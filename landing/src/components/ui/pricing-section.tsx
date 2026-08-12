@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CalendlyModal } from "@/components/ui/calendly-modal";
 import { useAnalytics } from "@/hooks/useAnalytics";
 
 interface Plan {
@@ -89,13 +87,15 @@ const cardVariants = {
 
 function PricingSection() {
   const router = useRouter();
-  const [showCalendly, setShowCalendly] = useState(false);
   const { trackEvent } = useAnalytics();
 
   const handlePlanClick = (plan: Plan) => {
     trackEvent("pricing_plan_clicked", { plan: plan.key });
+    // The Enterprise CTA used to open the demo modal, which is gone. Sign-in is
+    // the only real destination the landing site has today — there is no
+    // /contact route. Point this at one when there is.
     if (plan.isEnterprise) {
-      setShowCalendly(true);
+      router.push("/login");
       return;
     }
     if (plan.key === "free") {
@@ -260,7 +260,6 @@ function PricingSection() {
         </p>
       </div>
     </section>
-    <CalendlyModal isOpen={showCalendly} onClose={() => setShowCalendly(false)} />
     </>
   );
 }

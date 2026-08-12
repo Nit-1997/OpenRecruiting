@@ -12,11 +12,6 @@ import { useAnalytics } from "@/hooks/useAnalytics";
 import dynamic from "next/dynamic";
 import { getRuntimeConfig } from "@/lib/runtime-config";
 
-const CalendlyModal = dynamic(
-  () => import("@/components/ui/calendly-modal").then((mod) => ({ default: mod.CalendlyModal })),
-  { ssr: false },
-);
-
 const capturedHash = typeof window !== "undefined" ? window.location.hash : "";
 const APP_URL = getRuntimeConfig().appUrl || "http://localhost:3005";
 
@@ -38,7 +33,6 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCalendly, setShowCalendly] = useState(false);
   const { trackEvent } = useAnalytics();
 
   const urlError = searchParams.get("error");
@@ -312,24 +306,9 @@ function LoginForm() {
       </div>
 
       <p id="login-help-text" className="mt-6 text-center text-sm text-[#555555]">
-        First time? Book demo{" "}
-        <button
-          id="login-book-demo-link"
-          type="button"
-          onClick={() => {
-            trackEvent("demo_booking_opened", { cta_location: "login_subtext" });
-            setShowCalendly(true);
-          }}
-          className="text-primary hover:underline focus:outline-none"
-        >
-          here
-        </button>{" "}
-        to start.
+        First time? Sign-up is invite-only — ask your administrator to add you.
       </p>
 
-      {showCalendly && (
-        <CalendlyModal isOpen={showCalendly} onClose={() => setShowCalendly(false)} />
-      )}
     </div>
   );
 }

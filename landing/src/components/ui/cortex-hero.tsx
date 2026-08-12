@@ -1,19 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { MoveRight } from "lucide-react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { ParticleButton } from "@/components/ui/particle-button";
 import { useAnalytics } from "@/hooks/useAnalytics";
-import dynamic from "next/dynamic";
-
-const CalendlyModal = dynamic(
-  () => import("@/components/ui/calendly-modal").then((mod) => ({ default: mod.CalendlyModal })),
-  { ssr: false },
-);
 
 function CortexHero() {
-  const [isCalendlyOpen, setIsCalendlyOpen] = useState(false);
   const { trackEvent } = useAnalytics();
 
   return (
@@ -58,17 +51,18 @@ function CortexHero() {
           </p>
 
           <div id="cortex-hero-cta-wrap" className="animate-hero-fade-up-3">
-            <ParticleButton
-              id="cortex-hero-book-demo-btn"
-              particleClassName="bg-white"
-              className="h-12 md:h-14 px-8 md:px-10 text-base md:text-lg rounded-full bg-white text-[#111111] hover:bg-white/90 gap-3 transition-colors"
-              onClick={() => {
-                trackEvent("demo_booking_opened", { cta_location: "cortex_hero" });
-                setIsCalendlyOpen(true);
-              }}
-            >
-              Book Demo <MoveRight className="w-5 h-5" />
-            </ParticleButton>
+            <Link href="/login" id="cortex-hero-get-started-link">
+              <ParticleButton
+                id="cortex-hero-get-started-btn"
+                particleClassName="bg-white"
+                className="h-12 md:h-14 px-8 md:px-10 text-base md:text-lg rounded-full bg-white text-[#111111] hover:bg-white/90 gap-3 transition-colors"
+                onClick={() =>
+                  trackEvent("cta_clicked", { cta: "get_started", cta_location: "cortex_hero" })
+                }
+              >
+                Get started <MoveRight className="w-5 h-5" />
+              </ParticleButton>
+            </Link>
           </div>
         </div>
 
@@ -97,9 +91,6 @@ function CortexHero() {
         </div>
       </div>
 
-      {isCalendlyOpen && (
-        <CalendlyModal isOpen={isCalendlyOpen} onClose={() => setIsCalendlyOpen(false)} />
-      )}
     </>
   );
 }

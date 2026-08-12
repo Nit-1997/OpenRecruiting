@@ -1,14 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { MoveRight } from "lucide-react";
+import Link from "next/link";
 import { ParticleButton } from "@/components/ui/particle-button";
-import { CalendlyModal } from "@/components/ui/calendly-modal";
 import { useAnalytics } from "@/hooks/useAnalytics";
 
 function CTASection() {
-  const [showCalendly, setShowCalendly] = useState(false);
   const { trackEvent } = useAnalytics();
 
   return (
@@ -46,22 +44,19 @@ function CTASection() {
           </p>
 
           <div id="cta-buttons" className="flex justify-center">
+            <Link href="/login" id="cta-get-started-link">
             <ParticleButton
-              id="cta-book-demo-btn"
+              id="cta-get-started-btn"
               particleClassName="bg-white"
               className="h-12 md:h-14 px-8 md:px-10 text-base md:text-lg rounded-full bg-white text-[#111111] hover:bg-white/90 gap-3"
-              onClick={() => { trackEvent("demo_booking_opened", { cta_location: "cta_section" }); setShowCalendly(true); }}
+              onClick={() => trackEvent("cta_clicked", { cta: "get_started", cta_location: "cta_section" })}
             >
-              Book Demo <MoveRight className="w-5 h-5" />
+              Get started <MoveRight className="w-5 h-5" />
             </ParticleButton>
+            </Link>
           </div>
         </motion.div>
       </div>
-
-      <CalendlyModal
-        isOpen={showCalendly}
-        onClose={() => setShowCalendly(false)}
-      />
     </section>
   );
 }

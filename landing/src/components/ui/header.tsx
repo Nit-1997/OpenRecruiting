@@ -7,34 +7,23 @@ import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAnalytics } from "@/hooks/useAnalytics";
-import dynamic from "next/dynamic";
-
-const CalendlyModal = dynamic(
-  () => import("@/components/ui/calendly-modal").then((mod) => ({ default: mod.CalendlyModal })),
-  { ssr: false },
-);
 
 function Header({ variant = "hero" }: { variant?: "hero" | "light" }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [showCalendly, setShowCalendly] = useState(false);
   const pathname = usePathname();
-  const isHomePage = pathname === "/";
 
   const { trackEvent } = useAnalytics();
-  const [pastFirstFold, setPastFirstFold] = useState(false);
 
   useEffect(() => {
     const onScroll = () => {
       setScrolled(window.scrollY > 50);
-      setPastFirstFold(window.scrollY > window.innerHeight * 0.8);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   const isDark = variant === "hero" && !scrolled;
-  const showBookDemo = !isHomePage || pastFirstFold;
 
   return (
     <>
@@ -125,28 +114,7 @@ function Header({ variant = "hero" }: { variant?: "hero" | "light" }) {
             <Link href="/login">
               <Button
                 id="login-btn-desktop"
-                variant={showBookDemo ? "ghost" : "default"}
-                className={`rounded-full transition-all duration-500 ${
-                  scrolled
-                    ? "h-8 xl:h-9 px-4 xl:px-5 text-xs xl:text-sm"
-                    : "h-9 xl:h-10 px-5 xl:px-6 text-sm xl:text-base"
-                } ${
-                  showBookDemo
-                    ? isDark
-                      ? "text-white/80 hover:text-white hover:bg-white/10"
-                      : "text-[#111111]/70 hover:text-[#111111] hover:bg-black/5"
-                    : isDark
-                      ? "bg-white text-[#111111] hover:bg-white/90"
-                      : "bg-[#111111] text-white hover:bg-[#111111]/90"
-                } ${showBookDemo ? "" : "font-medium"}`}
-              >
-                Login
-              </Button>
-            </Link>
-            {showBookDemo && (
-              <Button
-                id="book-demo-btn-desktop"
-                onClick={() => { trackEvent("demo_booking_opened", { cta_location: "header" }); setShowCalendly(true); }}
+                variant="default"
                 className={`rounded-full font-medium transition-all duration-500 ${
                   scrolled
                     ? "h-8 xl:h-9 px-4 xl:px-5 text-xs xl:text-sm"
@@ -157,9 +125,9 @@ function Header({ variant = "hero" }: { variant?: "hero" | "light" }) {
                     : "bg-[#111111] text-white hover:bg-[#111111]/90"
                 }`}
               >
-                Book Demo
+                Login
               </Button>
-            )}
+            </Link>
           </div>
 
           <div id="mobile-nav-actions" className="flex md:hidden items-center ml-auto">
@@ -215,35 +183,17 @@ function Header({ variant = "hero" }: { variant?: "hero" | "light" }) {
               <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
                 <Button
                   id="login-btn-mobile"
-                  variant={showBookDemo ? "ghost" : "default"}
-                  className={showBookDemo
-                    ? "w-full h-11 justify-start text-[#111111] rounded-xl hover:bg-black/5"
-                    : "w-full h-11 bg-[#111111] text-white rounded-full mt-1"
-                  }
+                  variant="default"
+                  className="w-full h-11 bg-[#111111] text-white rounded-full mt-1"
                 >
                   Login
                 </Button>
               </Link>
-              {showBookDemo && (
-                <Button
-                  id="book-demo-btn-mobile"
-                  className="w-full h-11 bg-[#111111] text-white rounded-full mt-1"
-                  onClick={() => { trackEvent("demo_booking_opened", { cta_location: "header" }); setIsMobileMenuOpen(false); setShowCalendly(true); }}
-                >
-                  Book Demo
-                </Button>
-              )}
             </div>
           </div>
         )}
       </header>
 
-      {showCalendly && (
-        <CalendlyModal
-          isOpen={showCalendly}
-          onClose={() => setShowCalendly(false)}
-        />
-      )}
     </>
   );
 }

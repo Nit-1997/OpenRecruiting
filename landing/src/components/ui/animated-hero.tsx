@@ -1,18 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { MoveRight } from "lucide-react";
+import Link from "next/link";
 import { ParticleButton } from "@/components/ui/particle-button";
 import { useAnalytics } from "@/hooks/useAnalytics";
-import dynamic from "next/dynamic";
-
-const CalendlyModal = dynamic(
-  () => import("@/components/ui/calendly-modal").then((mod) => ({ default: mod.CalendlyModal })),
-  { ssr: false },
-);
 
 function Hero() {
-  const [isCalendlyOpen, setIsCalendlyOpen] = useState(false);
   const { trackEvent } = useAnalytics();
 
   return (
@@ -43,19 +36,19 @@ function Hero() {
           </p>
 
           <div id="hero-cta-group" className="animate-hero-fade-up-3">
-            <ParticleButton
-              id="hero-cta-primary"
-              particleClassName="bg-[#111111]"
-              className="h-12 md:h-14 px-8 md:px-10 text-base md:text-lg rounded-full bg-[#111111] text-white hover:bg-[#111111]/90 gap-3 transition-colors"
-              onClick={() => { trackEvent("demo_booking_opened", { cta_location: "hero" }); setIsCalendlyOpen(true); }}
-            >
-              Book Demo <MoveRight className="w-5 h-5" />
-            </ParticleButton>
+            <Link href="/login" id="hero-cta-primary-link">
+              <ParticleButton
+                id="hero-cta-primary"
+                particleClassName="bg-[#111111]"
+                className="h-12 md:h-14 px-8 md:px-10 text-base md:text-lg rounded-full bg-[#111111] text-white hover:bg-[#111111]/90 gap-3 transition-colors"
+                onClick={() => trackEvent("cta_clicked", { cta: "get_started", cta_location: "hero" })}
+              >
+                Get started <MoveRight className="w-5 h-5" />
+              </ParticleButton>
+            </Link>
           </div>
         </div>
       </div>
-
-      {isCalendlyOpen && <CalendlyModal isOpen={isCalendlyOpen} onClose={() => setIsCalendlyOpen(false)} />}
 
       {/* Bottom notch - scroll hint */}
       <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center">

@@ -1,17 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { MoveRight } from "lucide-react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { ParticleButton } from "@/components/ui/particle-button";
 import { useAnalytics } from "@/hooks/useAnalytics";
-
-const CalendlyModal = dynamic(
-  () => import("@/components/ui/calendly-modal").then((mod) => ({ default: mod.CalendlyModal })),
-  { ssr: false },
-);
 
 const QUOTE_LINES = [
   { text: "AI agents without context are empty.", emphasis: false },
@@ -68,7 +61,6 @@ function CortexQuoteBand() {
 }
 
 function CortexCTA() {
-  const [showCalendly, setShowCalendly] = useState(false);
   const { trackEvent } = useAnalytics();
 
   return (
@@ -108,17 +100,18 @@ function CortexCTA() {
             walkthrough with your hiring data in mind.
           </p>
           <div id="cortex-cta-buttons" className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
-            <ParticleButton
-              id="cortex-cta-book-demo-btn"
-              particleClassName="bg-white"
-              className="h-12 md:h-14 px-8 md:px-10 text-base md:text-lg rounded-full bg-white text-[#111111] hover:bg-white/90 gap-3 transition-colors"
-              onClick={() => {
-                trackEvent("demo_booking_opened", { cta_location: "cortex_cta" });
-                setShowCalendly(true);
-              }}
-            >
-              Book Demo <MoveRight className="w-5 h-5" />
-            </ParticleButton>
+            <Link href="/login" id="cortex-cta-get-started-link">
+              <ParticleButton
+                id="cortex-cta-get-started-btn"
+                particleClassName="bg-white"
+                className="h-12 md:h-14 px-8 md:px-10 text-base md:text-lg rounded-full bg-white text-[#111111] hover:bg-white/90 gap-3 transition-colors"
+                onClick={() =>
+                  trackEvent("cta_clicked", { cta: "get_started", cta_location: "cortex_cta" })
+                }
+              >
+                Get started <MoveRight className="w-5 h-5" />
+              </ParticleButton>
+            </Link>
             <Link
               id="cortex-cta-recruiter-link"
               href="/"
@@ -130,9 +123,6 @@ function CortexCTA() {
         </motion.div>
       </div>
 
-      {showCalendly && (
-        <CalendlyModal isOpen={showCalendly} onClose={() => setShowCalendly(false)} />
-      )}
     </section>
   );
 }

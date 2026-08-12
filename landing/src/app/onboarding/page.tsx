@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/ui/header";
 import { Button } from "@/components/ui/button";
-import { CalendlyModal } from "@/components/ui/calendly-modal";
 import { DitheredOrb } from "@/components/ui/dithered-orb";
 import { FeedbackScorecard } from "@/components/feedback/FeedbackScorecard";
 import type { RatingValue, QuestionData } from "@/components/feedback/FeedbackScorecard";
-import { Check, CheckCircle, Calendar, LogIn, ClipboardList, Loader2 } from "lucide-react";
+import { ArrowRight, Check, CheckCircle, ClipboardList, Loader2 } from "lucide-react";
 import { useAnalytics } from "@/hooks/useAnalytics";
 
 type DemoStep = "round-intake" | "interview-plan" | "live-interview" | "ai-feedback" | "hiring-packet";
@@ -169,8 +168,6 @@ export default function OnboardingPage() {
   const [visiblePacketRounds, setVisiblePacketRounds] = useState(0);
   const [showPacketCta, setShowPacketCta] = useState(false);
 
-  // Calendly
-  const [showCalendly, setShowCalendly] = useState(false);
 
   useEffect(() => {
     trackEvent("onboarding_demo_step_viewed", { step: currentStep });
@@ -306,9 +303,9 @@ export default function OnboardingPage() {
     return () => timers.forEach(clearTimeout);
   }, [currentStep]);
 
-  const handleBookDemo = () => {
-    trackEvent("cta_clicked", { cta_name: "Book a Demo", cta_location: "onboarding" });
-    setShowCalendly(true);
+  const handleGetStarted = () => {
+    trackEvent("cta_clicked", { cta_name: "Get started", cta_location: "onboarding" });
+    router.push("/login");
   };
 
   const handleExistingUserLogin = () => {
@@ -855,13 +852,13 @@ export default function OnboardingPage() {
             <h3 id="packet-cta-title" className="font-display text-xl font-light text-[#111111]">Your Hiring Packet is Ready</h3>
             <p id="packet-cta-subtitle" className="text-[#555555]">Try OpenRecruiting Today</p>
             <Button
-              id="packet-book-demo-btn"
+              id="packet-get-started-btn"
               size="lg"
               className="bg-[#111111] text-white hover:bg-[#111111]/90 rounded-full px-10 h-14 text-lg gap-2"
-              onClick={handleBookDemo}
+              onClick={handleGetStarted}
             >
-              <Calendar className="w-5 h-5" />
-              Book a Demo
+              <ArrowRight className="w-5 h-5" />
+              Get started
             </Button>
             <p id="packet-login-text" className="text-sm text-[#555555]">
               Already have an account?{" "}
@@ -907,11 +904,6 @@ export default function OnboardingPage() {
           {renderStepContent()}
         </AnimatePresence>
       </div>
-
-      <CalendlyModal
-        isOpen={showCalendly}
-        onClose={() => setShowCalendly(false)}
-      />
     </div>
   );
 }
