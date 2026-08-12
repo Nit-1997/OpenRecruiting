@@ -43,11 +43,6 @@ const IntegrationsHub = dynamic(
   { loading: () => <div id="integrations-hub-skeleton" className="min-h-[400px]" /> },
 );
 
-const CTASection = dynamic(
-  () => import("@/components/ui/cta-section").then((mod) => ({ default: mod.CTASection })),
-  { loading: () => <div id="cta-skeleton" className="min-h-[300px]" /> },
-);
-
 export const metadata: Metadata = {
   alternates: { canonical: "http://localhost:3000" },
 };
@@ -105,7 +100,6 @@ export default function Home() {
           <CortexCapabilities />
         </div>
         <IntegrationsHub />
-        <CTASection />
       </main>
       <Footer />
     </div>

@@ -259,23 +259,38 @@ function CortexHowItWorks() {
   const animate = !prefersReducedMotion;
 
   return (
-    <section id="cortex-how-section" className="py-20 md:py-28 bg-[var(--lp-surface)]/60">
-      <div id="cortex-how-inner" className="max-w-[1100px] mx-auto px-6">
+    <section
+      id="cortex-how-section"
+      className="relative py-20 md:py-28 overflow-hidden bg-[#0A0A0A]"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        id="cortex-how-bg"
+        src="/Ending.png"
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover z-0"
+      />
+      <div
+        id="cortex-how-overlay"
+        className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/65 z-0 pointer-events-none"
+      />
+
+      <div id="cortex-how-inner" className="relative z-10 max-w-[1100px] mx-auto px-6">
         <p
           id="cortex-how-eyebrow"
-          className="font-mono-label text-xs tracking-[0.2em] uppercase text-[var(--lp-text-muted)] text-center mb-4"
+          className="font-mono-label text-xs tracking-[0.2em] uppercase text-white/60 text-center mb-4"
         >
           How it works
         </p>
         <h2
           id="cortex-how-title"
-          className="font-display text-4xl md:text-5xl font-light text-[var(--lp-text-primary)] text-center mb-5"
+          className="font-display text-4xl md:text-5xl font-light text-white text-center mb-5"
         >
           Signal in. Intelligence out.
         </h2>
         <p
           id="cortex-how-subtitle"
-          className="text-base md:text-lg text-[var(--lp-text-secondary)] text-center max-w-2xl mx-auto mb-14"
+          className="text-base md:text-lg text-white/70 text-center max-w-2xl mx-auto mb-14"
         >
           No new workflows. Cortex listens to the hiring work you already do and turns it into a
           brain your whole org can query.
@@ -294,7 +309,7 @@ function CortexHowItWorks() {
               key={step.id}
               id={`cortex-how-card-${step.id}`}
               variants={cardVariants}
-              className="bg-[var(--lp-bg)] border border-[var(--lp-border)] rounded-xl p-6 flex flex-col hover:-translate-y-1 transition-transform duration-200"
+              className="bg-[var(--lp-bg)] border border-white/10 rounded-xl p-6 flex flex-col shadow-[0_8px_32px_rgba(0,0,0,0.35)] hover:-translate-y-1 transition-transform duration-200"
             >
               <div id={`cortex-how-card-visual-${step.id}`} className="h-44 rounded-lg bg-[var(--lp-surface)] border border-[var(--lp-border)] overflow-hidden mb-5">
                 <step.Visual animate={animate} />
