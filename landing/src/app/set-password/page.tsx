@@ -243,7 +243,7 @@ export default function SetPasswordPage() {
                       setShowTermsModal(true);
                     }}
                   >
-                    Terms of Service
+                    Terms of Use
                   </span>
                 </label>
               </div>

@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { Github } from "lucide-react";
 import { useAnalytics } from "@/hooks/useAnalytics";
+
+const REPO_URL = "https://github.com/Nit-1997/OpenRecruiting";
 
 function Footer() {
   const { trackEvent } = useAnalytics();
@@ -11,7 +14,7 @@ function Footer() {
   return (
     <footer id="main-footer" className="bg-[var(--lp-bg)] border-t border-[var(--lp-border)]">
       <div id="footer-inner" className="max-w-[960px] mx-auto px-6 py-16">
-        <div id="footer-grid" className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8">
+        <div id="footer-grid" className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-8">
           <div id="footer-brand" className="md:col-span-1">
             <Link href="/" id="footer-logo-link" className="flex items-center gap-2 mb-4">
               <Image
@@ -61,6 +64,58 @@ function Footer() {
           </div>
 
 
+          <div id="footer-project" className="md:col-span-1">
+            <p
+              id="footer-project-heading"
+              className="text-sm font-medium text-[var(--lp-text-primary)] mb-4"
+            >
+              Open source
+            </p>
+            <ul className="space-y-3">
+              <li>
+                <a
+                  href={REPO_URL}
+                  id="footer-github-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() =>
+                    trackEvent("nav_link_clicked", {
+                      link_name: "GitHub",
+                      destination: REPO_URL,
+                      location: "footer",
+                    })
+                  }
+                  className="flex items-center gap-2 text-sm text-[var(--lp-text-secondary)] hover:text-[var(--lp-text-primary)] transition-colors"
+                >
+                  <Github className="w-4 h-4" />
+                  GitHub
+                </a>
+              </li>
+              <li>
+                <a
+                  href={`${REPO_URL}/blob/main/LICENSE`}
+                  id="footer-license-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-[var(--lp-text-secondary)] hover:text-[var(--lp-text-primary)] transition-colors"
+                >
+                  Apache 2.0 License
+                </a>
+              </li>
+              <li>
+                <a
+                  href={`${REPO_URL}/issues`}
+                  id="footer-issues-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-[var(--lp-text-secondary)] hover:text-[var(--lp-text-primary)] transition-colors"
+                >
+                  Report an issue
+                </a>
+              </li>
+            </ul>
+          </div>
+
           <div id="footer-legal" className="md:col-span-1">
             <p id="footer-legal-heading" className="text-sm font-medium text-[var(--lp-text-primary)] mb-4">
               Legal
@@ -72,7 +127,7 @@ function Footer() {
                   id="footer-terms-link"
                   className="text-sm text-[var(--lp-text-secondary)] hover:text-[var(--lp-text-primary)] transition-colors"
                 >
-                  Terms of Service
+                  Terms of Use
                 </Link>
               </li>
               <li>

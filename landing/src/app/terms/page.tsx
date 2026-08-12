@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+const REPO_URL = "https://github.com/Nit-1997/OpenRecruiting";
+
 export const metadata: Metadata = {
-  title: "Terms of Service",
-  description: "OpenRecruiting Terms of Service — governing your use of our AI-powered interview intelligence platform.",
+  title: "Terms of Use",
+  description:
+    "Terms of Use for the OpenRecruiting demo instance. OpenRecruiting is a free, open-source project licensed under Apache 2.0 — the software itself is governed by its LICENSE, not by these terms.",
   alternates: { canonical: "http://localhost:3000/terms" },
 };
 
@@ -11,187 +14,337 @@ export default function TermsPage() {
   return (
     <main id="terms-page" className="min-h-screen bg-[var(--lp-bg)]">
       <div id="terms-container" className="max-w-3xl mx-auto px-6 py-16">
-        <Link href="/" id="terms-back-link" className="text-sm text-[var(--lp-text-muted)] hover:text-[var(--lp-text-primary)] transition-colors mb-8 inline-block">
-          &larr; Back to localhost:3000
+        <Link
+          href="/"
+          id="terms-back-link"
+          className="text-sm text-[var(--lp-text-muted)] hover:text-[var(--lp-text-primary)] transition-colors mb-8 inline-block"
+        >
+          &larr; Back to home
         </Link>
 
-        <h1 id="terms-heading" className="text-3xl font-bold text-[var(--lp-text-primary)] mb-2">Terms of Service</h1>
-        <p id="terms-effective-date" className="text-sm text-[var(--lp-text-muted)] mb-10">Effective Date: March 15, 2026</p>
+        <h1
+          id="terms-heading"
+          className="text-3xl font-bold text-[var(--lp-text-primary)] mb-2"
+        >
+          Terms of Use
+        </h1>
+        <p
+          id="terms-effective-date"
+          className="text-sm text-[var(--lp-text-muted)] mb-10"
+        >
+          Last updated: August 12, 2026
+        </p>
 
-        <div id="terms-body" className="space-y-8 text-sm leading-relaxed text-[var(--lp-text-secondary)]">
-          <p>Website: http://localhost:3000</p>
-          <p>
-            These Terms of Service (&quot;Terms&quot;) govern your access to, and use of the website operated by OpenRecruiting.ai
-            (&quot;Company&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;), including all related applications, software, tools, APIs,
-            and services (collectively, the &quot;Services&quot;).
-          </p>
-          <p>By accessing or using the Services, you agree to be legally bound by these Terms. If you do not agree, you must not use the Services.</p>
+        <div
+          id="terms-body"
+          className="space-y-8 text-sm leading-relaxed text-[var(--lp-text-secondary)]"
+        >
+          <div
+            id="terms-summary"
+            className="rounded-xl border border-[var(--lp-border)] p-5 space-y-2"
+          >
+            <p className="font-medium text-[var(--lp-text-primary)]">
+              The short version
+            </p>
+            <p>
+              OpenRecruiting is a free and open-source project. It is not a
+              company, it is not sold, and nobody is billed for it. If you want
+              to <em>use the software</em>, the{" "}
+              <a
+                id="terms-license-link"
+                href={`${REPO_URL}/blob/main/LICENSE`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-[var(--lp-text-primary)]"
+              >
+                Apache License 2.0
+              </a>{" "}
+              is what governs you, and these terms are irrelevant. These terms
+              apply only if you use a demo instance the maintainers happen to be
+              hosting.
+            </p>
+          </div>
 
           <section id="terms-section-1">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">1. Eligibility</h2>
-            <p className="mb-2">You must:</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              1. What these terms cover
+            </h2>
+            <p className="mb-2">
+              OpenRecruiting is distributed as source code under the Apache
+              License 2.0. Two different things can be meant by &quot;using
+              OpenRecruiting&quot;, and they are governed differently:
+            </p>
             <ul className="list-disc pl-6 space-y-1">
-              <li>Be at least 18 years old;</li>
-              <li>Have the legal capacity to enter into binding agreements;</li>
-              <li>Use the Services in compliance with applicable laws.</li>
+              <li>
+                <strong>Running your own instance.</strong> Governed entirely by
+                the LICENSE in the repository. You do not need permission, an
+                account, or an agreement with anyone. These terms do not apply.
+              </li>
+              <li>
+                <strong>Using an instance hosted by the maintainers</strong> for
+                demonstration purposes. These terms apply to that, and only
+                that.
+              </li>
             </ul>
-            <p className="mt-2">If you are using the Services on behalf of an organization, you represent that you have authority to bind that entity.</p>
+            <p className="mt-2">
+              &quot;The maintainers&quot; means the individual contributors to
+              the project. There is no company, no employees, and no commercial
+              entity behind it.
+            </p>
           </section>
 
           <section id="terms-section-2">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">2. Account Registration</h2>
-            <p className="mb-2">To access certain features, you may be required to create an account. You agree to:</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>Provide accurate and complete information;</li>
-              <li>Maintain confidentiality of login credentials;</li>
-              <li>Accept responsibility for all activities under your account.</li>
-            </ul>
-            <p className="mt-2">We reserve the right to suspend or terminate accounts that violate these Terms.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              2. No fees, and no service commitment
+            </h2>
+            <p className="mb-2">
+              There are no fees, subscriptions, credits for sale, or payment
+              methods of any kind. Nothing on any page constitutes an offer to
+              sell, and no support, uptime, or availability is promised.
+            </p>
+            <p>
+              Any hosted instance is provided as a convenience and may be
+              changed, reset, or switched off at any time without notice. Treat
+              it as a demo, not a place to keep data you need. If you want
+              continuity, run your own instance — that is the point of the
+              project being open source.
+            </p>
           </section>
 
           <section id="terms-section-3">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">3. Description of Services</h2>
-            <p>OpenRecruiting.ai provides AI-driven tools designed to assist with interview preparation, structured hiring workflows, candidate analysis, and related recruitment support functions.</p>
-            <p className="mt-2">We may modify, suspend, or discontinue any part of the Services at any time without prior notice.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              3. If you self-host, the responsibility is yours
+            </h2>
+            <p className="mb-2">
+              When you deploy your own instance you become the operator of that
+              system. The maintainers have no access to it and no visibility
+              into it. You are responsible for:
+            </p>
+            <ul className="list-disc pl-6 space-y-1">
+              <li>
+                Being the data controller for any personal data your instance
+                processes, including candidate data;
+              </li>
+              <li>
+                Your own legal basis, notices, retention and deletion
+                obligations under applicable data protection law;
+              </li>
+              <li>
+                The API keys you configure and any costs the underlying
+                providers charge you directly;
+              </li>
+              <li>
+                Securing the deployment, and complying with employment and
+                anti-discrimination law wherever you hire.
+              </li>
+            </ul>
           </section>
 
           <section id="terms-section-4">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">4. User Responsibilities</h2>
-            <p className="mb-2">You agree that you will not:</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>Use the Services for unlawful, discriminatory, or fraudulent purposes;</li>
-              <li>Upload or transmit content that violates intellectual property rights;</li>
-              <li>Reverse engineer, copy, or exploit the platform without authorisation;</li>
-              <li>Use automated systems (bots, scrapers) without permission;</li>
-              <li>Input sensitive personal data unless legally permitted.</li>
-            </ul>
-            <p className="mt-2">You are solely responsible for content you upload or generate through the Services.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              4. Accounts on a hosted instance
+            </h2>
+            <p className="mb-2">
+              Where a hosted instance requires an account, you agree to provide
+              accurate information, keep your credentials confidential, and
+              accept responsibility for activity under your account. Access may
+              be suspended or removed at any time, including for abuse or for no
+              reason at all — see section 2.
+            </p>
+            <p>
+              You must be old enough to form a binding agreement in your
+              jurisdiction, and if you act for an organisation, you must be
+              authorised to do so.
+            </p>
           </section>
 
           <section id="terms-section-5">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">5. AI-Generated Content Disclaimer</h2>
-            <p className="mb-2">The Services may generate recommendations, summaries, evaluations, or other outputs using artificial intelligence.</p>
-            <p className="mb-2">You acknowledge that:</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              5. Acceptable use of a hosted instance
+            </h2>
+            <p className="mb-2">You agree not to:</p>
             <ul className="list-disc pl-6 space-y-1">
-              <li>AI outputs may contain inaccuracies;</li>
-              <li>Outputs should not be relied upon as legal, HR, or professional advice;</li>
-              <li>Final hiring decisions remain your sole responsibility.</li>
+              <li>
+                Use it for unlawful, discriminatory, or deceptive purposes;
+              </li>
+              <li>
+                Upload real candidate data to a demo instance — use synthetic
+                data, since a demo offers no retention or confidentiality
+                guarantees;
+              </li>
+              <li>
+                Upload content you have no right to share, or content that
+                infringes someone else&apos;s rights;
+              </li>
+              <li>
+                Attempt to disrupt it, exhaust its resources, or gain access to
+                data that is not yours.
+              </li>
             </ul>
-            <p className="mt-2">The Company is not liable for decisions made based on AI-generated outputs.</p>
+            <p className="mt-2">
+              Note that reverse engineering and modification are{" "}
+              <strong>expressly permitted</strong> — the source is published and
+              the LICENSE grants those rights. Only abuse of a shared hosted
+              instance is restricted here.
+            </p>
           </section>
 
           <section id="terms-section-6">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">6. Intellectual Property</h2>
-            <p className="mb-2">All rights, title, and interest in and to the Services, including software, algorithms, UI/UX, trademarks, and content are owned by OpenRecruiting.ai or its licensors.</p>
-            <p className="mt-2">You are granted a limited, non-exclusive, non-transferable license to use the Services strictly in accordance with these Terms. You may not reproduce, distribute, modify, or create derivative works without written consent.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              6. AI-generated output
+            </h2>
+            <p className="mb-2">
+              The software produces interview plans, summaries, scorecards and
+              feedback using large language models. You acknowledge that:
+            </p>
+            <ul className="list-disc pl-6 space-y-1">
+              <li>Output can be wrong, incomplete, or misleading;</li>
+              <li>
+                It is not legal, HR, or professional advice, and must not be
+                treated as such;
+              </li>
+              <li>
+                Hiring decisions remain entirely yours, and you are responsible
+                for reviewing output before acting on it;
+              </li>
+              <li>
+                Automated assessment of candidates may be regulated where you
+                operate, and meeting the requirements is your obligation.
+              </li>
+            </ul>
           </section>
 
           <section id="terms-section-7">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">7. User Content</h2>
-            <p className="mb-2">You retain ownership of the data and content you submit (&quot;User Content&quot;).</p>
-            <p className="mb-2">By submitting User Content, you grant OpenRecruiting.ai a limited license to host, process, analyse, and display such content solely to provide and improve the Services.</p>
-            <p className="mt-2">We do not claim ownership over your proprietary hiring data.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              7. Your content
+            </h2>
+            <p className="mb-2">
+              You keep ownership of everything you submit. Nobody claims rights
+              over your hiring data.
+            </p>
+            <p>
+              On a hosted instance, the only permission granted is what is
+              needed to run the thing in front of you: storing and processing
+              your content so the features work. Your content is not used to
+              train models, and is not sold or shared for advertising. See the{" "}
+              <Link
+                href="/privacy"
+                className="underline hover:text-[var(--lp-text-primary)]"
+              >
+                Privacy Policy
+              </Link>{" "}
+              for specifics.
+            </p>
           </section>
 
           <section id="terms-section-8">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">8. Fees, Credits and Payments</h2>
-
-            <h3 className="font-semibold mt-4 mb-2">8.1 Free Credits for New Users</h3>
-            <p className="mb-2">Upon registration, new users may be granted a limited number of promotional or introductory credits (&quot;Free Credits&quot;) to access and evaluate certain features of the Services. Free Credits:</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>Are provided at the Company&apos;s sole discretion;</li>
-              <li>May be subject to expiration or usage limits;</li>
-              <li>Have no monetary value;</li>
-              <li>Are non-transferable and non-refundable.</li>
-            </ul>
-            <p className="mt-2">The Company reserves the right to modify, withdraw, or discontinue Free Credits at any time without prior notice.</p>
-
-            <h3 className="font-semibold mt-4 mb-2">8.2 Usage-Based Billing After Credit Expiry</h3>
-            <p className="mb-2">Once Free Credits are exhausted or expired, continued access to paid features of the Services shall be subject to usage-based fees.</p>
-            <p className="mb-2">By continuing to use the Services after depletion of Free Credits, you agree to:</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>Pay applicable fees based on your actual usage, as displayed on the platform or invoice;</li>
-              <li>Maintain a valid payment method on file;</li>
-              <li>Authorize the Company to charge such payment method for all incurred fees.</li>
-            </ul>
-
-            <h3 className="font-semibold mt-4 mb-2">8.3 Pricing Changes</h3>
-            <p>The Company reserves the right to revise pricing, introduce new charges, or modify billing structures at any time on a prospective basis. Updated pricing shall become effective upon posting on the website or written notification.</p>
-
-            <h3 className="font-semibold mt-4 mb-2">8.4 Refunds</h3>
-            <p>Unless expressly stated otherwise in a separate written agreement, all fees are non-refundable.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              8. Licence and intellectual property
+            </h2>
+            <p className="mb-2">
+              The source code is licensed under the{" "}
+              <a
+                id="terms-license-link-2"
+                href={`${REPO_URL}/blob/main/LICENSE`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-[var(--lp-text-primary)]"
+              >
+                Apache License 2.0
+              </a>
+              . Under it you may use, copy, modify, distribute and sublicense
+              the software, including commercially, subject to that
+              licence&apos;s conditions — chiefly retaining notices and stating
+              your changes. Contributions are accepted on the same terms.
+            </p>
+            <p>
+              Nothing in this document narrows the rights that licence grants
+              you. If these terms and the LICENSE ever appear to conflict over
+              the software itself, the LICENSE governs. Project names and logos
+              are not covered by the patent or trademark grant; please do not
+              imply endorsement by the project for your fork or deployment.
+            </p>
           </section>
 
           <section id="terms-section-9">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">9. Data Protection and Privacy</h2>
-            <p className="mb-2">Your use of the Services is subject to our <Link href="/privacy" className="underline hover:text-[var(--lp-text-primary)]">Privacy Policy</Link>.</p>
-            <p className="mb-2">If you are processing candidate personal data, you agree to comply with applicable data protection laws, including (if applicable):</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>The Digital Personal Data Protection Act, 2023</li>
-              <li>The General Data Protection Regulation (if EU data subjects are involved)</li>
-            </ul>
-            <p className="mt-2">OpenRecruiting.ai acts as a data processor where applicable.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              9. No warranty
+            </h2>
+            <p>
+              Consistent with section 7 of the Apache License 2.0, the software
+              and any hosted instance are provided on an{" "}
+              <strong>&quot;AS IS&quot; basis, without warranties or
+              conditions of any kind</strong>, express or implied, including
+              merchantability, fitness for a particular purpose, accuracy, or
+              non-infringement. Nothing is guaranteed to be uninterrupted or
+              error-free.
+            </p>
           </section>
 
           <section id="terms-section-10">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">10. Confidentiality</h2>
-            <p>Each party agrees to maintain confidentiality of proprietary and confidential information disclosed by either Party.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              10. Limitation of liability
+            </h2>
+            <p className="mb-2">
+              Consistent with section 8 of the Apache License 2.0, and to the
+              maximum extent permitted by applicable law, no contributor is
+              liable for any damages arising from the software or a hosted
+              instance — including indirect, incidental, special, or
+              consequential damages, lost profits, lost data, or decisions made
+              on the basis of AI output.
+            </p>
+            <p>
+              Because the project is provided free of charge, there are no fees
+              against which to measure liability. Some jurisdictions do not
+              allow certain exclusions, so parts of this may not apply to you.
+            </p>
           </section>
 
           <section id="terms-section-11">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">11. Disclaimers</h2>
-            <p className="mb-2">The Services are provided &quot;AS IS&quot; and &quot;AS AVAILABLE&quot;.</p>
-            <p className="mb-2">We disclaim all warranties, including accuracy, reliability, fitness for a particular purpose, and non-infringement.</p>
-            <p>We do not guarantee uninterrupted or error-free service.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              11. Governing law
+            </h2>
+            <p>
+              These terms are governed by the laws of India, without regard to
+              conflict-of-law rules, and disputes about a maintainer-hosted
+              instance are subject to the courts of Bangalore, Karnataka. This
+              clause concerns these terms only; your rights under the Apache
+              License 2.0 stand on their own.
+            </p>
           </section>
 
           <section id="terms-section-12">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">12. Limitation of Liability</h2>
-            <p className="mb-2">To the maximum extent permitted by law, OpenRecruiting.ai shall not be liable for:</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>Indirect, incidental, or consequential damages;</li>
-              <li>Loss of profits, business, or data;</li>
-              <li>Decisions made based on AI outputs.</li>
-            </ul>
-            <p className="mt-2">Total liability shall not exceed the fees paid in the preceding 3 months.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              12. Changes
+            </h2>
+            <p>
+              These terms may be updated. The version in effect is whatever is
+              published on this page, with the date shown above, and its history
+              is visible in the repository. Continued use of a hosted instance
+              after a change means you accept it.
+            </p>
           </section>
 
           <section id="terms-section-13">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">13. Indemnification</h2>
-            <p className="mb-2">You agree to indemnify and hold harmless OpenRecruiting.ai from any claims, damages, or liabilities arising from:</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>Your misuse of the Services;</li>
-              <li>Violation of these Terms;</li>
-              <li>Infringement of third-party rights.</li>
-            </ul>
-          </section>
-
-          <section id="terms-section-14">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">14. Termination</h2>
-            <p className="mb-2">We may suspend or terminate your access:</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>For violation of these Terms;</li>
-              <li>For non-payment;</li>
-              <li>For legal compliance reasons.</li>
-            </ul>
-            <p className="mt-2">Upon termination, your right to use the Services ceases immediately.</p>
-          </section>
-
-          <section id="terms-section-15">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">15. Governing Law and Dispute Resolution</h2>
-            <p>These Terms shall be governed by the laws of India.</p>
-            <p className="mt-2">Any disputes shall be subject to the exclusive jurisdiction of courts located in Bangalore, Karnataka.</p>
-          </section>
-
-          <section id="terms-section-16">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">16. Changes to Terms</h2>
-            <p>We may update these Terms from time to time. Continued use after changes constitutes acceptance.</p>
-          </section>
-
-          <section id="terms-section-17">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">17. Contact Information</h2>
-            <p>For questions regarding these Terms:</p>
-            <p className="mt-1 font-medium">Email: founder@example.com</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              13. Contact
+            </h2>
+            <p>
+              Questions, corrections, and anything else about the project go
+              through the repository — that way answers are public and useful to
+              everyone:
+            </p>
+            <p className="mt-2">
+              <a
+                id="terms-github-link"
+                href={REPO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-[var(--lp-text-primary)] font-medium"
+              >
+                github.com/Nit-1997/OpenRecruiting
+              </a>
+            </p>
           </section>
         </div>
       </div>

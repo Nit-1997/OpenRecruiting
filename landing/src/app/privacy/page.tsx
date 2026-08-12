@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+const REPO_URL = "https://github.com/Nit-1997/OpenRecruiting";
+
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "OpenRecruiting Privacy Policy — how we collect, use, and protect your data.",
+  description:
+    "How the maintainer-hosted OpenRecruiting demo handles data. OpenRecruiting is free and open source — if you run your own instance, you are the data controller and this policy does not apply to you.",
   alternates: { canonical: "http://localhost:3000/privacy" },
 };
 
@@ -11,150 +14,342 @@ export default function PrivacyPage() {
   return (
     <main id="privacy-page" className="min-h-screen bg-[var(--lp-bg)]">
       <div id="privacy-container" className="max-w-3xl mx-auto px-6 py-16">
-        <Link href="/" id="privacy-back-link" className="text-sm text-[var(--lp-text-muted)] hover:text-[var(--lp-text-primary)] transition-colors mb-8 inline-block">
-          &larr; Back to localhost:3000
+        <Link
+          href="/"
+          id="privacy-back-link"
+          className="text-sm text-[var(--lp-text-muted)] hover:text-[var(--lp-text-primary)] transition-colors mb-8 inline-block"
+        >
+          &larr; Back to home
         </Link>
 
-        <h1 id="privacy-heading" className="text-3xl font-bold text-[var(--lp-text-primary)] mb-2">Privacy Policy</h1>
-        <p id="privacy-effective-date" className="text-sm text-[var(--lp-text-muted)] mb-10">Effective Date: March 15, 2026</p>
+        <h1
+          id="privacy-heading"
+          className="text-3xl font-bold text-[var(--lp-text-primary)] mb-2"
+        >
+          Privacy Policy
+        </h1>
+        <p
+          id="privacy-effective-date"
+          className="text-sm text-[var(--lp-text-muted)] mb-10"
+        >
+          Last updated: August 12, 2026
+        </p>
 
-        <div id="privacy-body" className="space-y-8 text-sm leading-relaxed text-[var(--lp-text-secondary)]">
-          <p>
-            OpenRecruiting.ai (&quot;Company&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) is committed to protecting your privacy.
-            This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our website
-            at http://localhost:3000 and our related applications, tools, and services (collectively, the &quot;Services&quot;).
-          </p>
-          <p>By using the Services, you consent to the data practices described in this policy.</p>
+        <div
+          id="privacy-body"
+          className="space-y-8 text-sm leading-relaxed text-[var(--lp-text-secondary)]"
+        >
+          <div
+            id="privacy-summary"
+            className="rounded-xl border border-[var(--lp-border)] p-5 space-y-2"
+          >
+            <p className="font-medium text-[var(--lp-text-primary)]">
+              Who this applies to
+            </p>
+            <p>
+              OpenRecruiting is a free, open-source project — not a company, and
+              not a paid service. This policy describes a{" "}
+              <strong>demo instance hosted by the maintainers</strong>.
+            </p>
+            <p>
+              <strong>If you run your own instance, none of this applies to
+              you.</strong> Your deployment talks to your own database and your
+              own API keys. The maintainers cannot see it and receive nothing
+              from it. You are the data controller, and writing your own privacy
+              notice is your responsibility.
+            </p>
+            <p>
+              Nothing here is sold, and there is no advertising, no data broker,
+              and no payment processing anywhere in the project.
+            </p>
+          </div>
 
           <section id="privacy-section-1">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">1. Information We Collect</h2>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              1. What a hosted instance collects
+            </h2>
 
-            <h3 className="font-semibold mt-4 mb-2">1.1 Information You Provide</h3>
+            <h3 className="font-semibold mt-4 mb-2">1.1 What you provide</h3>
             <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Account Data:</strong> Name, email address, organization name when you register.</li>
-              <li><strong>Recruitment Data:</strong> Job requisitions, candidate names, emails, interview plans, and feedback that you create or upload.</li>
-              <li><strong>Communication Data:</strong> Messages you send through our in-app chat interfaces.</li>
-              <li><strong>Payment Data:</strong> Billing information processed by our third-party payment provider (Dodo Payments). We do not store full payment card details.</li>
+              <li>
+                <strong>Account data:</strong> name, email address, and
+                organisation name at registration.
+              </li>
+              <li>
+                <strong>Recruitment data:</strong> requisitions, candidate names
+                and emails, interview plans, scorecards, and feedback you create
+                or upload. Please use synthetic data on a demo instance.
+              </li>
+              <li>
+                <strong>Conversation data:</strong> messages you send to the
+                in-app agents.
+              </li>
             </ul>
 
-            <h3 className="font-semibold mt-4 mb-2">1.2 Information Collected Automatically</h3>
+            <h3 className="font-semibold mt-4 mb-2">
+              1.2 What is collected automatically
+            </h3>
             <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Usage Data:</strong> Pages visited, features used, timestamps, and interaction patterns via PostHog analytics.</li>
-              <li><strong>Device Data:</strong> Browser type, operating system, IP address, and device identifiers.</li>
-              <li><strong>Cookies:</strong> Authentication cookies (e.g., <code>openrecruiting-auth</code>) for session management across subdomains.</li>
+              <li>
+                <strong>Usage data:</strong> pages visited, features used,
+                timestamps, and interaction patterns, via PostHog. This is tied
+                to an identified user, not anonymous.
+              </li>
+              <li>
+                <strong>Device data:</strong> browser, operating system, IP
+                address, and device identifiers.
+              </li>
+              <li>
+                <strong>Cookies:</strong> a session cookie for authentication,
+                plus PostHog&apos;s analytics cookies. Details in section 6.
+              </li>
             </ul>
 
-            <h3 className="font-semibold mt-4 mb-2">1.3 Information from Third-Party Integrations</h3>
+            <h3 className="font-semibold mt-4 mb-2">
+              1.3 What comes from integrations you enable
+            </h3>
             <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Google Authentication:</strong> Email and profile information when you sign in with Google (via Supabase Auth).</li>
-              <li><strong>Meeting Recordings:</strong> Audio and video from interviews conducted through integrated meeting platforms (via Recall.ai), used solely for generating interview feedback.</li>
+              <li>
+                <strong>Google sign-in:</strong> your email and basic profile,
+                received through Supabase Auth if you choose that method.
+              </li>
+              <li>
+                <strong>Meeting capture:</strong> audio and video from
+                interviews a bot joins, via Recall.ai, used only to produce
+                transcripts and feedback.
+              </li>
+              <li>
+                <strong>ATS sync:</strong> jobs, candidates and applications
+                from a system you connect yourself, via Knit.
+              </li>
             </ul>
+            <p className="mt-2">
+              Meeting capture is the most sensitive of these. Recording people
+              usually requires telling them, and often their consent — that
+              obligation is on whoever runs the instance and schedules the bot.
+            </p>
           </section>
 
           <section id="privacy-section-2">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">2. How We Use Your Information</h2>
-            <p className="mb-2">We use collected information to:</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              2. What it is used for
+            </h2>
             <ul className="list-disc pl-6 space-y-1">
-              <li>Provide, operate, and maintain the Services;</li>
-              <li>Create and manage your account;</li>
-              <li>Generate AI-powered interview plans, feedback, and scorecards;</li>
-              <li>Process payments and manage billing;</li>
-              <li>Send transactional notifications (e.g., feedback ready, intake processed);</li>
-              <li>Improve and personalize the Services;</li>
-              <li>Detect and prevent fraud or abuse;</li>
-              <li>Comply with legal obligations.</li>
+              <li>Operating the instance and your account;</li>
+              <li>
+                Generating interview plans, feedback, and scorecards, and
+                running voice intake and debrief sessions;
+              </li>
+              <li>
+                Sending transactional notifications, such as feedback being
+                ready;
+              </li>
+              <li>Understanding which features are used, so they improve;</li>
+              <li>Detecting and preventing abuse;</li>
+              <li>Meeting legal obligations.</li>
             </ul>
+            <p className="mt-2">
+              There is no billing, so none of it is used for payments, pricing,
+              or credit decisions. It is not used for advertising or profiling
+              unrelated to the product.
+            </p>
           </section>
 
           <section id="privacy-section-3">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">3. AI Processing</h2>
-            <p className="mb-2">We use third-party AI providers (including Anthropic Claude and OpenAI) to:</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>Generate structured interview plans from intake call transcripts;</li>
-              <li>Produce interview feedback and candidate scorecards;</li>
-              <li>Conduct voice-based intake calls.</li>
-            </ul>
-            <p className="mt-2">Data sent to AI providers is used solely for generating outputs and is not used to train their models. We use API-based access with data processing agreements in place.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              3. AI processing
+            </h2>
+            <p className="mb-2">
+              Content is sent to third-party model providers — Anthropic and
+              OpenAI — to generate plans, feedback, scorecards, and voice
+              conversations. Deepgram is used for speech-to-text.
+            </p>
+            <p>
+              Access is through paid API tiers, under which these providers do
+              not train their models on the content sent to them. If you
+              self-host, this is governed by your own agreements with whichever
+              providers you configure, and you may point the gateway at a local
+              model instead so nothing leaves your machine.
+            </p>
           </section>
 
           <section id="privacy-section-4">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">4. Data Storage and Security</h2>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              4. Storage and security
+            </h2>
             <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Database:</strong> All user data is stored in Supabase (PostgreSQL) with Row Level Security (RLS) enforcing multi-tenant data isolation.</li>
-              <li><strong>Transport:</strong> All data in transit is encrypted via TLS/HTTPS.</li>
-              <li><strong>Access Control:</strong> Internal API endpoints use secret-based authentication. Database access is restricted to service roles.</li>
-              <li><strong>Meeting Recordings:</strong> Processed by Recall.ai and AWS Lambda. Transcripts are stored temporarily for feedback generation and are not retained beyond processing.</li>
+              <li>
+                <strong>Database:</strong> Supabase (PostgreSQL), with Row Level
+                Security enforcing separation between organisations.
+              </li>
+              <li>
+                <strong>Knowledge graph:</strong> Neo4j, holding derived
+                recruitment context.
+              </li>
+              <li>
+                <strong>In transit:</strong> encrypted over TLS.
+              </li>
+              <li>
+                <strong>Access control:</strong> service-to-service calls
+                require a shared secret; database access is limited to service
+                roles.
+              </li>
+              <li>
+                <strong>Recordings:</strong> processed by Recall.ai; transcripts
+                are stored for feedback generation, and raw recordings are not
+                retained by the project.
+              </li>
             </ul>
+            <p className="mt-2">
+              This is a volunteer-maintained project, not a certified provider.
+              There is no SOC 2 report, no security team, and no guarantee — if
+              you need assurances, self-host and apply your own controls.
+            </p>
           </section>
 
           <section id="privacy-section-5">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">5. Data Sharing and Disclosure</h2>
-            <p className="mb-2">We do not sell your personal data. We share data only with:</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              5. Who data is shared with
+            </h2>
+            <p className="mb-2">
+              Nothing is sold, ever. On a hosted instance, data reaches only:
+            </p>
             <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Service Providers:</strong> Supabase (database), Anthropic/OpenAI (AI processing), Recall.ai (meeting recording), AWS (compute and Lambda functions), Dodo Payments (billing), PostHog (analytics).</li>
-              <li><strong>Within Your Organization:</strong> Team members in your OpenRecruiting organization can access shared requisitions, candidates, and feedback.</li>
-              <li><strong>Legal Requirements:</strong> When required by law, regulation, legal process, or government request.</li>
+              <li>
+                <strong>Infrastructure and processors:</strong> Supabase
+                (database and auth), Anthropic and OpenAI (model inference),
+                Deepgram (speech-to-text), Recall.ai (meeting capture), Knit
+                (ATS sync, if connected), Cloudflare (network), PostHog
+                (analytics).
+              </li>
+              <li>
+                <strong>Your own organisation:</strong> teammates in your
+                organisation can see its requisitions, candidates, and feedback.
+              </li>
+              <li>
+                <strong>Legal requirement:</strong> where compelled by law.
+              </li>
             </ul>
+            <p className="mt-2">
+              Which of these apply to a self-hosted instance is entirely your
+              choice — every one is optional and disabled without a key.
+            </p>
           </section>
 
           <section id="privacy-section-6">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">6. Your Rights</h2>
-            <p className="mb-2">Depending on your jurisdiction, you may have the right to:</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              6. Cookies
+            </h2>
             <ul className="list-disc pl-6 space-y-1">
-              <li>Access the personal data we hold about you;</li>
-              <li>Request correction of inaccurate data;</li>
-              <li>Request deletion of your data;</li>
-              <li>Withdraw consent for optional data processing;</li>
-              <li>Export your data in a portable format;</li>
-              <li>Object to or restrict certain processing activities.</li>
+              <li>
+                <strong>Session cookie</strong> (
+                <code>openrecruiting-auth</code>): keeps you signed in and is
+                shared between the marketing site and the app. Essential — the
+                app cannot work without it.
+              </li>
+              <li>
+                <strong>PostHog cookies:</strong> product analytics.
+              </li>
             </ul>
-            <p className="mt-2">To exercise these rights, contact us at <strong>founder@example.com</strong>.</p>
+            <p className="mt-2">
+              No third-party advertising cookies are used, and there are no ad
+              networks or retargeting pixels.
+            </p>
           </section>
 
           <section id="privacy-section-7">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">7. Cookies and Tracking</h2>
-            <p className="mb-2">We use the following cookies:</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              7. Retention
+            </h2>
             <ul className="list-disc pl-6 space-y-1">
-              <li><strong>openrecruiting-auth:</strong> Authentication session cookie on the <code>.localhost:3000</code> domain (essential, cross-subdomain).</li>
-              <li><strong>PostHog cookies:</strong> Analytics and product usage tracking (with <code>cross_subdomain_cookie: true</code>).</li>
+              <li>
+                <strong>Account data:</strong> kept until the account is
+                deleted.
+              </li>
+              <li>
+                <strong>Recruitment data:</strong> kept until you delete the
+                requisition, candidate, or account.
+              </li>
+              <li>
+                <strong>Transcripts:</strong> kept for feedback generation; raw
+                recordings are not retained.
+              </li>
+              <li>
+                <strong>Agent conversations:</strong> kept for continuity, and
+                deleted with the associated requisition or account.
+              </li>
+              <li>
+                <strong>Analytics:</strong> per PostHog&apos;s retention
+                settings.
+              </li>
             </ul>
-            <p className="mt-2">We do not use third-party advertising cookies.</p>
+            <p className="mt-2">
+              A demo instance may be reset at any time, which deletes everything
+              on it. Do not treat it as storage.
+            </p>
           </section>
 
           <section id="privacy-section-8">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">8. Data Retention</h2>
-            <p className="mb-2">We retain your data for as long as your account is active or as needed to provide the Services. Specifically:</p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Account Data:</strong> Retained until account deletion.</li>
-              <li><strong>Recruitment Data:</strong> Retained until you delete requisitions, candidates, or your account.</li>
-              <li><strong>Meeting Transcripts:</strong> Retained for feedback generation; raw recordings are not stored permanently.</li>
-              <li><strong>Chat History:</strong> In-app agent conversation history is retained for context continuity and is deleted with the associated requisition or your account.</li>
-              <li><strong>Analytics Data:</strong> Retained per PostHog&apos;s data retention policies.</li>
-            </ul>
-            <p className="mt-2">Upon account deletion, we will delete or anonymize your personal data within 30 days, except where retention is required by law.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              8. Your rights
+            </h2>
+            <p className="mb-2">
+              Depending on where you live, you may have the right to access,
+              correct, delete, export, or object to the processing of your
+              personal data, and to withdraw consent.
+            </p>
+            <p>
+              For a hosted instance, raise a request through the repository
+              (section 10). If a request concerns a{" "}
+              <strong>self-hosted instance</strong> — including a candidate
+              asking about their data — it must go to whoever operates that
+              instance. The maintainers have no access to it and cannot act on
+              your behalf.
+            </p>
           </section>
 
           <section id="privacy-section-9">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">9. International Data Transfers</h2>
-            <p>Your data may be processed in the United States (AWS, Supabase, AI providers) and India (our operations). We ensure appropriate safeguards are in place for cross-border transfers, including data processing agreements with our service providers.</p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              9. International transfers, and children
+            </h2>
+            <p className="mb-2">
+              The processors above operate in several countries, so data handled
+              by a hosted instance may be processed outside your own. Standard
+              contractual protections offered by those providers apply.
+            </p>
+            <p>
+              The project is not intended for children, and personal data is not
+              knowingly collected from them. If some reaches a hosted instance,
+              it will be deleted.
+            </p>
           </section>
 
           <section id="privacy-section-10">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">10. Children&apos;s Privacy</h2>
-            <p>The Services are not intended for individuals under 18 years of age. We do not knowingly collect personal data from children. If we become aware of such collection, we will delete the data promptly.</p>
-          </section>
-
-          <section id="privacy-section-11">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">11. Changes to This Policy</h2>
-            <p>We may update this Privacy Policy from time to time. We will notify you of material changes by posting the updated policy on this page with a revised effective date. Continued use of the Services after changes constitutes acceptance.</p>
-          </section>
-
-          <section id="privacy-section-12">
-            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">12. Contact Us</h2>
-            <p>For questions or concerns about this Privacy Policy or our data practices:</p>
-            <p className="mt-2"><strong>OpenRecruiting.ai</strong></p>
-            <p>Email: <strong>founder@example.com</strong></p>
-            <p>Website: <strong>http://localhost:3000</strong></p>
+            <h2 className="text-lg font-semibold text-[var(--lp-text-primary)] mb-3">
+              10. Changes and contact
+            </h2>
+            <p className="mb-2">
+              This policy may be updated; the version in effect is the one on
+              this page, dated above, and its full history is in the repository.
+            </p>
+            <p>
+              Privacy questions and requests go through the repository:
+            </p>
+            <p className="mt-2">
+              <a
+                id="privacy-github-link"
+                href={REPO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-[var(--lp-text-primary)] font-medium"
+              >
+                github.com/Nit-1997/OpenRecruiting
+              </a>
+            </p>
+            <p className="mt-2">
+              For anything you would rather not discuss in public, open an issue
+              asking for a private channel.
+            </p>
           </section>
         </div>
       </div>
