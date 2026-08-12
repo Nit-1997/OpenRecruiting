@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
@@ -11,7 +10,6 @@ import { useAnalytics } from "@/hooks/useAnalytics";
 function Header({ variant = "hero" }: { variant?: "hero" | "light" }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const pathname = usePathname();
 
   const { trackEvent } = useAnalytics();
 
@@ -94,20 +92,6 @@ function Header({ variant = "hero" }: { variant?: "hero" | "light" }) {
             >
               Blog
             </Link>
-            <Link
-              id="cortex-link-desktop"
-              href="/cortex"
-              onClick={() => trackEvent("nav_link_clicked", { link_name: "Cortex", destination: "/cortex", location: "header" })}
-              className={`px-3 xl:px-4 py-1.5 rounded-full transition-all duration-300 font-medium ${
-                scrolled ? "text-xs xl:text-sm" : "text-sm xl:text-base"
-              } ${
-                isDark
-                  ? "text-white/80 hover:text-white hover:bg-white/10"
-                  : "text-[#111111]/70 hover:text-[#111111] hover:bg-black/5"
-              }`}
-            >
-              Cortex
-            </Link>
           </div>
 
           <div id="header-nav-actions-desktop" className="hidden md:flex items-center gap-2 shrink-0">
@@ -171,14 +155,6 @@ function Header({ variant = "hero" }: { variant?: "hero" | "light" }) {
                 className="w-full h-11 flex items-center px-4 text-[#111111] text-sm font-medium hover:bg-black/5 rounded-xl"
               >
                 Blog
-              </Link>
-              <Link
-                id="cortex-link-mobile"
-                href="/cortex"
-                onClick={() => { trackEvent("nav_link_clicked", { link_name: "Cortex", destination: "/cortex", location: "header" }); setIsMobileMenuOpen(false); }}
-                className="w-full h-11 flex items-center px-4 text-[#111111] text-sm font-medium hover:bg-black/5 rounded-xl"
-              >
-                Cortex
               </Link>
               <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
                 <Button

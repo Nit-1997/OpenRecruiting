@@ -14,9 +14,28 @@ const FromPlanToDecision = dynamic(
   { loading: () => <div id="from-plan-skeleton" className="min-h-[500px]" /> },
 );
 
-const ProductShowcase = dynamic(
-  () => import("@/components/ui/product-showcase").then((mod) => ({ default: mod.ProductShowcase })),
-  { loading: () => <div id="product-showcase-skeleton" className="min-h-[500px]" /> },
+const CortexKnowledgeGraph = dynamic(
+  () =>
+    import("@/components/ui/cortex-knowledge-graph").then((mod) => ({
+      default: mod.CortexKnowledgeGraph,
+    })),
+  { loading: () => <div id="cortex-graph-skeleton" className="min-h-[600px]" /> },
+);
+
+const CortexHowItWorks = dynamic(
+  () =>
+    import("@/components/ui/cortex-how-it-works").then((mod) => ({
+      default: mod.CortexHowItWorks,
+    })),
+  { loading: () => <div id="cortex-how-skeleton" className="min-h-[600px]" /> },
+);
+
+const CortexCapabilities = dynamic(
+  () =>
+    import("@/components/ui/cortex-capabilities").then((mod) => ({
+      default: mod.CortexCapabilities,
+    })),
+  { loading: () => <div id="cortex-capabilities-skeleton" className="min-h-[700px]" /> },
 );
 
 const IntegrationsHub = dynamic(
@@ -77,7 +96,14 @@ export default function Home() {
         <Hero />
         <IntegrationBar />
         <FromPlanToDecision />
-        <ProductShowcase />
+        {/* Cortex used to be its own page. It is the second half of the same
+            story — what the captured signal becomes — so it lives here now,
+            in the slot the product video occupied. #cortex anchors to it. */}
+        <div id="cortex">
+          <CortexKnowledgeGraph />
+          <CortexHowItWorks />
+          <CortexCapabilities />
+        </div>
         <IntegrationsHub />
         <CTASection />
       </main>

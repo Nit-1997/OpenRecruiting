@@ -34,9 +34,9 @@ interface DemoRound {
 const STEP_META = [
   { id: "round-intake" as DemoStep, label: "Voice Intake with OpenRecruiting", icon: FileText, description: "Have a voice conversation with OpenRecruiting to define your role, tech stack, and hiring bar — the AI builds a tailored interview plan.", blurb: "Tell OpenRecruiting about the role, get a plan" },
   { id: "interview-plan" as DemoStep, label: "Custom Scorecards Created", icon: ClipboardCheck, description: "OpenRecruiting generates structured scorecards for every round — calibrated to your role requirements and evaluation criteria.", blurb: "Scorecards built for every round" },
-  { id: "live-interview" as DemoStep, label: "OpenRecruiting Collects Feedback Over Voice", icon: Bot, description: "After the interview, OpenRecruiting joins the panel over voice to collect structured feedback from each interviewer.", blurb: "Voice-driven feedback from the panel" },
-  { id: "ai-feedback" as DemoStep, label: "Auto-Fill Feedback", icon: PenLine, description: "OpenRecruiting compiles interviewer input into structured, evidence-backed feedback — no manual forms needed.", blurb: "Feedback filled automatically" },
-  { id: "hiring-packet" as DemoStep, label: "Evidence-Based Packet Created", icon: FileCheck, description: "A complete hiring packet with ratings, summaries, and supporting evidence across every round — ready for the debrief.", blurb: "Full packet with evidence, ready to review" },
+  { id: "live-interview" as DemoStep, label: "OpenRecruiting Collects Feedback Over Voice", icon: Bot, description: "The bot is already in the call. The moment the candidate drops, it turns to the panel and collects structured feedback over voice — while the interview is still fresh.", blurb: "Voice-driven feedback from the panel" },
+  { id: "ai-feedback" as DemoStep, label: "Auto-Fill Feedback", icon: PenLine, description: "Spoken answers become a filled scorecard, each rating tied to what was actually said — no forms, no chasing.", blurb: "Feedback filled automatically" },
+  { id: "hiring-packet" as DemoStep, label: "Evidence-Based Packet Created", icon: FileCheck, description: "Ratings, summaries and transcript-level evidence across every round — ready for the debrief, and queryable in Cortex afterwards.", blurb: "Full packet with evidence, ready to review" },
 ];
 
 const INTAKE_TRANSCRIPT = [
@@ -610,10 +610,10 @@ function FromPlanToDecision() {
 
       <div className="max-w-[1100px] mx-auto px-6 relative z-10">
         <h2 className="font-display text-4xl md:text-5xl font-light text-[#111111] text-center mb-4 relative z-20">
-          One voice conversation to set up. Zero follow-ups after.
+          One conversation to set up. The whole loop runs itself.
         </h2>
         <p className="text-base md:text-lg text-[#111111]/70 text-center max-w-3xl mx-auto mb-10 relative z-20">
-          OpenRecruiting handles the plan, the scorecards, the feedback, and the debrief. Zero new workflows.
+          Roles arrive from your ATS or a voice call. OpenRecruiting builds the plan and scorecards, joins the interview, collects feedback while it is fresh, and files the packet — every step landing in Cortex as it happens. Zero new workflows.
         </p>
 
         {/* Glassy container */}
