@@ -14,11 +14,6 @@ const FromPlanToDecision = dynamic(
   { loading: () => <div id="from-plan-skeleton" className="min-h-[500px]" /> },
 );
 
-const SocialProofSection = dynamic(
-  () => import("@/components/ui/social-proof-section").then((mod) => ({ default: mod.SocialProofSection })),
-  { loading: () => <div id="social-proof-skeleton" className="min-h-[400px]" /> },
-);
-
 const ProductShowcase = dynamic(
   () => import("@/components/ui/product-showcase").then((mod) => ({ default: mod.ProductShowcase })),
   { loading: () => <div id="product-showcase-skeleton" className="min-h-[500px]" /> },
@@ -82,7 +77,6 @@ export default function Home() {
         <Hero />
         <IntegrationBar />
         <FromPlanToDecision />
-        <SocialProofSection />
         <ProductShowcase />
         <IntegrationsHub />
         <CTASection />
