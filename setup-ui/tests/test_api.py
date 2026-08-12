@@ -70,7 +70,9 @@ def test_a_secret_is_reported_as_set_without_its_value(client):
     c, _, _, headers = _signed_in(client)
 
     groups = {g["id"]: g for g in c.get("/api/config", headers=headers).json()["groups"]}
-    by_name = {v["name"]: v for v in groups["database"]["variables"]}
+    # Supabase moved into Get started when the page was reorganised around what
+    # a first run needs; the secret contract is what this test is about.
+    by_name = {v["name"]: v for v in groups["start"]["variables"]}
 
     assert by_name["SUPABASE_SECRET_KEY"]["set"] is True
     assert by_name["SUPABASE_SECRET_KEY"]["value"] == ""
@@ -81,9 +83,9 @@ def test_an_unset_secret_reports_set_false(client):
     c, _, _, headers = _signed_in(client)
 
     groups = {g["id"]: g for g in c.get("/api/config", headers=headers).json()["groups"]}
-    voice = {v["name"]: v for v in groups["voice"]["variables"]}
+    start = {v["name"]: v for v in groups["start"]["variables"]}
 
-    assert voice["DEEPGRAM_API_KEY"]["set"] is False
+    assert start["DEEPGRAM_API_KEY"]["set"] is False
 
 
 def test_plan_reports_the_restarts_without_writing_anything(client):
@@ -191,3 +193,106 @@ def test_a_save_never_silently_skips_the_recreate(client, monkeypatch):
     assert all("not mounted" in r["detail"] for r in results)
     # The value is still written — the user should not have to retype it.
     assert "DEEPGRAM_API_KEY=x" in env.read_text()
+
+
+# ── the composite public-address field ──────────────────────────────────────
+# It is not a real variable, so these check the seam: it must be expanded before
+# validation (or it is rejected as unknown) and before restart scoping (or the
+# containers that read the eight real values never bounce).
+
+
+def test_public_address_is_offered_as_one_field_in_get_started(client):
+    c, _, _, headers = _signed_in(client)
+    groups = {g["id"]: g for g in c.get("/api/config", headers=headers).json()["groups"]}
+
+    start = groups["start"]
+    assert start["tier"] == "start"
+    names = [v["name"] for v in start["variables"]]
+    assert names[0] == "PUBLIC_BASE_URL", "the composite leads Get started"
+    # The eight it writes must not ALSO be editable here.
+    assert not {"OIDC_ISSUER", "WEBHOOK_BASE_URL"} & set(names)
+
+
+def test_derived_values_are_returned_readonly(client):
+    c, _, _, headers = _signed_in(client)
+    groups = {g["id"]: g for g in c.get("/api/config", headers=headers).json()["groups"]}
+
+    assert groups["derived"]["tier"] == "internal"
+    assert all(v["readonly"] for v in groups["derived"]["variables"])
+    assert all(not v["readonly"] for v in groups["start"]["variables"])
+
+
+def test_plan_expands_the_composite_instead_of_rejecting_it(client):
+    """Unexpanded, PUBLIC_BASE_URL is not in all_variables() and /api/plan would
+    400 it as an unknown setting."""
+    c, _, env, headers = _signed_in(client)
+    before = env.read_text()
+
+    body = c.post(
+        "/api/plan", json={"changes": {"PUBLIC_BASE_URL": "or.example.ai"}}, headers=headers
+    ).json()
+
+    assert "PUBLIC_BASE_URL" not in body["changes"]
+    assert "OIDC_ISSUER" in body["changes"]
+    assert "MCP_ALLOWED_AUDIENCES" in body["changes"]
+    # Restarts are scoped from the REAL variables, so cortex-mcp is included —
+    # it reads the issuer and the audience list.
+    assert "cortex-mcp" in body["restarts"]
+    assert "backend" in body["restarts"]
+    assert env.read_text() == before, "plan must not write"
+
+
+def test_applying_the_composite_writes_every_derived_value(client, monkeypatch):
+    c, main, env, headers = _signed_in(client)
+
+    async def recreated(services):
+        return {"ok": True, "detail": "recreated", "services": " ".join(services)}
+
+    async def ok(service, timeout=90.0):
+        return True
+
+    monkeypatch.setattr(main.applier, "recreate", recreated)
+    monkeypatch.setattr(main.docker, "wait_until_ok", ok)
+
+    resp = c.post(
+        "/api/apply", json={"changes": {"PUBLIC_BASE_URL": "or.example.ai"}}, headers=headers
+    )
+
+    assert resp.status_code == 200
+    text = env.read_text()
+    host = "https://or.example.ai"
+    assert f"WEBHOOK_BASE_URL={host}" in text
+    assert f"VOICE_AGENT_URL={host}" in text
+    assert f"CORTEX_PUBLIC_URL={host}" in text
+    assert f"MCP_JWT_ISSUER={host}" in text
+    assert f"OIDC_ISSUER={host}" in text
+    assert f"MCP_ALLOWED_AUDIENCES=cortex-mcp,{host}" in text
+    assert f"OIDC_AUDIENCE=cortex-mcp,{host}" in text
+    assert f"NEXT_PUBLIC_CORTEX_MCP_URL={host}/mcp" in text
+    # PUBLIC_BASE_URL itself is a UI concept and must never land in .env.
+    assert "PUBLIC_BASE_URL" not in text
+    # The report names what was actually written, not the field that was typed.
+    assert "OIDC_ISSUER" in resp.json()["saved"]
+
+
+def test_a_supabase_key_writes_both_of_its_names(client, monkeypatch):
+    """`.env` says "set BOTH to the same value" — the UI does it now."""
+    c, main, env, headers = _signed_in(client)
+
+    async def recreated(services):
+        return {"ok": True, "detail": "recreated", "services": " ".join(services)}
+
+    async def ok(service, timeout=90.0):
+        return True
+
+    monkeypatch.setattr(main.applier, "recreate", recreated)
+    monkeypatch.setattr(main.docker, "wait_until_ok", ok)
+
+    c.post(
+        "/api/apply",
+        json={"changes": {"NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_pub_x"}},
+        headers=headers,
+    )
+    text = env.read_text()
+    assert "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_pub_x" in text
+    assert "NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_pub_x" in text

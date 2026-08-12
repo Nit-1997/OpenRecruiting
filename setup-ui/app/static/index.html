@@ -20,6 +20,13 @@
     .sub { color: var(--muted); margin: 0 0 28px; }
     .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin-bottom:14px; }
     .card > h2 { font-size:16px; margin:0 0 4px; display:flex; align-items:center; gap:8px; }
+    details.card > summary { font-size:16px; font-weight:600; cursor:pointer; display:flex;
+                             align-items:center; gap:8px; list-style:none; }
+    details.card > summary::-webkit-details-marker { display:none; }
+    details.card > summary::before { content:"\25B8"; color:var(--muted); font-size:11px; }
+    details.card[open] > summary::before { content:"\25BE"; }
+    details.card:not([open]) { padding:14px 20px; }
+    input:disabled { opacity:.55; cursor:not-allowed; }
     .blurb { color:var(--muted); font-size:13.5px; margin:0 0 14px; }
     label { display:block; font-size:13px; font-weight:600; margin:12px 0 4px; }
     .help { font-weight:400; color:var(--muted); font-size:12.5px; margin-top:2px; }
@@ -252,17 +259,39 @@
     CONFIG = await api("/api/config");
     const container = $("groups-container");
     container.innerHTML = "";
+    // Tiers, in order. Only "start" is open: a first run should be able to
+    // finish without ever expanding anything, and 54 of the 63 settings already
+    // have a working default.
+    let restLabelled = false;
     for (const group of CONFIG.groups) {
       const missing = group.missing_required.length;
-      const card = document.createElement("div");
+      const collapsed = group.tier !== "start";
+
+      if (collapsed && !restLabelled) {
+        const heading = document.createElement("p");
+        heading.className = "blurb";
+        heading.id = "groups-rest-heading";
+        heading.style.margin = "22px 0 8px";
+        heading.textContent =
+          "Everything below already works. Open a section only to change a specific behaviour.";
+        container.appendChild(heading);
+        restLabelled = true;
+      }
+
+      const card = document.createElement(collapsed ? "details" : "div");
       card.className = "card";
       card.id = `group-${group.id}`;
-      card.innerHTML = `
-        <h2 id="group-title-${group.id}">${group.title}
-          <span class="pill ${missing ? "bad" : "ok"}" id="group-pill-${group.id}">${missing ? missing + " required missing" : "ready"}</span>
-        </h2>
-        <p class="blurb" id="group-blurb-${group.id}">${group.blurb}</p>
-        <div id="group-fields-${group.id}"></div>`;
+      const badge = group.tier === "internal"
+        ? `<span class="pill warn" id="group-pill-${group.id}">internal</span>`
+        : `<span class="pill ${missing ? "bad" : "ok"}" id="group-pill-${group.id}">${missing ? missing + " required missing" : "ready"}</span>`;
+      const head = `${group.title} <span class="pill" id="group-count-${group.id}">${group.variables.length}</span> ${badge}`;
+      card.innerHTML = collapsed
+        ? `<summary id="group-title-${group.id}">${head}</summary>
+           <p class="blurb" id="group-blurb-${group.id}">${group.blurb}</p>
+           <div id="group-fields-${group.id}"></div>`
+        : `<h2 id="group-title-${group.id}">${head}</h2>
+           <p class="blurb" id="group-blurb-${group.id}">${group.blurb}</p>
+           <div id="group-fields-${group.id}"></div>`;
       container.appendChild(card);
 
       const fields = card.querySelector(`#group-fields-${group.id}`);
@@ -270,22 +299,51 @@
         const wrap = document.createElement("div");
         wrap.id = `field-${v.name}`;
         const status = v.secret && v.set ? " — <span class='pill ok'>set</span>" : "";
+        // Derived values are shown, never edited. Two writable copies of one
+        // value is the drift this whole restructure exists to remove.
+        const ro = v.readonly ? " disabled" : "";
+        const roNote = v.readonly
+          ? `<p class="help" id="ro-${v.name}">Written from Get started.</p>`
+          : "";
         wrap.innerHTML = `
           <label for="input-${v.name}" id="label-${v.name}">${v.label}${v.required ? " *" : ""}${status}</label>
-          <input id="input-${v.name}" type="${v.secret ? "password" : "text"}"
+          <input id="input-${v.name}" type="${v.secret ? "password" : "text"}"${ro}
                  placeholder="${v.secret && v.set ? "•••••••• (unchanged)" : ""}"
-                 value="${v.secret ? "" : String(v.value).replace(/"/g, "&quot;")}" />
-          ${v.help ? `<p class="help" id="help-${v.name}">${v.help}</p>` : ""}`;
+                 value="${v.secret ? "" : String(v.value ?? "").replace(/"/g, "&quot;")}" />
+          ${v.help ? `<p class="help" id="help-${v.name}">${v.help}</p>` : ""}
+          ${roNote}
+          <div id="extra-${v.name}"></div>`;
         fields.appendChild(wrap);
 
+        if (v.name === "PUBLIC_BASE_URL") renderPublicHost(wrap.querySelector(`#extra-${v.name}`), v);
+        if (v.readonly) continue;
+
         wrap.querySelector("input").addEventListener("input", (e) => {
-          const original = v.secret ? "" : v.value;
+          const original = v.secret ? "" : (v.value ?? "");
           if (e.target.value === original) pending.delete(v.name);
           else pending.set(v.name, e.target.value);
           renderBar();
         });
       }
     }
+  }
+
+  // The composite public-address field: what it will write, and whether the
+  // values it owns currently disagree. Drift is reported because that is the
+  // state that broke the MCP connector while every screen looked fine.
+  function renderPublicHost(slot, v) {
+    if (!slot) return;
+    const rows = Object.entries(v.derives || {})
+      .map(([name, value]) => `<div id="derived-${name}"><code>${name}</code> = <code>${String(value).replace(/</g, "&lt;")}</code></div>`)
+      .join("");
+    const drift = (v.drift || []).length
+      ? `<p class="help" id="public-host-drift" style="color:var(--bad)">
+           These do not match and will be corrected on save:
+           ${v.drift.map((n) => `<code>${n}</code>`).join(", ")}
+         </p>`
+      : "";
+    slot.innerHTML = `${drift}${rows ? `<p class="help" id="public-host-derives-label">Writes:</p>
+      <div class="help" id="public-host-derives">${rows}</div>` : ""}`;
   }
 
   function renderBar() {

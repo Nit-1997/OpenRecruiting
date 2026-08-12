@@ -19,6 +19,7 @@ unexplained gap is how the Resend key stayed invisible until someone asked.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 # Services that read Supabase and therefore restart when it changes. Kept as a
 # named constant because six groups would otherwise repeat it and drift.
@@ -56,40 +57,71 @@ class Variable:
     services: list[str] = field(default_factory=list)
 
 
+#: How prominently a group is shown.
+#:   start    — the only things a first run actually needs. Always open.
+#:   standard — real choices, but every one has a working default. Collapsed.
+#:   internal — container addresses and values written by another field. Collapsed
+#:              and warned; present so a broken deployment is still fixable, not
+#:              because anyone should be reading them.
+Tier = Literal["start", "standard", "internal"]
+
+
 @dataclass(frozen=True)
 class Group:
     id: str
     title: str
     blurb: str
     variables: list[Variable]
+    tier: Tier = "standard"
 
 
 GROUPS: list[Group] = [
     Group(
-        id="database",
-        title="Database",
+        id="start",
+        title="Get started",
+        tier="start",
         blurb=(
-            "The only hard requirement. Create a free project at supabase.com, "
-            "paste the three values, then apply the schema below."
+            "Everything a first run needs, and nothing else. Create a free "
+            "project at supabase.com for the first four, then apply the schema "
+            "below. Every other setting on this page already has a working "
+            "default — come back to them when you want a specific behaviour."
         ),
         variables=[
-            Variable("SUPABASE_URL", "Project URL", "https://<project>.supabase.co",
-                     required=True, services=_SUPABASE_CONSUMERS),
-            Variable("SUPABASE_SECRET_KEY", "Service role key",
-                     "Server-side only. Never reaches a browser.",
+            Variable("SUPABASE_URL", "Supabase project URL",
+                     "https://<project>.supabase.co — the browser's copy is "
+                     "written for you.",
+                     required=True, services=_SUPABASE_CONSUMERS + _FRONTENDS),
+            Variable("SUPABASE_SECRET_KEY", "Supabase secret key",
+                     "The service_role key. Server-side only; never reaches a "
+                     "browser.",
                      secret=True, required=True, services=_SUPABASE_CONSUMERS),
-            Variable("SUPABASE_JWT_SECRET", "JWT secret",
+            Variable("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "Supabase publishable key",
+                     "Publishable by design — safe in a browser. Supabase's older "
+                     "name for it is the anon key; that copy is written for you.",
+                     required=True, services=_FRONTENDS),
+            Variable("SUPABASE_JWT_SECRET", "Supabase JWT secret",
                      "Signs backend-issued tokens (screening links, OTP).",
+                     secret=True, required=True, services=["backend"]),
+            Variable("ANTHROPIC_API_KEY", "Anthropic API key",
+                     "The default for every model alias. Held only by the "
+                     "gateway — no application container sees it.",
+                     secret=True, required=True, services=["litellm"]),
+            Variable("OPENAI_API_KEY", "OpenAI API key",
+                     "Optional if you only use Anthropic models. cortex-backend "
+                     "also reads it directly for graph embeddings, so it restarts "
+                     "too.",
+                     secret=True, services=["litellm", "cortex-backend"]),
+            Variable("RECALL_API_KEY", "Recall API key",
+                     "Meeting capture. Unset means no bot can join a call.",
                      secret=True, services=["backend"]),
-            Variable("NEXT_PUBLIC_SUPABASE_URL", "Project URL (browser)",
-                     "Same value as above; the browser needs its own copy.",
-                     services=_FRONTENDS),
-            Variable("NEXT_PUBLIC_SUPABASE_ANON_KEY", "Anon key (browser)",
-                     "Publishable by design — safe in a browser.",
-                     services=_FRONTENDS),
-            Variable("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "Publishable key (browser)",
-                     "Supabase's newer name for the anon key. Either works.",
-                     services=_FRONTENDS),
+            Variable("RECALL_WEBHOOK_SECRET", "Recall webhook secret",
+                     "Signs the callbacks Recall sends you. Unset means every "
+                     "webhook is rejected, so nothing is ever captured.",
+                     secret=True, services=["backend"]),
+            Variable("DEEPGRAM_API_KEY", "Deepgram API key",
+                     "Speech-to-text. Unset means the voice agent starts but "
+                     "cannot transcribe.",
+                     secret=True, services=["voice-agent", "backend"]),
         ],
     ),
     Group(
@@ -100,34 +132,20 @@ GROUPS: list[Group] = [
             "holds one, and every workload picks its model by alias."
         ),
         variables=[
-            Variable("ANTHROPIC_API_KEY", "Anthropic API key",
-                     "Read by the litellm proxy only.", secret=True, services=["litellm"]),
-            Variable("OPENAI_API_KEY", "OpenAI API key",
-                     "Optional. Also used for graph embeddings.",
-                     secret=True, services=["litellm", "cortex-backend"]),
             Variable("LITELLM_MASTER_KEY", "Gateway master key",
                      "How the services authenticate to the proxy.",
                      secret=True, required=True, services=["litellm"] + _GATEWAY_CLIENTS),
-            Variable("LLM_GATEWAY_URL", "Gateway URL",
-                     "Defaults to http://litellm:4000 inside compose.",
-                     services=_GATEWAY_CLIENTS),
             Variable("LLM_TIMEOUT_SECONDS", "Request timeout (s)", services=_GATEWAY_CLIENTS),
             Variable("LLM_FORCE_JSON_TOOLS", "Force emulated JSON tools",
                      "Leave unset unless debugging a non-tool-capable model.",
                      services=_GATEWAY_CLIENTS),
-            Variable("OLLAMA_API_BASE", "Ollama base URL",
-                     "For running a local model through the gateway.",
-                     services=["litellm"]),
         ],
     ),
     Group(
         id="voice",
         title="Voice",
-        blurb="Speech-to-text and text-to-speech for the realtime agents.",
+        blurb="Realtime media relay. The Deepgram key is under Get started.",
         variables=[
-            Variable("DEEPGRAM_API_KEY", "Deepgram API key",
-                     "Unset means the voice agent starts but cannot transcribe.",
-                     secret=True, services=["voice-agent", "backend"]),
             Variable("TURN_SERVER_URL", "TURN relay URL",
                      "Required for MEETING-BOT voice, not for browser voice. A "
                      "Recall bot runs in Recall's cloud and its media is UDP, "
@@ -143,24 +161,15 @@ GROUPS: list[Group] = [
         id="meetings",
         title="Meeting capture",
         blurb=(
-            "Recall.ai is cloud-only and calls you, so it needs a publicly "
-            "reachable webhook URL — a tunnel when running locally."
+            "The Recall keys and your public address are under Get started — "
+            "Recall is cloud-only and calls you, so both are needed there."
         ),
         variables=[
-            Variable("RECALL_API_KEY", "Recall API key", secret=True, services=["backend"]),
-            Variable("RECALL_BOT_NAME", "Bot display name", services=["backend"]),
-            Variable("RECALL_WEBHOOK_SECRET", "Webhook signing secret",
-                     secret=True, services=["backend"]),
-            Variable("WEBHOOK_BASE_URL", "Public webhook base URL",
-                     "Your tunnel hostname. Unset means bots record but callbacks "
-                     "never arrive.",
-                     services=["backend"]),
-            Variable("VOICE_AGENT_URL", "Public voice page URL",
-                     "The SAME tunnel hostname. Recall's cloud browser loads "
-                     "<this>/<session-token> and streams the page into the "
-                     "meeting as the bot's camera. Leaving it EMPTY does not "
-                     "degrade anything visibly — it makes the backend skip "
-                     "output_media entirely, so the bot joins and is silent.",
+            Variable("RECALL_BOT_NAME", "Bot display name",
+                     "Changing this needs a matching edit in "
+                     "backend/app/services/recall_webhook/constants.py — the "
+                     "backend refuses to start if they disagree, so the bot's own "
+                     "speech can never be scored as interviewer feedback.",
                      services=["backend"]),
         ],
     ),
@@ -171,87 +180,40 @@ GROUPS: list[Group] = [
         variables=[
             Variable("NEO4J_AUTH", "Neo4j auth (user/password)",
                      secret=True, services=["neo4j"]),
-            Variable("NEO4J_URI", "Neo4j URI", services=["cortex-backend", "cortex-mcp"]),
             Variable("NEO4J_USERNAME", "Neo4j username",
                      services=["cortex-backend", "cortex-mcp"]),
             Variable("NEO4J_PASSWORD", "Neo4j password",
                      secret=True, services=["cortex-backend", "cortex-mcp"]),
-            Variable("CORTEX_BACKEND_INTERNAL_URL", "Cortex backend URL",
-                     services=["backend", "cortex-mcp"]),
             Variable("CORTEX_INTERNAL_SECRET", "Cortex internal secret",
                      secret=True, services=["backend", "cortex-backend", "cortex-mcp"]),
-            Variable("CORTEX_MCP_URL", "Cortex MCP URL", services=["backend"]),
-            Variable("CORTEX_TOKEN_URL", "Cortex token URL",
-                     services=["backend", "intake-context-builder"]),
         ],
     ),
     Group(
         id="connectors",
         title="Connectors",
         blurb=(
-            "The MCP server an assistant connects to. Unset signing key means "
-            "MCP discovery returns 503."
+            "The signing key for the MCP server an assistant connects to. Unset "
+            "means MCP discovery returns 503. Its public address and the audience "
+            "allowlists are written from Get started."
         ),
         variables=[
             Variable("MCP_JWT_KEY_ID", "MCP key id", services=["cortex-mcp", "backend"]),
             Variable("MCP_JWT_PRIVATE_KEY_PEM", "MCP signing key (PEM)",
                      secret=True, services=["cortex-mcp", "backend"]),
-            Variable("OIDC_ISSUER", "OIDC issuer", services=["backend", "cortex-mcp"]),
-            Variable("MCP_JWT_ISSUER", "MCP token issuer",
-                     "Must EQUAL the OIDC issuer above — it is stamped on every "
-                     "token minted and checked on every token accepted. It also "
-                     "builds the OAuth discovery URLs a remote client fetches, so "
-                     "point both at the public host to connect one.",
-                     services=["backend", "cortex-mcp"]),
-            Variable("MCP_ALLOWED_AUDIENCES", "Audiences the backend will mint for",
-                     "Comma-separated. Keep cortex-mcp (internal service tokens) "
-                     "and add the public MCP URL when exposing it, or the client's "
-                     "authorize call fails with invalid_target.",
-                     services=["backend"]),
-            Variable("OIDC_AUDIENCE", "Audiences cortex-mcp will accept",
-                     "Comma-separated. Must cover everything in the backend list "
-                     "above, or valid tokens are rejected.",
-                     services=["cortex-mcp"]),
-            Variable("CORTEX_PUBLIC_URL", "Cortex MCP public URL",
-                     "Advertised to clients in the 401 challenge and the "
-                     "protected-resource document. Must be reachable BY THE "
-                     "CLIENT, so localhost only works for a local one.",
-                     services=["cortex-mcp"]),
-            Variable("MCP_CONSENT_URL", "OAuth consent page",
-                     "Landing's /oauth/consent. Unset falls back to an inline form "
-                     "that needs a session cookie on the backend's own origin — "
-                     "impossible over a tunnel, and the sign-in loops.",
-                     services=["backend"]),
-            Variable("NEXT_PUBLIC_CORTEX_MCP_URL", "MCP URL shown in the app",
-                     "What the integrations page offers for pasting into an "
-                     "assistant. Resolved by the CLIENT, not the browser. Blank "
-                     "shows a 'not configured' state instead of a bad URL.",
-                     services=["recruiter-app"]),
         ],
     ),
     Group(
         id="urls",
-        title="App URLs",
+        title="Domains",
         blurb=(
-            "Where each app lives. Browser-facing values now apply on a restart "
-            "— no image rebuild needed."
+            "Only needed when the apps are not on plain localhost. The container "
+            "addresses they used to sit beside are under Service wiring."
         ),
         variables=[
-            Variable("APP_URL", "Backend-facing app URL", services=["backend"]),
-            Variable("CORS_ORIGINS", "Allowed CORS origins", services=["backend"]),
-            Variable("NEXT_PUBLIC_APP_URL", "Recruiter app URL", services=_FRONTENDS),
-            Variable("NEXT_PUBLIC_API_URL", "Backend URL (browser)", services=_FRONTENDS),
-            Variable("NEXT_PUBLIC_API_V2_URL", "Backend v2 URL (browser)", services=_FRONTENDS),
-            Variable("NEXT_PUBLIC_LANDING_URL", "Landing URL", services=_FRONTENDS),
             Variable("NEXT_PUBLIC_COOKIE_DOMAIN", "Shared cookie domain",
                      "Blank for localhost. Set for cross-subdomain SSO.",
                      services=_FRONTENDS),
             Variable("NEXT_PUBLIC_ASSESSMENT_UI_URL", "Assessment UI URL", services=_FRONTENDS),
-            Variable("BACKEND_INTERNAL_URL", "Backend URL (server-side)",
-                     "Used by landing's OAuth consent routes, which run in the "
-                     "container — so this is the compose service name, NOT the "
-                     "browser's localhost value.",
-                     services=["landing"]),
         ],
     ),
     Group(
@@ -306,12 +268,103 @@ GROUPS: list[Group] = [
     Group(
         id="advanced",
         title="Advanced",
-        blurb="Internal wiring. Defaults are correct for compose.",
+        blurb="Behaviour switches. Defaults are correct for compose.",
         variables=[
             Variable("INTERNAL_API_SECRET", "Internal API secret",
                      secret=True, services=["backend", "voice-agent"]),
             Variable("JOB_INVOKER", "Job invoker mode", services=["backend"]),
             Variable("SIGNUP_INVITE_ONLY", "Invite-only signup", services=["backend", "landing"]),
+        ],
+    ),
+    # ── internal tier ───────────────────────────────────────────────────────
+    # Below here nothing is a decision a self-hoster makes. Kept editable only
+    # so a genuinely broken deployment can be repaired from the UI.
+    Group(
+        id="derived",
+        title="Written from Get started",
+        tier="internal",
+        blurb=(
+            "Read-only. Each of these is filled in from your public address or "
+            "your Supabase values, because each was previously a separate field "
+            "that had to be kept in sync by hand — and when they drifted, the MCP "
+            "connector broke in a way nothing reported. Edit the source field "
+            "above instead."
+        ),
+        variables=[
+            Variable("NEXT_PUBLIC_SUPABASE_URL", "Project URL (browser copy)",
+                     "Same value as the Supabase project URL.",
+                     services=_FRONTENDS),
+            Variable("NEXT_PUBLIC_SUPABASE_ANON_KEY", "Anon key (browser copy)",
+                     "Supabase's older name for the publishable key. Same value.",
+                     services=_FRONTENDS),
+            Variable("WEBHOOK_BASE_URL", "Recall webhook base",
+                     "Unset means bots record but callbacks never arrive.",
+                     services=["backend"]),
+            Variable("VOICE_AGENT_URL", "Public voice page",
+                     "Recall's cloud browser loads <this>/<session-token> as the "
+                     "bot's camera. Empty makes the backend skip output_media "
+                     "entirely, so the bot joins and is silent — no visible error.",
+                     services=["backend"]),
+            Variable("CORTEX_PUBLIC_URL", "Cortex MCP public URL",
+                     "Advertised in the 401 challenge and protected-resource doc. "
+                     "Must be reachable BY THE CLIENT.",
+                     services=["cortex-mcp"]),
+            Variable("MCP_JWT_ISSUER", "MCP token issuer",
+                     "Stamped on every token minted; also builds the OAuth "
+                     "discovery URLs a remote client fetches.",
+                     services=["backend", "cortex-mcp"]),
+            Variable("OIDC_ISSUER", "OIDC issuer",
+                     "Checked on every token accepted. Must equal the issuer above.",
+                     services=["backend", "cortex-mcp"]),
+            Variable("MCP_ALLOWED_AUDIENCES", "Audiences the backend mints for",
+                     "cortex-mcp for internal service tokens, plus the public host "
+                     "for RFC 8707. Missing the host fails authorize with "
+                     "invalid_target.",
+                     services=["backend"]),
+            Variable("OIDC_AUDIENCE", "Audiences cortex-mcp accepts",
+                     "Must cover everything the backend mints for.",
+                     services=["cortex-mcp"]),
+            Variable("NEXT_PUBLIC_CORTEX_MCP_URL", "MCP URL shown in the app",
+                     "Public host plus /mcp. Resolved by the CLIENT, not the "
+                     "browser.",
+                     services=["recruiter-app"]),
+        ],
+    ),
+    Group(
+        id="wiring",
+        title="Service wiring",
+        tier="internal",
+        blurb=(
+            "Container addresses on the compose network. Changing one will "
+            "usually break the stack — they are here so a broken deployment is "
+            "still repairable, not because they are worth reading."
+        ),
+        variables=[
+            Variable("LLM_GATEWAY_URL", "Gateway URL", services=_GATEWAY_CLIENTS),
+            Variable("OLLAMA_API_BASE", "Ollama base URL",
+                     "For running a local model through the gateway.",
+                     services=["litellm"]),
+            Variable("NEO4J_URI", "Neo4j URI", services=["cortex-backend", "cortex-mcp"]),
+            Variable("CORTEX_BACKEND_INTERNAL_URL", "Cortex backend URL",
+                     services=["backend", "cortex-mcp"]),
+            Variable("CORTEX_MCP_URL", "Cortex MCP URL", services=["backend"]),
+            Variable("CORTEX_TOKEN_URL", "Cortex token URL",
+                     services=["backend", "intake-context-builder"]),
+            Variable("MCP_CONSENT_URL", "OAuth consent page",
+                     "Landing's /oauth/consent. Unset falls back to an inline form "
+                     "needing a cookie on the backend's own origin — impossible "
+                     "over a tunnel, and the sign-in loops.",
+                     services=["backend"]),
+            Variable("APP_URL", "Backend-facing app URL", services=["backend"]),
+            Variable("CORS_ORIGINS", "Allowed CORS origins", services=["backend"]),
+            Variable("NEXT_PUBLIC_APP_URL", "Recruiter app URL", services=_FRONTENDS),
+            Variable("NEXT_PUBLIC_API_URL", "Backend URL (browser)", services=_FRONTENDS),
+            Variable("NEXT_PUBLIC_API_V2_URL", "Backend v2 URL (browser)", services=_FRONTENDS),
+            Variable("NEXT_PUBLIC_LANDING_URL", "Landing URL", services=_FRONTENDS),
+            Variable("BACKEND_INTERNAL_URL", "Backend URL (server-side)",
+                     "Used by landing's OAuth consent routes, which run in the "
+                     "container — the compose service name, NOT localhost.",
+                     services=["landing"]),
             Variable("FEEDBACK_WORKER_URL", "Feedback worker URL", services=["backend"]),
             Variable("INTAKE_WORKER_URL", "Intake worker URL", services=["backend"]),
             Variable("CONTEXT_BUILDER_WORKER_URL", "Context builder URL", services=["backend"]),

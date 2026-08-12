@@ -27,6 +27,7 @@ from app.docker_ctl import DockerControl, DockerError
 from app.envfile import atomic_write, parse, update
 from app.litellm_cfg import read_aliases, set_model
 from app.supabase_setup import check_schema, manual_instructions
+from app import derive
 from app.varmap import GROUPS, affected_services, all_variables, is_secret
 
 ENV_PATH = Path(os.environ.get("SETUP_ENV_PATH", "/repo/.env"))
@@ -106,9 +107,36 @@ async def get_config() -> dict:
     is told only whether one is set, which is all the UI needs to render
     `•••• set` with Replace/Clear."""
     values = _read_env()
+    host, drift = derive.host_from_env(values)
     groups = []
     for group in GROUPS:
         variables = []
+        # One field per real decision. The public address is synthesised into
+        # Get started rather than stored, so the eight variables it writes cannot
+        # drift apart again — see app/derive.py.
+        if group.tier == "start":
+            variables.append(
+                {
+                    "name": derive.PUBLIC_BASE_URL,
+                    "label": "Public address",
+                    "help": (
+                        "Your tunnel or domain, e.g. or.example.ai — https:// is "
+                        "assumed. Writes the "
+                        f"{len(derive.PUBLIC_HOST_DERIVED)} settings under "
+                        "'Written from Get started'. Leave blank to run "
+                        "localhost-only: meeting capture and remote MCP clients "
+                        "both need a public address."
+                    ),
+                    "secret": False,
+                    "required": False,
+                    "services": affected_services(list(derive.PUBLIC_HOST_DERIVED)),
+                    "set": bool(host),
+                    "value": host,
+                    "readonly": False,
+                    "derives": derive.expand_public_host(host) if host else {},
+                    "drift": drift,
+                }
+            )
         for var in group.variables:
             raw = values.get(var.name, "")
             variables.append(
@@ -121,6 +149,9 @@ async def get_config() -> dict:
                     "services": var.services,
                     "set": bool(raw),
                     "value": "" if var.secret else raw,
+                    # Written on another field's behalf. Shown so a value can be
+                    # confirmed, not edited — two sources of truth is the bug.
+                    "readonly": var.name in derive.DERIVED_NAMES,
                 }
             )
         groups.append(
@@ -128,6 +159,7 @@ async def get_config() -> dict:
                 "id": group.id,
                 "title": group.title,
                 "blurb": group.blurb,
+                "tier": group.tier,
                 "missing_required": [
                     v["name"] for v in variables if v["required"] and not v["set"]
                 ],
@@ -148,12 +180,16 @@ async def plan(body: SaveBody) -> dict:
     Restarting is disruptive — an in-flight voice call dies — so the user sees
     the exact container list and confirms before anything happens.
     """
-    unknown = sorted(set(body.changes) - all_variables())
+    # Expand FIRST. The composite public-address field is not a real variable, so
+    # validating before expansion would reject it, and scoping restarts from it
+    # would under-restart: the services that matter belong to the eight it writes.
+    changes = derive.expand_changes(body.changes)
+    unknown = sorted(set(changes) - all_variables())
     if unknown:
         raise HTTPException(status_code=400, detail=f"Unknown settings: {unknown}")
-    services = affected_services(list(body.changes))
+    services = affected_services(list(changes))
     return {
-        "changes": sorted(body.changes),
+        "changes": sorted(changes),
         "restarts": services,
         "warning": (
             "Restarting voice-agent ends any call in progress."
@@ -165,10 +201,12 @@ async def plan(body: SaveBody) -> dict:
 
 @app.post("/api/apply", dependencies=[Depends(require_auth)])
 async def apply(body: SaveBody) -> JSONResponse:
-    unknown = sorted(set(body.changes) - all_variables())
+    # Same expansion as /api/plan, so what is applied is what was previewed.
+    changes = derive.expand_changes(body.changes)
+    unknown = sorted(set(changes) - all_variables())
     if unknown:
         raise HTTPException(status_code=400, detail=f"Unknown settings: {unknown}")
-    if not body.changes:
+    if not changes:
         raise HTTPException(status_code=400, detail="Nothing to save.")
 
     base = ENV_PATH.read_text(encoding="utf-8") if ENV_PATH.exists() else ""
@@ -176,11 +214,11 @@ async def apply(body: SaveBody) -> JSONResponse:
         base = ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
 
     try:
-        backup = atomic_write(ENV_PATH, update(base, body.changes))
+        backup = atomic_write(ENV_PATH, update(base, changes))
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {exc}") from exc
 
-    services = affected_services(list(body.changes))
+    services = affected_services(list(changes))
     results = []
     try:
         # RECREATE, not restart. A restart reuses the environment baked in when
@@ -209,7 +247,9 @@ async def apply(body: SaveBody) -> JSONResponse:
 
     return JSONResponse(
         {
-            "saved": sorted(body.changes),
+            # The expanded list: one public-address edit reports the eight names
+            # actually written, so the confirmation matches the file.
+            "saved": sorted(changes),
             "backup": backup.name if backup else None,
             "restarts": results,
         }
