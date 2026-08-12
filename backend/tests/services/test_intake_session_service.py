@@ -23,6 +23,19 @@ def _no_ats_seed():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _no_credit_charge():
+    """create_session charges an intake credit before writing. It goes through
+    the admin supabase client rather than the injected mock, so stub it out for
+    the tests that assert exact DB-call sequences. Metering itself is covered by
+    test_create_session_charges_intake_credit and the resume test below."""
+    with patch(
+        "app.services.intake_session_service.use_credit",
+        new=AsyncMock(),
+    ) as uc:
+        yield uc
+
+
 @pytest.fixture
 def mock_supabase():
     client = MagicMock()
@@ -410,3 +423,70 @@ def test_form_data_from_requisition_clamps_imported_values():
     assert form.experience_min == 50      # clamped to the schema ceiling
     assert form.experience_max is None    # 3 < clamped min → dropped
     assert form.jd_text is None
+
+
+# --------------------------- credit metering ---------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_session_charges_intake_credit(
+    service, mock_supabase, monkeypatch, _no_credit_charge
+):
+    """A new intake consumes one of the org's intake credits."""
+    monkeypatch.setenv("INTAKE_CONTEXT_BUILDER_LAMBDA_ARN", "arn:aws:lambda:us-west-1:111:function:test")
+    org_id = uuid4()
+    mock_supabase.execute_async.side_effect = [
+        MagicMock(data=[{"id": str(uuid4())}]),
+        MagicMock(data=[{"id": str(uuid4())}]),
+    ]
+    form_data = IntakeFormData(
+        role_name="Senior BE", experience_min=5, experience_max=8,
+        location="NYC", jd_text=None,
+    )
+    with patch("app.services.intake_session_service.get_invoker",
+               new=MagicMock(return_value=MagicMock(invoke=AsyncMock()))):
+        await service.create_session(
+            user_id=uuid4(), org_id=org_id, form_data=form_data, entry_point="manual",
+        )
+
+    _no_credit_charge.assert_awaited_once_with(str(org_id), "intake")
+
+
+@pytest.mark.asyncio
+async def test_create_session_charges_before_writing_anything(
+    service, mock_supabase, _no_credit_charge
+):
+    """An exhausted org gets a 402 and leaves no orphaned draft requisition."""
+    from fastapi import HTTPException
+
+    _no_credit_charge.side_effect = HTTPException(status_code=402, detail="exhausted")
+    form_data = IntakeFormData(
+        role_name="Senior BE", experience_min=5, experience_max=8,
+        location="NYC", jd_text=None,
+    )
+    with pytest.raises(HTTPException) as e:
+        await service.create_session(
+            user_id=uuid4(), org_id=uuid4(), form_data=form_data, entry_point="manual",
+        )
+
+    assert e.value.status_code == 402
+    mock_supabase.insert.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_resuming_an_active_session_is_free(service, mock_supabase, _no_credit_charge):
+    """Reopening an in-progress intake must not charge again."""
+    _wire_read_chain(mock_supabase)
+    user_id = uuid4()
+    req_id = uuid4()
+    existing_sid = uuid4()
+    mock_supabase.execute_async.side_effect = [
+        MagicMock(data=_req_row(req_id)),
+        MagicMock(data=[{"id": str(existing_sid), "user_id": str(user_id), "status": "submitted"}]),
+    ]
+    await service.create_session(
+        user_id=user_id, org_id=uuid4(), form_data=None,
+        entry_point="complete_intake_btn", requisition_id=req_id,
+    )
+
+    _no_credit_charge.assert_not_awaited()

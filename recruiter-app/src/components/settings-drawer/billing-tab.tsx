@@ -10,21 +10,6 @@ export function BillingTab({ id }: { id: string }) {
     return <SettingsCardSkeleton id={id} rows={3} />;
   }
 
-  const periodStart = overview.period_start
-    ? new Date(overview.period_start).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      })
-    : null;
-  const periodEnd = overview.period_end
-    ? new Date(overview.period_end).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      })
-    : null;
-
   return (
     <div id={id} className="flex max-w-2xl flex-col gap-6">
       <header>
@@ -32,41 +17,14 @@ export function BillingTab({ id }: { id: string }) {
           Credit budget
         </h3>
         <p className="mt-1 text-[13px] text-text-muted">
-          Your plan and the credits left in this period. Nothing is charged here — an administrator
-          sets plans and credits from the admin portal, so contact them for more.
+          Your organisation&apos;s credits, shared by everyone on the team. Nothing is charged here
+          — an administrator sets the budget from the admin portal, so contact them for more.
         </p>
       </header>
 
-      <section id={`${id}-plan`} className="rounded-[14px] border border-border bg-white p-5">
-        <p className="font-mono text-[10px] text-text-faint uppercase tracking-[0.14em]">
-          Current plan
-        </p>
-        <p className="mt-1 font-display text-[24px] text-text-primary">
-          {overview.plan_display_name}
-        </p>
-        <dl id={`${id}-plan-meta`} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {periodStart && (
-            <MetaRow id={`${id}-plan-start`} label="Date of purchase" value={periodStart} />
-          )}
-          {periodEnd && (
-            <MetaRow
-              id={`${id}-plan-end`}
-              label={overview.cancel_at_period_end ? 'Ends on' : 'Renews on'}
-              value={periodEnd}
-            />
-          )}
-          <MetaRow
-            id={`${id}-plan-status`}
-            label="Status"
-            value={overview.subscription_status}
-            mono
-          />
-        </dl>
-      </section>
-
       <section id={`${id}-credits`} className="rounded-[14px] border border-border bg-white p-5">
         <p className="font-mono text-[10px] text-text-faint uppercase tracking-[0.14em]">
-          Credits remaining this period
+          Credits remaining
         </p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <CreditMeter
@@ -85,31 +43,6 @@ export function BillingTab({ id }: { id: string }) {
           />
         </div>
       </section>
-    </div>
-  );
-}
-
-function MetaRow({
-  id,
-  label,
-  value,
-  mono,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div id={id} className="flex flex-col gap-0.5">
-      <dt className="font-mono text-[10px] text-text-faint uppercase tracking-[0.14em]">{label}</dt>
-      <dd
-        className={
-          mono ? 'font-mono text-[12.5px] text-text-primary' : 'text-[13px] text-text-primary'
-        }
-      >
-        {value}
-      </dd>
     </div>
   );
 }

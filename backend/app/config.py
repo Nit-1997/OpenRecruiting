@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     # authenticate at all, through their own Supabase auth settings.
     SIGNUP_INVITE_ONLY: bool = False
 
+    # Credit budget handed to a newly created organization. There are no plan
+    # tiers -- every org starts here and an admin raises the cap from the admin
+    # portal. -1 means unlimited. See services/credit_service.py.
+    DEFAULT_INTAKE_CREDITS: int = 10
+    DEFAULT_INTERVIEW_CREDITS: int = 10
+
     # Where background jobs run: "http" posts to the local worker containers,
     # "lambda" keeps the original boto3 AWS path. See services/jobs/invoker.py.
     JOB_INVOKER: str = "http"

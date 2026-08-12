@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Mail, Globe, Plus, Users, Trash2, RotateCcw, AlertTriangle, FileText, Briefcase, MapPin, Clock, Loader2 } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { AdminNav } from "@/components/admin-nav";
+import { OrgCreditsCard } from "@/components/org-credits-card";
 import { createClient } from "@/lib/supabase/client";
 import { getRuntimeConfig } from "@/lib/runtime-config";
 
@@ -721,7 +722,8 @@ export default function OrganizationDetailPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div id="org-detail-sidebar" className="bg-card rounded-xl border border-border p-6">
+          <div id="org-detail-sidebar" className="space-y-6">
+          <div id="org-detail-info" className="bg-card rounded-xl border border-border p-6">
             <h2 id="org-details-heading" className="font-semibold mb-4">Organization Details</h2>
             <div className="space-y-4">
               <div id="org-detail-name">
@@ -748,6 +750,9 @@ export default function OrganizationDetailPage() {
                 <p className="font-medium">{new Date(organization.created_at).toLocaleDateString()}</p>
               </div>
             </div>
+          </div>
+
+          <OrgCreditsCard orgId={orgId} />
           </div>
 
           <div id="org-detail-main" className="lg:col-span-3 space-y-6">

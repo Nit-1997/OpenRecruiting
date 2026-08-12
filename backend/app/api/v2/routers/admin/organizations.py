@@ -11,6 +11,7 @@ from app.models.organization import (
     OrganizationListResponse
 )
 from app.services.supabase import get_supabase_admin_client
+from app.services.credit_service import provision_default_credits
 from app.api.v2.core.rpc import call_rpc
 
 logger = get_logger(__name__)
@@ -47,6 +48,9 @@ async def create_organization(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create organization"
         )
+
+    row = result.data[0] if isinstance(result.data, list) else result.data
+    await provision_default_credits(str(row["id"]))
 
     return result.data
 

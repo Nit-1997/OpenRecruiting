@@ -3,11 +3,9 @@
 // (flat) `BillingOverview` domain type. These tests mock `@/lib/v2-client`
 // (same idiom as v2-wiring.test.ts) and assert the request + passthrough.
 //
-// The old tests asserted a removed mock-db contract: a NESTED overview shape
-// (`o.plan.name`, `o.credits.interview_credits_total`) plus `validatePromo`
-// and `cancelSubscription` helpers. `src/domain/billing.ts` is now FLAT
-// (`plan_name`, `interview_total`, ...) and those two helpers were dropped
-// from the service (zero callers in the app).
+// `src/domain/billing.ts` is a flat credit budget: there are no plans or
+// subscriptions, so the overview carries only the org's intake/interview
+// totals, usage, and any topup balance.
 process.env.NEXT_PUBLIC_API_URL = 'http://test.invalid';
 
 import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
@@ -60,14 +58,8 @@ beforeEach(() => resetMock());
 afterEach(() => resetMock());
 
 describe('billing service', () => {
-  test('getOverview GETs /api/v2/billing/overview and returns the flat overview', async () => {
+  test('getOverview GETs /api/v2/billing/overview and returns the credit budget', async () => {
     const overview: BillingOverview = {
-      plan_name: 'growth',
-      plan_display_name: 'Growth',
-      subscription_status: 'active',
-      period_start: '2026-04-20T00:00:00Z',
-      period_end: '2026-05-20T00:00:00Z',
-      cancel_at_period_end: false,
       intake_total: 25,
       intake_used: 4,
       intake_topup: 0,
@@ -85,9 +77,25 @@ describe('billing service', () => {
     expect(call.method).toBe('GET');
     expect(call.path).toBe('/api/v2/billing/overview');
 
-    expect(o.plan_display_name).toBeTruthy();
-    expect(o.subscription_status).toBe('active');
-    expect(o.interview_total).toBeGreaterThan(0);
-    expect(o.cancel_at_period_end).toBe(false);
+    expect(o.interview_total).toBe(250);
+    expect(o.interview_used).toBe(68);
+    expect(o.intake_total).toBe(25);
+    expect(o.intake_used).toBe(4);
+  });
+
+  test('passes the unlimited sentinel through untouched', async () => {
+    nextResponse = {
+      intake_total: -1,
+      intake_used: 3,
+      intake_topup: 0,
+      interview_total: -1,
+      interview_used: 9,
+      interview_topup: 0,
+    } satisfies BillingOverview;
+
+    const o = await billing.getOverview();
+
+    expect(o.intake_total).toBe(-1);
+    expect(o.interview_total).toBe(-1);
   });
 });

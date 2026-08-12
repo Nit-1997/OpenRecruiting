@@ -2,7 +2,10 @@
 Billing routes for v2.
 
 Mounted under /api/v2/billing:
-  GET  /overview   Plan info, subscription status, credit usage
+  GET  /overview   The org's credit budget and usage
+
+There are no plans or subscriptions: the organization holds one credit
+budget that all its members share. Admins set the cap from the admin portal.
 """
 
 from fastapi import APIRouter, Depends
@@ -20,16 +23,6 @@ async def get_billing_overview(
 ) -> BillingOverview:
     supabase = get_supabase_admin_client()
     org_id = current.organization_id_str
-
-    sub_result = await supabase.table("subscriptions") \
-        .select("status, current_period_start, current_period_end, cancel_at_period_end, plans(name, display_name)") \
-        .eq("organization_id", org_id) \
-        .eq("status", "active") \
-        .limit(1) \
-        .execute_async()
-
-    sub = sub_result.data[0] if sub_result.data else None
-    plan = (sub.get("plans") or {}) if sub else {}
 
     credits_result = await supabase.table("usage_credits") \
         .select("credit_type, total, used") \
@@ -53,12 +46,6 @@ async def get_billing_overview(
     interview = credits.get("interview", {})
 
     return BillingOverview(
-        plan_name=plan.get("name") or "Custom",
-        plan_display_name=plan.get("display_name") or plan.get("name") or "Custom",
-        subscription_status=sub["status"] if sub else "none",
-        period_start=sub.get("current_period_start") if sub else None,
-        period_end=sub.get("current_period_end") if sub else None,
-        cancel_at_period_end=bool(sub.get("cancel_at_period_end")) if sub else False,
         intake_total=intake.get("total", 0),
         intake_used=intake.get("used", 0),
         intake_topup=topup.get("intake", 0),

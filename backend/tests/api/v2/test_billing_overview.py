@@ -1,8 +1,9 @@
 """Tests for GET /api/v2/billing/overview.
 
-Uses the recruiter_client (org-scoped) + respx-mocked supabase REST so the three
-table reads (subscriptions, usage_credits, topup_credits) resolve. Covers the
-populated path, the no-subscription/no-credits path, and topup aggregation.
+Uses the recruiter_client (org-scoped) + respx-mocked supabase REST so the two
+table reads (usage_credits, topup_credits) resolve. There are no plans or
+subscriptions — the org's credit budget is the whole response. Covers the
+populated path, the unprovisioned path, topup aggregation, and unlimited.
 """
 
 from tests.helpers.supabase_mocks import mock_select
@@ -10,14 +11,7 @@ from tests.helpers.supabase_mocks import mock_select
 ENDPOINT = "/api/v2/billing/overview"
 
 
-def test_overview_with_active_subscription_and_credits(recruiter_client, respx_mock):
-    mock_select(respx_mock, "subscriptions", [{
-        "status": "active",
-        "current_period_start": "2025-01-01T00:00:00+00:00",
-        "current_period_end": "2025-02-01T00:00:00+00:00",
-        "cancel_at_period_end": False,
-        "plans": {"name": "pro", "display_name": "Pro Plan"},
-    }])
+def test_overview_returns_org_credit_budget(recruiter_client, respx_mock):
     mock_select(respx_mock, "usage_credits", [
         {"credit_type": "intake", "total": 100, "used": 20},
         {"credit_type": "interview", "total": 50, "used": 5},
@@ -31,49 +25,59 @@ def test_overview_with_active_subscription_and_credits(recruiter_client, respx_m
     resp = recruiter_client.get(ENDPOINT)
     assert resp.status_code == 200
     body = resp.json()
-    assert body["plan_name"] == "pro"
-    assert body["plan_display_name"] == "Pro Plan"
-    assert body["subscription_status"] == "active"
     assert body["intake_total"] == 100
     assert body["intake_used"] == 20
     assert body["intake_topup"] == 15  # 10 + 5 aggregated
     assert body["interview_total"] == 50
+    assert body["interview_used"] == 5
     assert body["interview_topup"] == 3
 
 
-def test_overview_no_subscription_defaults(recruiter_client, respx_mock):
-    mock_select(respx_mock, "subscriptions", [])
+def test_overview_no_plan_or_subscription_fields(recruiter_client, respx_mock):
+    """The plan/subscription concept is gone — the payload must not carry it."""
+    mock_select(respx_mock, "usage_credits", [
+        {"credit_type": "intake", "total": 10, "used": 0},
+    ])
+    mock_select(respx_mock, "topup_credits", [])
+
+    resp = recruiter_client.get(ENDPOINT)
+    assert resp.status_code == 200
+    body = resp.json()
+    for gone in (
+        "plan_name",
+        "plan_display_name",
+        "subscription_status",
+        "period_start",
+        "period_end",
+        "cancel_at_period_end",
+    ):
+        assert gone not in body
+
+
+def test_overview_unprovisioned_org_defaults_to_zero(recruiter_client, respx_mock):
     mock_select(respx_mock, "usage_credits", [])
     mock_select(respx_mock, "topup_credits", [])
 
     resp = recruiter_client.get(ENDPOINT)
     assert resp.status_code == 200
     body = resp.json()
-    assert body["plan_name"] == "Custom"
-    assert body["plan_display_name"] == "Custom"
-    assert body["subscription_status"] == "none"
-    assert body["cancel_at_period_end"] is False
     assert body["intake_total"] == 0
+    assert body["intake_used"] == 0
+    assert body["interview_total"] == 0
     assert body["interview_topup"] == 0
 
 
-def test_overview_plan_without_display_name(recruiter_client, respx_mock):
-    mock_select(respx_mock, "subscriptions", [{
-        "status": "active",
-        "current_period_start": None,
-        "current_period_end": None,
-        "cancel_at_period_end": True,
-        "plans": {"name": "starter"},
-    }])
-    mock_select(respx_mock, "usage_credits", [])
+def test_overview_passes_through_unlimited_sentinel(recruiter_client, respx_mock):
+    mock_select(respx_mock, "usage_credits", [
+        {"credit_type": "interview", "total": -1, "used": 7},
+    ])
     mock_select(respx_mock, "topup_credits", [])
 
     resp = recruiter_client.get(ENDPOINT)
     assert resp.status_code == 200
     body = resp.json()
-    assert body["plan_name"] == "starter"
-    assert body["plan_display_name"] == "starter"  # falls back to name
-    assert body["cancel_at_period_end"] is True
+    assert body["interview_total"] == -1
+    assert body["interview_used"] == 7
 
 
 def test_overview_requires_auth(unauthed_client):

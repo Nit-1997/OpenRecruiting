@@ -20,6 +20,7 @@ from app.api.v2.schemas.intake import (
 )
 from app.services._supabase_rows import first_row
 from app.services.ats_sync.plan_seed import fetch_seed_rounds
+from app.services.credit_service import use_credit
 from app.services.jobs.invoker import CONTEXT_BUILDER, get_invoker
 from intake_core.questions import QUESTIONS_VERSION, snapshot_questions
 
@@ -59,6 +60,10 @@ class IntakeSessionService:
                     requisition_id=requisition_id,
                 )
             form_data = _form_data_from_requisition(req_record)
+            # Charge only once we know this is a NEW session — the resume path
+            # above returns before reaching here, so reopening an in-progress
+            # intake is free. Raises 402 before any write.
+            await use_credit(str(org_id), "intake")
         else:
             if form_data is None:
                 raise ValidationError(
@@ -74,6 +79,10 @@ class IntakeSessionService:
                 raise ValidationError(
                     "Maximum experience can't be lower than minimum experience."
                 )
+
+            # Charge before the draft requisition insert so an exhausted org
+            # gets a clean 402 instead of an orphaned draft it can't act on.
+            await use_credit(str(org_id), "intake")
 
             # 1) Insert draft requisition — Migration 94 added 'draft' to status CHECK
             req_row = await (

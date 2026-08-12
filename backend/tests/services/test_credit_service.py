@@ -114,3 +114,91 @@ async def test_use_credit_exhausted_raises_402():
     assert e.value.status_code == 402
     assert e.value.detail["error"] == "credits_exhausted"
     assert e.value.detail["credit_type"] == "interview"
+
+
+# ---------------------------------------------------------------------------
+# provision_default_credits / set_org_budget
+# ---------------------------------------------------------------------------
+
+
+def _supa_writes(existing_rows):
+    """Stub whose reads return `existing_rows` and whose insert/update calls
+    are recorded on the builder for assertion."""
+    b = MagicMock()
+    for m in ("table", "select", "eq", "insert", "update"):
+        getattr(b, m).return_value = b
+    b.execute_async = AsyncMock(return_value=MagicMock(data=existing_rows))
+    supa = MagicMock()
+    supa.table.return_value = b
+    return supa, b
+
+
+async def test_provision_grants_both_credit_types_to_new_org():
+    supa, b = _supa_writes([])
+    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
+        await credit_mod.provision_default_credits("org-new")
+
+    inserted = [c.args[0] for c in b.insert.call_args_list]
+    assert {row["credit_type"] for row in inserted} == {"intake", "interview"}
+    assert all(row["organization_id"] == "org-new" for row in inserted)
+    assert all(row["used"] == 0 for row in inserted)
+    assert all(row["total"] == 10 for row in inserted)
+
+
+async def test_provision_is_idempotent_and_never_resets_a_tuned_budget():
+    """Re-running against an org that already has rows must not insert or
+    overwrite — an admin may have already raised the cap."""
+    supa, b = _supa_writes([{"id": "existing"}])
+    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
+        await credit_mod.provision_default_credits("org-existing")
+
+    b.insert.assert_not_called()
+    b.update.assert_not_called()
+
+
+async def test_provision_swallows_errors_so_org_creation_survives():
+    supa, b = _supa_writes([])
+    b.execute_async = AsyncMock(side_effect=RuntimeError("supabase down"))
+    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
+        await credit_mod.provision_default_credits("org-x")  # must not raise
+
+
+async def test_set_org_budget_updates_existing_row_preserving_used():
+    supa, b = _supa_writes([{"id": "row-1"}])
+    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
+        await credit_mod.set_org_budget("org-1", interview_total=50)
+
+    b.update.assert_called_once_with({"total": 50})
+    b.insert.assert_not_called()
+
+
+async def test_set_org_budget_inserts_when_org_has_no_row_yet():
+    supa, b = _supa_writes([])
+    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
+        await credit_mod.set_org_budget("org-1", intake_total=25)
+
+    b.insert.assert_called_once()
+    row = b.insert.call_args.args[0]
+    assert row == {
+        "organization_id": "org-1",
+        "credit_type": "intake",
+        "total": 25,
+        "used": 0,
+        "period_start": "now()",
+    }
+
+
+async def test_set_org_budget_ignores_omitted_credit_types():
+    supa, b = _supa_writes([{"id": "row-1"}])
+    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
+        await credit_mod.set_org_budget("org-1", intake_total=None, interview_total=7)
+
+    b.update.assert_called_once_with({"total": 7})
+
+
+async def test_set_org_budget_accepts_unlimited_sentinel():
+    supa, b = _supa_writes([{"id": "row-1"}])
+    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
+        await credit_mod.set_org_budget("org-1", interview_total=-1)
+
+    b.update.assert_called_once_with({"total": -1})

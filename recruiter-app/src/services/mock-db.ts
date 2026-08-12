@@ -160,8 +160,6 @@ function isQuotaError(err: unknown): boolean {
 }
 
 function emptyDb(): MockDb {
-  const now = new Date().toISOString();
-  const periodEnd = new Date(Date.now() + 30 * 86400000).toISOString();
   return {
     requisitions: [],
     candidates: [],
@@ -171,12 +169,6 @@ function emptyDb(): MockDb {
     team_members: [],
     invites: [],
     billing: {
-      plan_name: 'starter',
-      plan_display_name: 'Starter',
-      subscription_status: 'active',
-      period_start: now,
-      period_end: periodEnd,
-      cancel_at_period_end: false,
       intake_total: 5,
       intake_used: 0,
       intake_topup: 0,

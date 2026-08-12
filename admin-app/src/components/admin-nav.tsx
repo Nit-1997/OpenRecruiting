@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, Plus, LogOut, ClipboardList, Tag, CreditCard, FileText } from "lucide-react";
+import { Building2, Plus, LogOut, FileText } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { createClient } from "@/lib/supabase/client";
 
@@ -37,16 +37,9 @@ export function AdminNav() {
               <Building2 className="w-4 h-4" />
               Organizations
             </Link>
-            <Link
-              href="/assessments"
-              id="nav-assessments"
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                isActive("/assessments") ? "bg-secondary font-medium" : "hover:bg-secondary/50"
-              }`}
-            >
-              <ClipboardList className="w-4 h-4" />
-              Assessments
-            </Link>
+            {/* Assessments is parked: the templates API and the /assessments
+                routes still work, but there is no candidate-facing app to take
+                an assessment in, so the entry point stays hidden. */}
             <Link
               href="/blog"
               id="nav-blog"
@@ -57,26 +50,9 @@ export function AdminNav() {
               <FileText className="w-4 h-4" />
               Blog
             </Link>
-            <Link
-              href="/promotions"
-              id="nav-promotions"
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                isActive("/promotions") ? "bg-secondary font-medium" : "hover:bg-secondary/50"
-              }`}
-            >
-              <Tag className="w-4 h-4" />
-              Promotions
-            </Link>
-            <Link
-              href="/subscriptions"
-              id="nav-subscriptions"
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                isActive("/subscriptions") ? "bg-secondary font-medium" : "hover:bg-secondary/50"
-              }`}
-            >
-              <CreditCard className="w-4 h-4" />
-              Subscriptions
-            </Link>
+            {/* Promotions and Subscriptions are gone: there are no plans and no
+                payment provider. An org's credit budget is edited on its own
+                page, under Organizations. */}
           </div>
         </div>
         <div className="flex items-center gap-4">

@@ -10,6 +10,18 @@ import pytest
 from app.services.intake_session_service import IntakeSessionService
 
 
+@pytest.fixture(autouse=True)
+def _no_credit_charge():
+    """create_session charges an intake credit through the admin supabase
+    client, which these payload-shape tests don't stand up. Metering is covered
+    in test_intake_session_service.py."""
+    with patch(
+        "app.services.intake_session_service.use_credit",
+        new=AsyncMock(),
+    ):
+        yield
+
+
 def _supabase_for_create():
     client = MagicMock()
     client.table.return_value = client

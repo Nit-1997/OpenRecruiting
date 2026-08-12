@@ -1,16 +1,11 @@
-export type SubscriptionStatus = 'active' | 'cancelled' | 'none';
-
+// The organization holds one credit budget that every member draws from.
+// There are no plans or subscriptions — an admin sets the cap from the admin
+// portal. A total of -1 means unlimited.
 export interface BillingOverview {
-  plan_name: string;
-  plan_display_name: string;
-  subscription_status: SubscriptionStatus;
-  period_start: string | null;
-  period_end: string | null;
-  cancel_at_period_end: boolean;
-  intake_total: number;       // -1 = unlimited
+  intake_total: number;
   intake_used: number;
   intake_topup: number;
-  interview_total: number;    // -1 = unlimited
+  interview_total: number;
   interview_used: number;
   interview_topup: number;
 }

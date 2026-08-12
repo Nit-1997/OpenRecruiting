@@ -156,3 +156,70 @@ async def test_on_in_call_recording_already_charged_skips_cas():
     assert transitioned is True
     assert "credit_charged" not in update_data  # CAS path skipped
     uc.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_charge_credit_returns_outcome():
+    """The caller relies on the return value to keep or release its CAS claim."""
+    row = {"candidates": {"requisitions": {"organization_id": "org1"}}}
+    sb = _table_supabase({"candidate_rounds": _res([row])})
+
+    with patch("app.services.credit_service.use_credit", AsyncMock()):
+        assert await bsh._charge_interview_credit(sb, "cr1", "bot1") is True
+
+    with patch("app.services.credit_service.use_credit", AsyncMock(side_effect=RuntimeError("boom"))):
+        assert await bsh._charge_interview_credit(sb, "cr1", "bot1") is False
+
+    no_org = _table_supabase({"candidate_rounds": _res([])})
+    with patch("app.services.credit_service.use_credit", AsyncMock()):
+        assert await bsh._charge_interview_credit(no_org, "cr1", "bot1") is False
+
+
+@pytest.mark.asyncio
+async def test_on_in_call_recording_releases_claim_when_charge_fails():
+    """Regression: the CAS used to pin credit_charged=True the moment it won,
+    so a failed charge was lost with no way to retry. It must be released."""
+    recall_bot = {"id": "db1", "candidate_round_id": "cr1", "credit_charged": False}
+    org_row = {"candidates": {"requisitions": {"organization_id": "org1"}}}
+
+    sb = MagicMock()
+    cr_calls = {"n": 0}
+
+    def table(name):
+        builder = MagicMock()
+        for attr in ("select", "update", "eq", "in_"):
+            setattr(builder, attr, MagicMock(return_value=builder))
+        if name == "candidate_rounds":
+            async def exec_async():
+                cr_calls["n"] += 1
+                if cr_calls["n"] == 1:
+                    return MagicMock(data=[{"id": "cr1"}])
+                return MagicMock(data=[org_row])
+            builder.execute_async = AsyncMock(side_effect=exec_async)
+        elif name == "recall_bots":
+            builder.execute_async = AsyncMock(return_value=MagicMock(data=[{"id": "db1"}]))
+        else:
+            builder.execute_async = AsyncMock(return_value=MagicMock(data=[]))
+        return builder
+
+    sb.table = MagicMock(side_effect=table)
+    update_data: dict = {}
+    with patch(
+        "app.services.credit_service.use_credit",
+        AsyncMock(side_effect=RuntimeError("credits exhausted")),
+    ):
+        await bsh._on_in_call_recording(sb, recall_bot, update_data, "2025-01-01T00:00:00Z", "bot1")
+
+    assert update_data["credit_charged"] is False
+
+
+@pytest.mark.asyncio
+async def test_on_in_call_recording_no_candidate_round_does_not_claim_charge():
+    recall_bot = {"id": "db1", "candidate_round_id": None, "credit_charged": False}
+    sb = _table_supabase({"recall_bots": _res([{"id": "db1"}])})
+    update_data: dict = {}
+    with patch("app.services.credit_service.use_credit", AsyncMock()) as uc:
+        await bsh._on_in_call_recording(sb, recall_bot, update_data, "2025-01-01T00:00:00Z", "bot1")
+
+    assert update_data["credit_charged"] is False
+    uc.assert_not_awaited()

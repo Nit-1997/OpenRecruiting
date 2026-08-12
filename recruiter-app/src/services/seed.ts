@@ -490,12 +490,6 @@ export function buildSeed(): MockDb {
     ],
     invites: [],
     billing: {
-      plan_name: 'growth',
-      plan_display_name: 'Growth',
-      subscription_status: 'active',
-      period_start: '2026-04-20T00:00:00Z',
-      period_end: '2026-05-20T00:00:00Z',
-      cancel_at_period_end: false,
       intake_total: 25,
       intake_used: 4,
       intake_topup: 0,

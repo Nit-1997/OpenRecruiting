@@ -9,7 +9,7 @@ describe('mock-db', () => {
     const db = getDb();
     expect(db.requisitions).toEqual([]);
     expect(db.candidates).toEqual([]);
-    expect(db.billing.plan_name).toBe('starter');
+    expect(db.billing.interview_total).toBe(25);
     expect(db.profile.name).toBe('Nitin');
   });
 

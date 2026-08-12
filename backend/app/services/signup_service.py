@@ -1,5 +1,6 @@
 from app.config import get_settings
 from app.services.supabase import get_supabase_admin_client
+from app.services.credit_service import provision_default_credits
 from app.logging_config import get_logger
 from app.utils import parse_iso_datetime
 
@@ -156,6 +157,8 @@ async def complete_user_signup(user_id: str) -> dict:
         org_result.data[0] if isinstance(org_result.data, list) else org_result.data
     )
     new_org_id = new_org["id"]
+
+    await provision_default_credits(str(new_org_id))
 
     profile_result = await supabase.table("profiles").insert({
         "id": user_id,

@@ -6,6 +6,7 @@ from datetime import datetime
 from app.dependencies import require_staff, CurrentUser, invalidate_profile_cache
 from app.services.supabase import get_supabase_admin_client
 from app.services.billing_service import get_billing_service
+from app.services.credit_service import set_org_budget
 
 from app.logging_config import get_logger
 
@@ -32,6 +33,12 @@ class ManualSubscriptionUpdate(BaseModel):
     custom_max_users: Optional[int] = None
     current_period_end: Optional[datetime] = None
     status: Optional[str] = None
+
+
+class OrgCreditsUpdate(BaseModel):
+    """-1 means unlimited. Omitted fields are left untouched."""
+    intake_total: Optional[int] = Field(default=None, ge=-1)
+    interview_total: Optional[int] = Field(default=None, ge=-1)
 
 
 class MigrateUserRequest(BaseModel):
@@ -297,6 +304,26 @@ async def get_organization_credits(
         })
 
     return {"organization_id": str(org_id), "credits": credits}
+
+
+@router.put("/organizations/{org_id}/credits")
+async def set_organization_credits(
+    org_id: UUID,
+    req: OrgCreditsUpdate,
+    current_user: CurrentUser = Depends(require_staff),
+):
+    """Set an org's credit caps. This is the whole billing model — there are
+    no plans, so an admin raises or lowers the budget directly here.
+    """
+    if req.intake_total is None and req.interview_total is None:
+        raise HTTPException(status_code=400, detail="No credit totals to update")
+
+    await set_org_budget(
+        str(org_id),
+        intake_total=req.intake_total,
+        interview_total=req.interview_total,
+    )
+    return await get_organization_credits(org_id, current_user)
 
 
 @router.post("/organizations/{org_id}/migrate-user")

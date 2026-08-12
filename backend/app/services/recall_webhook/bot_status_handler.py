@@ -240,17 +240,27 @@ async def _on_in_call_recording(
             .eq("id", recall_bot["id"])\
             .eq("credit_charged", False)\
             .execute_async()
-        if cas.data and cr_id:
-            await _charge_interview_credit(supabase, cr_id, bot_id)
-        # Reflect the CAS write so the bulk update below doesn't clobber it.
-        update_data["credit_charged"] = True
+        if cas.data:
+            charged = bool(cr_id) and await _charge_interview_credit(
+                supabase, cr_id, bot_id
+            )
+            # Reflect the outcome so the bulk update below agrees with reality.
+            # Releasing the claim on failure lets a later webhook retry rather
+            # than the charge being lost for good — the flag used to be pinned
+            # True the moment the CAS won, whether or not the charge landed.
+            update_data["credit_charged"] = charged
 
     return transitioned
 
 
-async def _charge_interview_credit(supabase, cr_id: str, bot_id: str) -> None:
+async def _charge_interview_credit(supabase, cr_id: str, bot_id: str) -> bool:
     """Resolve org_id from the candidate_round and decrement an interview
     credit via the shared `use_credit_atomic` Postgres RPC.
+
+    Returns True only if a credit was actually consumed. The caller uses that
+    to decide whether to keep or release its `recall_bots.credit_charged`
+    claim, so a failed charge is retried on the next webhook instead of being
+    silently dropped.
 
     Idempotency: this is gated by a CAS update on `recall_bots.credit_charged`
     (see the caller in `_on_in_call_recording`), so a webhook replay never
@@ -258,24 +268,26 @@ async def _charge_interview_credit(supabase, cr_id: str, bot_id: str) -> None:
     the second arrival sees `credit_charged=true` and short-circuits
     before reaching here.
 
-    Failures are logged at WARNING and swallowed — losing a credit charge
-    is preferable to blocking the interview lifecycle.
+    Failures are logged at WARNING and swallowed — an exhausted or erroring
+    credit path must never block the interview lifecycle.
     """
     org_id = await _resolve_org_id(supabase, cr_id)
     if not org_id:
         logger.warning(
             f"Webhook: cannot charge credit — no org_id resolvable for cr={cr_id} bot={bot_id}"
         )
-        return
+        return False
 
     from app.services.credit_service import use_credit
     try:
         await use_credit(org_id, "interview")
         logger.info(f"Webhook: interview credit charged org={org_id} bot={bot_id}")
+        return True
     except Exception as e:
         logger.warning(
             f"Webhook: credit charge failed org={org_id} bot={bot_id} err={e} — interview proceeds"
         )
+        return False
 
 
 async def _resolve_org_id(supabase, cr_id: str) -> Optional[str]:
