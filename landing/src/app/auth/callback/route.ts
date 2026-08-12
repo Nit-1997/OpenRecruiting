@@ -1,3 +1,4 @@
+import { serverBackendUrl } from '@/lib/backend-url'
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
@@ -34,7 +35,12 @@ export async function GET(request: Request) {
 
       // Always call complete-signup so the backend gate applies to all providers.
       // The endpoint is idempotent: existing profiles return is_new:false.
-      const apiUrl = process.env.NEXT_PUBLIC_API_V2_URL || 'http://localhost:8004'
+      // This route runs IN THE CONTAINER, so it cannot use the browser's
+      // NEXT_PUBLIC_API_V2_URL (http://localhost:8004 — the container itself).
+      // The fetch below fails closed, so getting this wrong did not leak access:
+      // it signed every Google user straight back out with "Sign-in is
+      // temporarily unavailable", which reads like an outage rather than config.
+      const apiUrl = serverBackendUrl()
 
       // Sign-out helper: clears the session cookie before redirecting away.
       // Best-effort signOut PLUS explicit cookie deletion so a signOut failure

@@ -1,8 +1,13 @@
+import { serverBackendUrl } from "@/lib/backend-url";
+
 // Server-side fetches hit the backend directly; client-side fetches go
 // through the same-origin /api/blog rewrite (see next.config.ts) to avoid CORS.
+// The server branch must NOT use NEXT_PUBLIC_API_V2_URL: that is the browser's
+// value (http://localhost:8004), which from inside this container points at the
+// container itself, so every server-rendered blog fetch failed.
 const API_BASE =
   typeof window === "undefined"
-    ? `${process.env.NEXT_PUBLIC_API_V2_URL ?? "http://localhost:8004"}/api/v2/public/blog`
+    ? `${serverBackendUrl()}/api/v2/public/blog`
     : "/api/blog";
 
 export interface Author {

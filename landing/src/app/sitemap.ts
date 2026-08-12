@@ -1,6 +1,9 @@
 import type { MetadataRoute } from "next";
+import { serverBackendUrl } from "@/lib/backend-url";
 
-const BLOG_API_URL = process.env.NEXT_PUBLIC_API_V2_URL ?? "http://localhost:8004";
+// Sitemap generation runs in the container, so this is the compose address, not
+// the browser's NEXT_PUBLIC_API_V2_URL.
+const BLOG_API_URL = serverBackendUrl();
 
 async function fetchBlogSlugs(): Promise<{ slug: string; updatedAt: string }[]> {
   try {
