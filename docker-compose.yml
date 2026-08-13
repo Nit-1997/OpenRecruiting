@@ -41,10 +41,23 @@ services:
     image: neo4j:5-community
     environment:
       NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/openrecruiting}
-    ports: ["7474:7474", "7687:7687"]
+    # LOCALHOST ONLY. The fallback password above is published in .env.example,
+    # so a 0.0.0.0 binding put the whole knowledge graph — candidates,
+    # requisitions, interview content — one default login away for anyone on the
+    # same network. Nothing outside this host needs Neo4j: the services that read
+    # it (cortex-backend, cortex-mcp) reach it over the compose network, and
+    # these ports exist only for the browser console and cypher-shell.
+    ports: ["127.0.0.1:7474:7474", "127.0.0.1:7687:7687"]
     volumes: ["neo4j-data:/data"]
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u $${NEO4J_USERNAME:-neo4j} -p $${NEO4J_PASSWORD:-openrecruiting} 'RETURN 1' || exit 1"]
+      # Credentials are SPLIT OUT OF NEO4J_AUTH ("user/password") rather than
+      # read from NEO4J_USERNAME/NEO4J_PASSWORD. Two reasons, both learned the
+      # hard way: this service has no env_file, so those were never set and the
+      # check silently used a hardcoded default that broke the moment anyone
+      # rotated the password — and they cannot simply be added, because the
+      # Neo4j image treats every NEO4J_* variable as a config setting and
+      # refuses to boot on "Unrecognized setting: PASSWORD".
+      test: ["CMD-SHELL", "cypher-shell -u \"$${NEO4J_AUTH%%/*}\" -p \"$${NEO4J_AUTH#*/}\" 'RETURN 1' || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -121,7 +134,12 @@ services:
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     volumes:
       - ./litellm-config.yaml:/app/config.yaml:ro
-    ports: ["4000:4000"]
+    # LOCALHOST ONLY. This container holds every provider key in the stack. It
+    # does authenticate (no master key gets a 401), so this is defence in depth
+    # rather than a fix for an open door — but nothing off-host has any reason
+    # to reach it: the services that do are on the compose network, and the port
+    # is published only for `make verify` and local debugging.
+    ports: ["127.0.0.1:4000:4000"]
     env_file: [.env]
     # Lets the container reach an Ollama server running on the host.
     extra_hosts: ["host.docker.internal:host-gateway"]

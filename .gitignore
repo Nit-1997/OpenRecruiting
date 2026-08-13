@@ -6,6 +6,14 @@
 *.key
 *.cert
 *.secret
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
 secrets.json
 
 # Python

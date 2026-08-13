@@ -245,7 +245,33 @@ actually seen in practice.
 | `cortex-backend` :8010, `cortex-mcp` :8020, `neo4j` :7474 | knowledge graph |
 | `litellm` :4000 | the model gateway |
 
+`setup-ui`, `neo4j` and `litellm` bind to **127.0.0.1 only** — they hold, in
+order, every secret you have, the whole knowledge graph, and every provider key.
+Nothing off-host needs them.
+
 Publicly, everything is served through **one hostname**, path-routed by Caddy
 through the tunnel — not four subdomains. `/api/*` reaches the backend,
 `/voice-ws-v2/*` the voice agent, `/mcp` the connector, and everything else the
 voice frontend.
+
+## Before you put this on a server
+
+The laptop defaults are not server defaults.
+
+**Change the Neo4j password.** It ships as `neo4j/openrecruiting`, published in
+`.env.example`, so it is a public credential. Localhost binding is what makes
+the default survivable locally — it stops being survivable the moment the host
+is shared or the port is exposed. Rotate it on the running instance, then update
+`NEO4J_AUTH`, `NEO4J_PASSWORD` and `NEO4J_USERNAME` to match:
+
+```bash
+docker compose exec neo4j cypher-shell -u neo4j -p openrecruiting \
+  "ALTER CURRENT USER SET PASSWORD FROM 'openrecruiting' TO 'your-new-password'"
+```
+
+Editing `.env` alone will **not** rotate it: Neo4j only reads `NEO4J_AUTH` when
+initialising an empty data volume.
+
+**Check the other shared secrets are not still `change-me-local-only`** —
+`INTERNAL_API_SECRET` and `CORTEX_INTERNAL_SECRET` — and that
+`LITELLM_MASTER_KEY` and `LAMBDA_CALLBACK_SECRET` are set at all.
