@@ -274,6 +274,14 @@ GROUPS: list[Group] = [
                      secret=True, services=["backend", "voice-agent"]),
             Variable("JOB_INVOKER", "Job invoker mode", services=["backend"]),
             Variable("SIGNUP_INVITE_ONLY", "Invite-only signup", services=["backend", "landing"]),
+            Variable("DEFAULT_INTAKE_CREDITS", "Default intake credits",
+                     "Granted to each new organization. An admin can raise or "
+                     "lower a specific org's budget from the admin portal. -1 "
+                     "is unlimited.",
+                     services=["backend"]),
+            Variable("DEFAULT_INTERVIEW_CREDITS", "Default interview credits",
+                     "Granted to each new organization. -1 is unlimited.",
+                     services=["backend"]),
         ],
     ),
     # ── internal tier ───────────────────────────────────────────────────────
@@ -382,10 +390,6 @@ UNMANAGED: dict[str, str] = {
     # so a field would look configured and fail on the first send.
     "SENDGRID_API_KEY": "provider not implemented",
     "POSTMARK_SERVER_TOKEN": "provider not implemented",
-    # SaaS-only billing. Self-hosted instances get the built-in free tier.
-    "DODO_PAYMENTS_API_KEY": "hosted billing only",
-    "DODO_WEBHOOK_SECRET": "hosted billing only",
-    "DODO_ENVIRONMENT": "hosted billing only",
     # Per-workload model ALIASES. Managed in the Models per task section, which
     # edits litellm-config.yaml — the layer that decides what an alias serves.
     **{
