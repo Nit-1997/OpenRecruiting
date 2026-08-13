@@ -68,7 +68,7 @@ Twelve containers:
 |---|---|
 | `landing` :3000 | login; sets the shared auth cookie |
 | `recruiter-app` :3005 | the dashboard |
-| `admin-app` :3001 | staff portal: customers, subscriptions, promotions, blog |
+| `admin-app` :3001 | staff portal: organizations and their credit budgets, requisitions, blog |
 | `backend` :8004 | FastAPI, everything under `/api/v2/*` |
 | `feedback-agent`, `intake-agent`, `intake-context-builder` | background workers (internal-only) |
 | `cortex-backend` :8010, `cortex-mcp` :8020, `neo4j` :7474 | the knowledge graph |

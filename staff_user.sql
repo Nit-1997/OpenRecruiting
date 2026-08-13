@@ -10,9 +10,9 @@
 --
 -- WHAT "STAFF" MEANS
 --   `profiles.is_staff = true` is the only thing gating the admin portal and
---   the 61 endpoints under /api/v2/admin/*. It is effectively superuser over
---   every organization in the instance — customers, subscriptions, promotions,
---   and manual credit grants. Do not set it on ordinary recruiter accounts.
+--   the endpoints under /api/v2/admin/*. It is effectively superuser over every
+--   organization in the instance — including their credit budgets. Do not set
+--   it on ordinary recruiter accounts.
 --
 -- WHY THIS WRITES TO auth.users DIRECTLY
 --   `public.profiles.id` is a foreign key to `auth.users(id)`, and that table

@@ -3547,40 +3547,30 @@ CREATE FUNCTION public.use_credit_atomic(p_org_id uuid, p_credit_type text) RETU
     AS $$
 DECLARE
     v_row RECORD;
-    v_remaining int;
 BEGIN
     SELECT id, total, used INTO v_row
     FROM usage_credits
     WHERE organization_id = p_org_id AND credit_type = p_credit_type
     FOR UPDATE;
 
+    -- No budget provisioned yet: hand out one free credit so a brand-new org's
+    -- first action always succeeds. provision_default_credits normally gets
+    -- there first; this is the backstop.
     IF NOT FOUND THEN
         INSERT INTO usage_credits (organization_id, credit_type, total, used, period_start)
         VALUES (p_org_id, p_credit_type, 1, 1, now());
         RETURN 'free_default';
     END IF;
 
+    -- -1 is the unlimited sentinel.
     IF v_row.total = -1 THEN
         UPDATE usage_credits SET used = used + 1 WHERE id = v_row.id;
-        RETURN 'monthly';
+        RETURN 'budget';
     END IF;
 
-    v_remaining := v_row.total - v_row.used;
-    IF v_remaining > 0 THEN
+    IF v_row.total - v_row.used > 0 THEN
         UPDATE usage_credits SET used = used + 1 WHERE id = v_row.id;
-        RETURN 'monthly';
-    END IF;
-
-    SELECT id, remaining INTO v_row
-    FROM topup_credits
-    WHERE organization_id = p_org_id AND credit_type = p_credit_type AND remaining > 0
-    ORDER BY purchased_at
-    LIMIT 1
-    FOR UPDATE;
-
-    IF FOUND THEN
-        UPDATE topup_credits SET remaining = remaining - 1 WHERE id = v_row.id;
-        RETURN 'topup';
+        RETURN 'budget';
     END IF;
 
     RETURN 'exhausted';
@@ -4813,27 +4803,6 @@ CREATE TABLE public.personas (
 
 
 --
--- Name: plans; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.plans (
-    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
-    name character varying(50) NOT NULL,
-    display_name character varying(100) NOT NULL,
-    price_cents integer DEFAULT 0 NOT NULL,
-    "interval" character varying(20) DEFAULT 'monthly'::character varying,
-    intake_credits integer DEFAULT 1 NOT NULL,
-    interview_credits integer DEFAULT 1 NOT NULL,
-    slack_enabled boolean DEFAULT false,
-    max_users integer DEFAULT 1,
-    dodo_product_id character varying(255),
-    is_active boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now(),
-    google_calendar_enabled boolean DEFAULT false
-);
-
-
---
 -- Name: profiles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4850,22 +4819,6 @@ CREATE TABLE public.profiles (
     onboarding_completed boolean DEFAULT false,
     avatar_url text,
     timezone text
-);
-
-
---
--- Name: promotions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.promotions (
-    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
-    code character varying(50) NOT NULL,
-    percent_off integer DEFAULT 0 NOT NULL,
-    is_active boolean DEFAULT true,
-    start_date timestamp with time zone DEFAULT now(),
-    end_date timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT promotions_percent_off_check CHECK (((percent_off >= 0) AND (percent_off <= 100)))
 );
 
 
@@ -5132,61 +5085,6 @@ CREATE TABLE public.slack_installations (
     refresh_lock_owner text,
     reauth_notified_at timestamp with time zone,
     CONSTRAINT slack_installations_auth_state_check CHECK ((auth_state = ANY (ARRAY['healthy'::text, 'refreshing'::text, 'needs_reauth'::text, 'disabled'::text])))
-);
-
-
---
--- Name: subscriptions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.subscriptions (
-    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
-    organization_id uuid NOT NULL,
-    plan_id uuid NOT NULL,
-    status character varying(30) DEFAULT 'active'::character varying NOT NULL,
-    dodo_subscription_id character varying(255),
-    dodo_customer_id character varying(255),
-    current_period_start timestamp with time zone,
-    current_period_end timestamp with time zone,
-    cancel_at_period_end boolean DEFAULT false,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
-    custom_price_cents integer,
-    custom_intake_credits integer,
-    custom_interview_credits integer,
-    custom_max_users integer,
-    is_manual boolean DEFAULT false
-);
-
-
---
--- Name: topup_credits; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.topup_credits (
-    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
-    organization_id uuid NOT NULL,
-    credit_type character varying(30) DEFAULT 'interview'::character varying NOT NULL,
-    amount integer DEFAULT 0 NOT NULL,
-    remaining integer DEFAULT 0 NOT NULL,
-    dodo_payment_id character varying(255),
-    purchased_at timestamp with time zone DEFAULT now()
-);
-
-
---
--- Name: topup_products; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.topup_products (
-    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
-    name character varying(100) NOT NULL,
-    credit_type character varying(30) DEFAULT 'interview'::character varying NOT NULL,
-    credit_amount integer NOT NULL,
-    price_cents integer NOT NULL,
-    dodo_product_id character varying(255),
-    is_active boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now()
 );
 
 
@@ -5747,35 +5645,11 @@ ALTER TABLE ONLY public.personas
 
 
 --
--- Name: plans plans_name_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.plans
-    ADD CONSTRAINT plans_name_key UNIQUE (name);
-
-
---
--- Name: plans plans_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.plans
-    ADD CONSTRAINT plans_pkey PRIMARY KEY (id);
-
-
---
 -- Name: profiles profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profiles
     ADD CONSTRAINT profiles_pkey PRIMARY KEY (id);
-
-
---
--- Name: promotions promotions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.promotions
-    ADD CONSTRAINT promotions_pkey PRIMARY KEY (id);
 
 
 --
@@ -5880,30 +5754,6 @@ ALTER TABLE ONLY public.slack_installations
 
 ALTER TABLE ONLY public.slack_installations
     ADD CONSTRAINT slack_installations_slack_team_id_key UNIQUE (slack_team_id);
-
-
---
--- Name: subscriptions subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.subscriptions
-    ADD CONSTRAINT subscriptions_pkey PRIMARY KEY (id);
-
-
---
--- Name: topup_credits topup_credits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.topup_credits
-    ADD CONSTRAINT topup_credits_pkey PRIMARY KEY (id);
-
-
---
--- Name: topup_products topup_products_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.topup_products
-    ADD CONSTRAINT topup_products_pkey PRIMARY KEY (id);
 
 
 --
@@ -6876,52 +6726,10 @@ CREATE INDEX idx_slack_installations_team_active ON public.slack_installations U
 
 
 --
--- Name: idx_subscriptions_dodo_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_subscriptions_dodo_id ON public.subscriptions USING btree (dodo_subscription_id);
-
-
---
--- Name: idx_subscriptions_org; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_subscriptions_org ON public.subscriptions USING btree (organization_id);
-
-
---
--- Name: idx_subscriptions_org_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_subscriptions_org_status ON public.subscriptions USING btree (organization_id, status);
-
-
---
--- Name: idx_subscriptions_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_subscriptions_status ON public.subscriptions USING btree (status);
-
-
---
 -- Name: idx_templates_status; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_templates_status ON public.assessment_templates USING btree (status);
-
-
---
--- Name: idx_topup_credits_org; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_topup_credits_org ON public.topup_credits USING btree (organization_id);
-
-
---
--- Name: idx_topup_credits_remaining; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_topup_credits_remaining ON public.topup_credits USING btree (organization_id, credit_type) WHERE (remaining > 0);
 
 
 --
@@ -7714,30 +7522,6 @@ ALTER TABLE ONLY public.slack_installations
 
 
 --
--- Name: subscriptions subscriptions_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.subscriptions
-    ADD CONSTRAINT subscriptions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id);
-
-
---
--- Name: subscriptions subscriptions_plan_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.subscriptions
-    ADD CONSTRAINT subscriptions_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.plans(id);
-
-
---
--- Name: topup_credits topup_credits_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.topup_credits
-    ADD CONSTRAINT topup_credits_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id);
-
-
---
 -- Name: transcripts transcripts_candidate_round_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7801,59 +7585,10 @@ CREATE POLICY "Admin full access to invites" ON public.organization_invites USIN
 
 
 --
--- Name: plans Admin full access to plans; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admin full access to plans" ON public.plans USING (public.is_admin()) WITH CHECK (public.is_admin());
-
-
---
--- Name: promotions Admin full access to promotions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admin full access to promotions" ON public.promotions USING (public.is_admin()) WITH CHECK (public.is_admin());
-
-
---
--- Name: subscriptions Admin full access to subscriptions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admin full access to subscriptions" ON public.subscriptions USING (public.is_admin()) WITH CHECK (public.is_admin());
-
-
---
--- Name: topup_credits Admin full access to topup_credits; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admin full access to topup_credits" ON public.topup_credits USING (public.is_admin()) WITH CHECK (public.is_admin());
-
-
---
--- Name: topup_products Admin full access to topup_products; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admin full access to topup_products" ON public.topup_products USING (public.is_admin()) WITH CHECK (public.is_admin());
-
-
---
 -- Name: usage_credits Admin full access to usage_credits; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "Admin full access to usage_credits" ON public.usage_credits USING (public.is_admin()) WITH CHECK (public.is_admin());
-
-
---
--- Name: plans Anyone can read active plans; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Anyone can read active plans" ON public.plans FOR SELECT USING ((is_active = true));
-
-
---
--- Name: topup_products Anyone can read active topup products; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Anyone can read active topup products" ON public.topup_products FOR SELECT USING ((is_active = true));
 
 
 --
@@ -7898,24 +7633,6 @@ CREATE POLICY "Users can view own org credits" ON public.usage_credits FOR SELEC
 --
 
 CREATE POLICY "Users can view own org invites" ON public.organization_invites FOR SELECT USING ((organization_id IN ( SELECT profiles.organization_id
-   FROM public.profiles
-  WHERE (profiles.id = auth.uid()))));
-
-
---
--- Name: subscriptions Users can view own org subscription; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Users can view own org subscription" ON public.subscriptions FOR SELECT USING ((organization_id = ( SELECT profiles.organization_id
-   FROM public.profiles
-  WHERE (profiles.id = auth.uid()))));
-
-
---
--- Name: topup_credits Users can view own org topup credits; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Users can view own org topup credits" ON public.topup_credits FOR SELECT USING ((organization_id = ( SELECT profiles.organization_id
    FROM public.profiles
   WHERE (profiles.id = auth.uid()))));
 
@@ -8487,12 +8204,6 @@ CREATE POLICY organizations_update_policy ON public.organizations FOR UPDATE TO 
 ALTER TABLE public.personas ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: plans; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: profiles; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -8525,12 +8236,6 @@ CREATE POLICY profiles_select_policy ON public.profiles FOR SELECT TO authentica
 
 CREATE POLICY profiles_update_policy ON public.profiles FOR UPDATE TO authenticated USING (((id = ( SELECT auth.uid() AS uid)) OR ( SELECT public.is_admin() AS is_admin))) WITH CHECK (((id = ( SELECT auth.uid() AS uid)) OR ( SELECT public.is_admin() AS is_admin)));
 
-
---
--- Name: promotions; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: recall_bots; Type: ROW SECURITY; Schema: public; Owner: -
@@ -8693,24 +8398,6 @@ ALTER TABLE public.slack_installations ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY slack_installations_service_only ON public.slack_installations USING ((auth.role() = 'service_role'::text)) WITH CHECK ((auth.role() = 'service_role'::text));
 
-
---
--- Name: subscriptions; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
-
---
--- Name: topup_credits; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.topup_credits ENABLE ROW LEVEL SECURITY;
-
---
--- Name: topup_products; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.topup_products ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: transcripts; Type: ROW SECURITY; Schema: public; Owner: -
@@ -9683,30 +9370,12 @@ GRANT ALL ON TABLE public.personas TO service_role;
 
 
 --
--- Name: TABLE plans; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.plans TO anon;
-GRANT ALL ON TABLE public.plans TO authenticated;
-GRANT ALL ON TABLE public.plans TO service_role;
-
-
---
 -- Name: TABLE profiles; Type: ACL; Schema: public; Owner: -
 --
 
 GRANT ALL ON TABLE public.profiles TO anon;
 GRANT ALL ON TABLE public.profiles TO authenticated;
 GRANT ALL ON TABLE public.profiles TO service_role;
-
-
---
--- Name: TABLE promotions; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.promotions TO anon;
-GRANT ALL ON TABLE public.promotions TO authenticated;
-GRANT ALL ON TABLE public.promotions TO service_role;
 
 
 --
@@ -9779,33 +9448,6 @@ GRANT ALL ON TABLE public.slack_connections TO service_role;
 GRANT ALL ON TABLE public.slack_installations TO anon;
 GRANT ALL ON TABLE public.slack_installations TO authenticated;
 GRANT ALL ON TABLE public.slack_installations TO service_role;
-
-
---
--- Name: TABLE subscriptions; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.subscriptions TO anon;
-GRANT ALL ON TABLE public.subscriptions TO authenticated;
-GRANT ALL ON TABLE public.subscriptions TO service_role;
-
-
---
--- Name: TABLE topup_credits; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.topup_credits TO anon;
-GRANT ALL ON TABLE public.topup_credits TO authenticated;
-GRANT ALL ON TABLE public.topup_credits TO service_role;
-
-
---
--- Name: TABLE topup_products; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.topup_products TO anon;
-GRANT ALL ON TABLE public.topup_products TO authenticated;
-GRANT ALL ON TABLE public.topup_products TO service_role;
 
 
 --
