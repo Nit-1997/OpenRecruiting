@@ -26,6 +26,7 @@ from app.auth import Auth, AuthError
 from app.docker_ctl import DockerControl, DockerError
 from app.envfile import atomic_write, parse, update
 from app.litellm_cfg import read_aliases, set_model
+from app.readiness import evaluate as evaluate_readiness
 from app.supabase_setup import check_schema, manual_instructions
 from app import derive
 from app.varmap import GROUPS, affected_services, all_variables, is_secret
@@ -288,6 +289,31 @@ async def database() -> dict:
         "state": status.state,
         "detail": status.detail,
         "steps": [] if status.ready else manual_instructions(values.get("SUPABASE_URL", "")),
+    }
+
+
+@app.get("/api/readiness", dependencies=[Depends(require_auth)])
+async def readiness() -> dict:
+    """Which features are live, and what is still missing for the rest.
+
+    Derived purely from `.env`, so it answers "have I finished configuring
+    this?" — not "is it working right now?". Container state is /api/health and
+    schema state is /api/database; a feature can be `live` here while a
+    container is down.
+    """
+    features = evaluate_readiness(_read_env())
+    return {
+        "features": [
+            {
+                "id": f.id,
+                "name": f.name,
+                "state": f.state,
+                "missing": f.missing,
+                "consequence": f.consequence,
+                "doc": f.doc,
+            }
+            for f in features
+        ]
     }
 
 

@@ -97,6 +97,12 @@
       <button class="ghost" id="database-recheck">Re-check</button>
     </div>
 
+    <div class="card" id="readiness-card">
+      <h2 id="readiness-title">What works <span class="pill" id="readiness-pill">checking…</span></h2>
+      <p class="blurb" id="readiness-blurb">Read from your settings, so it answers &ldquo;have I finished configuring this?&rdquo; — not &ldquo;is it running?&rdquo;. Container state is under Services.</p>
+      <div id="readiness-list"></div>
+    </div>
+
     <div id="groups-rest"></div>
 
     <details class="card" id="health-card">
@@ -170,7 +176,7 @@
       TOKEN = token;
       show($("gate-section"), false);
       show($("app-section"), true);
-      await Promise.all([loadConfig(), loadHealth(), loadDatabase(), loadModels()]);
+      await Promise.all([loadConfig(), loadHealth(), loadDatabase(), loadReadiness(), loadModels()]);
       setInterval(loadHealth, 10000);
     } catch (err) { setMsg($("gate-error"), err.message); }
   });
@@ -212,6 +218,39 @@
     }
   }
   $("database-recheck").addEventListener("click", loadDatabase);
+
+  // ── readiness ───────────────────────────────────────────────────
+  // Advisory, like health: a failure here must never block the form.
+  async function loadReadiness() {
+    const pill = $("readiness-pill"), list = $("readiness-list");
+    try {
+      const { features } = await api("/api/readiness");
+      const map = { live: ["ok", "live"], partial: ["warn", "incomplete"],
+                    dormant: ["", "off"], unknown: ["", "can't check"] };
+      const live = features.filter((f) => f.state === "live").length;
+      const gaps = features.filter((f) => f.state === "partial").length;
+
+      pill.className = `pill ${gaps ? "warn" : "ok"}`;
+      pill.textContent = gaps ? `${gaps} incomplete` : `${live} live`;
+
+      list.innerHTML = features.map((f) => {
+        const [cls, label] = map[f.state] || ["", f.state];
+        // Only explain a feature that is not finished. A live one needs no prose.
+        const detail = f.state === "live" ? "" : `
+          <div class="help" id="readiness-detail-${f.id}" style="margin-top:3px">
+            ${f.consequence}${f.missing.length ? ` <span style="opacity:.75">Needs: ${f.missing.join(", ")}.</span>` : ""}
+            ${f.doc ? ` <span style="opacity:.75">See ${f.doc}.</span>` : ""}
+          </div>`;
+        return `
+          <div id="readiness-row-${f.id}" style="border-top:1px solid var(--line);padding:10px 0">
+            <div class="row" style="justify-content:space-between;gap:8px">
+              <span id="readiness-name-${f.id}">${f.name}</span>
+              <span class="pill ${cls}" id="readiness-pill-${f.id}">${label}</span>
+            </div>${detail}
+          </div>`;
+      }).join("");
+    } catch (err) { /* advisory; never block the form on it */ }
+  }
 
   // ── models per task ─────────────────────────────────────────────
   async function loadModels() {
@@ -390,7 +429,7 @@
           : "Nothing needed restarting."));
       if (failed.length) setMsg($("app-error"), `${failed.length} service(s) did not come back healthy. Check: docker compose logs ${failed.map((f) => f.service).join(" ")}`);
       pending.clear(); renderBar();
-      await Promise.all([loadConfig(), loadHealth()]);
+      await Promise.all([loadConfig(), loadHealth(), loadReadiness()]);
     } catch (err) {
       setMsg($("app-error"), err.message);
     } finally {

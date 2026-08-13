@@ -296,3 +296,45 @@ def test_a_supabase_key_writes_both_of_its_names(client, monkeypatch):
     text = env.read_text()
     assert "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_pub_x" in text
     assert "NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_pub_x" in text
+
+
+# ── readiness ───────────────────────────────────────────────────────────────
+
+def test_readiness_requires_authentication(client):
+    c, _, _ = client
+
+    assert c.get("/api/readiness").status_code == 401
+
+
+def test_readiness_reports_every_feature_with_its_consequence(client):
+    c, _, _, headers = _signed_in(client)
+
+    body = c.get("/api/readiness", headers=headers).json()
+
+    assert body["features"]
+    for feature in body["features"]:
+        assert set(feature) == {"id", "name", "state", "missing", "consequence", "doc"}
+        assert feature["state"] in {"live", "partial", "dormant", "unknown"}
+        assert feature["consequence"]
+
+
+def test_readiness_reflects_the_env_file_it_reads(client):
+    """Written straight from .env, so a saved value shows up on the next read."""
+    c, main, env, headers = _signed_in(client)
+
+    before = {f["id"]: f for f in c.get("/api/readiness", headers=headers).json()["features"]}
+    assert before["ats"]["state"] == "dormant"
+
+    env.write_text(env.read_text(encoding="utf-8") + "\nKNIT_API_KEY=abc123\n", encoding="utf-8")
+
+    after = {f["id"]: f for f in c.get("/api/readiness", headers=headers).json()["features"]}
+    assert after["ats"]["state"] == "live"
+
+
+def test_readiness_never_claims_google_auth_works(client):
+    c, _, _, headers = _signed_in(client)
+
+    features = {f["id"]: f for f in c.get("/api/readiness", headers=headers).json()["features"]}
+
+    assert features["google_auth"]["state"] == "unknown"
+    assert features["google_auth"]["doc"]

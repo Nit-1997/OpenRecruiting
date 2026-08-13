@@ -38,7 +38,35 @@
 --   The REVOKE EXECUTE ... FROM authenticated, PUBLIC statements on the
 --   SECURITY DEFINER functions are load-bearing. Do not strip them: they are
 --   what keeps those functions callable only by service_role.
+--
+-- ⚠ IF YOU REGENERATE THIS FILE
+--   pg_dump does not emit the BEGIN, the already-applied guard, or the COMMIT
+--   below. Re-apply all three by hand after any refresh. Without them, running
+--   this file a second time produces ~500 errors against a half-mutated
+--   database, and a mid-apply timeout leaves the schema partly built with no
+--   clean way to recover — both states this project has already shipped into.
 -- ============================================================================
+
+-- One transaction for the whole file: either the schema lands completely or the
+-- database is untouched. Supabase's SQL editor can time out on a file this
+-- size, and a partial apply is far harder to diagnose than a clean failure.
+BEGIN;
+
+-- Refuse to run twice. `organizations` is the root of the tenancy model, so it
+-- can never legitimately be absent from a provisioned project; setup-ui's
+-- REST-based check (app/supabase_setup.py) uses the same sentinel, so the two
+-- always agree.
+DO $guard$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'organizations'
+  ) THEN
+    RAISE EXCEPTION
+      'OpenRecruiting schema is already applied to this database. Nothing was changed.';
+  END IF;
+END
+$guard$;
 
 -- Extensions. Schema placement mirrors a stock Supabase project: uuid-ossp and
 -- pgcrypto live in "extensions"; pgvector is used as public.vector(1536).
@@ -9645,3 +9673,8 @@ REVOKE ALL ON FUNCTION public.update_assessment_templates_updated_at() FROM PUBL
 GRANT EXECUTE ON FUNCTION public.update_assessment_templates_updated_at() TO service_role;
 REVOKE ALL ON FUNCTION public.use_credit_atomic(p_org_id uuid, p_credit_type text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.use_credit_atomic(p_org_id uuid, p_credit_type text) TO service_role;
+
+-- Commit the whole schema. See the regeneration warning in the banner above:
+-- this COMMIT and the BEGIN/guard that open the file are hand-added and are
+-- not reproduced by pg_dump.
+COMMIT;

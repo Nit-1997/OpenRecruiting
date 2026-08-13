@@ -206,10 +206,20 @@ GROUPS: list[Group] = [
         id="urls",
         title="Domains",
         blurb=(
-            "Only needed when the apps are not on plain localhost. The container "
-            "addresses they used to sit beside are under Service wiring."
+            "Your public address, and the tunnel that serves it. Only needed "
+            "when the apps are not on plain localhost — but meeting capture "
+            "always needs both, because Recall runs in the cloud and calls you. "
+            "The container addresses these used to sit beside are under Service "
+            "wiring."
         ),
         variables=[
+            Variable("CLOUDFLARE_TOKEN", "Cloudflare tunnel token",
+                     "From a Cloudflare Zero Trust tunnel. This is the other "
+                     "half of the public address set under Get started: that "
+                     "field says where you are, this is what makes you "
+                     "reachable. Unset means cloudflared runs with no tunnel, "
+                     "so nothing outside the host can reach the stack.",
+                     secret=True, services=["cloudflared"]),
             Variable("NEXT_PUBLIC_COOKIE_DOMAIN", "Shared cookie domain",
                      "Blank for localhost. Set for cross-subdomain SSO.",
                      services=_FRONTENDS),
