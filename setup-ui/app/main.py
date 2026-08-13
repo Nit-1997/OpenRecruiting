@@ -310,6 +310,7 @@ async def readiness() -> dict:
                 "state": f.state,
                 "missing": f.missing,
                 "consequence": f.consequence,
+                "required": f.required,
                 "doc": f.doc,
             }
             for f in features

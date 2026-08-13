@@ -111,6 +111,27 @@ def _backend_settings() -> set[str]:
     return set(re.findall(r"^\s{4}([A-Z][A-Z0-9_]+)\s*:", cfg.read_text(encoding="utf-8"), re.M))
 
 
+def _voice_agent_settings() -> set[str]:
+    """Every field on the voice agent's own Settings class, upper-cased.
+
+    It declares them lower_snake and pydantic-settings maps them to upper-case
+    env vars, so they never matched the backend scan. That hole is not
+    theoretical: CLOUDFLARE_TURN_TOKEN_ID and CLOUDFLARE_TURN_API_TOKEN were
+    read by ice.py, absent from .env.example and absent from this map, so the
+    setup UI could not configure the TURN provider the docs recommend — and the
+    readiness panel reported a working Cloudflare relay as unconfigured.
+    """
+    import re
+
+    cfg = REPO / "voice-agent" / "src" / "config.py"
+    if not cfg.exists():
+        pytest.skip("voice-agent/src/config.py not reachable")
+    body = cfg.read_text(encoding="utf-8")
+    # Fields only — skip model_config and anything nested deeper than the class.
+    names = re.findall(r"^\s{4}([a-z][a-z0-9_]+)\s*:\s*(?:str|int|float|bool)", body, re.M)
+    return {n.upper() for n in names if n != "model_config"}
+
+
 def test_every_backend_setting_is_either_managed_or_explicitly_excluded():
     """The guard that .env.example could not provide.
 
@@ -129,6 +150,20 @@ def test_every_backend_setting_is_either_managed_or_explicitly_excluded():
     assert unaccounted == [], (
         "these backend settings are neither in a UI group nor in UNMANAGED. Add "
         f"them to one or the other — silence is how a credential goes missing: {unaccounted}"
+    )
+
+
+def test_every_voice_agent_setting_is_either_managed_or_explicitly_excluded():
+    """The voice agent has its OWN Settings class, and scanning only the backend
+    left it uncovered. Two credentials lived in that blind spot —
+    CLOUDFLARE_TURN_TOKEN_ID and CLOUDFLARE_TURN_API_TOKEN — read by ice.py,
+    missing from .env.example, and unsettable from this UI, while the docs told
+    people Cloudflare was the TURN provider to use."""
+    unaccounted = sorted(_voice_agent_settings() - all_variables() - set(UNMANAGED))
+
+    assert unaccounted == [], (
+        "these voice-agent settings are neither in a UI group nor in UNMANAGED: "
+        f"{unaccounted}"
     )
 
 

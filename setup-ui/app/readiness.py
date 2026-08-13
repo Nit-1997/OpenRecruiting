@@ -47,6 +47,11 @@ class Feature:
     state: str
     missing: list[str]
     consequence: str
+    #: False only for the genuinely optional: Google OAuth, the knowledge graph,
+    #: the MCP connector and ATS sync. Everything else is needed to run a real
+    #: session, and reporting it as merely "off" understates a half-built
+    #: instance.
+    required: bool = True
     #: Where to go when this cannot be settled from `.env` alone.
     doc: str = ""
 
@@ -57,9 +62,13 @@ class _Spec:
     name: str
     requires: tuple[str, ...]
     consequence: str
+    #: An equally valid alternative set. Satisfying EITHER makes the feature
+    #: live — see the two TURN providers below.
+    alt_requires: tuple[str, ...] = ()
     #: Features that are meaningless on their own. Meeting-bot voice needs a
     #: working browser voice stack before TURN is worth reporting on.
     depends_on: str = ""
+    required: bool = True
 
 
 #: Order matters — this is the order the panel renders in, most fundamental
@@ -83,27 +92,35 @@ _SPECS: tuple[_Spec, ...] = (
         ("DEEPGRAM_API_KEY",),
         "The voice agent starts but cannot transcribe anything.",
     ),
+    # Two TURN providers, either of which is complete on its own. Cloudflare
+    # mints short-lived credentials from a server-side key, so it CANNOT be
+    # expressed as a static url/username/credential triple — checking only the
+    # static trio reported a working Cloudflare relay as unconfigured.
     _Spec(
         "bot_voice", "Meeting-bot voice",
-        ("TURN_SERVER_URL", "TURN_USERNAME", "TURN_CREDENTIAL"),
+        ("CLOUDFLARE_TURN_TOKEN_ID", "CLOUDFLARE_TURN_API_TOKEN"),
         "A Recall bot cannot reach the voice agent through NAT. Browser voice "
         "is unaffected.",
+        alt_requires=("TURN_SERVER_URL", "TURN_USERNAME", "TURN_CREDENTIAL"),
         depends_on="voice",
     ),
     _Spec(
         "graph", "Knowledge graph",
         ("NEO4J_PASSWORD", "CORTEX_INTERNAL_SECRET", "OPENAI_API_KEY"),
         "No graph is built, so Cortex cannot answer questions about your data.",
+        required=False,
     ),
     _Spec(
         "mcp", "MCP connector",
         ("MCP_JWT_KEY_ID", "MCP_JWT_PRIVATE_KEY_PEM", "WEBHOOK_BASE_URL"),
         "Connector discovery returns 503, so no assistant can attach.",
+        required=False,
     ),
     _Spec(
         "ats", "ATS sync",
         ("KNIT_API_KEY",),
         "No ATS is synced.",
+        required=False,
     ),
     _Spec(
         "callbacks", "Worker callbacks",
@@ -167,13 +184,25 @@ def evaluate(values: dict[str, str]) -> list[Feature]:
         missing = [n for n in spec.requires if not _set(values, n)]
         state = _state(missing, len(spec.requires))
 
+        if spec.alt_requires:
+            alt_missing = [n for n in spec.alt_requires if not _set(values, n)]
+            alt_state = _state(alt_missing, len(spec.alt_requires))
+            # Whichever provider the operator actually started configuring is
+            # the one to report on. Reporting both would list every variable of
+            # the road not taken as "missing".
+            if alt_state == LIVE or (state == DORMANT and alt_state == PARTIAL):
+                missing, state = alt_missing, alt_state
+
         # A dependency that is not live makes this feature unreachable however
         # complete its own settings are.
         if spec.depends_on and states.get(spec.depends_on) != LIVE:
             state = PARTIAL if state == LIVE else state
 
         states[spec.id] = state
-        features.append(Feature(spec.id, spec.name, state, missing, spec.consequence))
+        features.append(Feature(
+            spec.id, spec.name, state, missing, spec.consequence,
+            required=spec.required,
+        ))
 
     features.append(_email(values))
 
@@ -182,7 +211,8 @@ def evaluate(values: dict[str, str]) -> list[Feature]:
         "google_auth", "Google sign-in", UNKNOWN, [],
         "Configured in the Supabase dashboard, not here, so this page cannot "
         "check it.",
-        doc="docs/setup/supabase.md",
+        required=False,
+        doc="docs/setup/google-auth.md",
     ))
 
     return features

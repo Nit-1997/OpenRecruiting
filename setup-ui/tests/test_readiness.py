@@ -84,6 +84,55 @@ def test_bot_voice_is_not_live_without_browser_voice():
     assert _by_id({**turn, "DEEPGRAM_API_KEY": "k"})["bot_voice"].state == LIVE
 
 
+# ── either TURN provider satisfies meeting-bot voice ────────────────────────
+
+def test_cloudflare_turn_alone_is_enough():
+    """Regression: checking only the static trio reported a working Cloudflare
+    relay as unconfigured, because Cloudflare mints short-lived credentials from
+    a server-side key and has no static username/password to check."""
+    values = {"DEEPGRAM_API_KEY": "k",
+              "CLOUDFLARE_TURN_TOKEN_ID": "id", "CLOUDFLARE_TURN_API_TOKEN": "tok"}
+    f = _by_id(values)["bot_voice"]
+    assert f.state == LIVE
+    assert f.missing == []
+
+
+def test_static_turn_alone_is_enough():
+    values = {"DEEPGRAM_API_KEY": "k", "TURN_SERVER_URL": "turn:x:3478",
+              "TURN_USERNAME": "u", "TURN_CREDENTIAL": "c"}
+    assert _by_id(values)["bot_voice"].state == LIVE
+
+
+def test_neither_turn_provider_reports_the_cloudflare_pair():
+    """With nothing set, name one path rather than every variable of both."""
+    f = _by_id({"DEEPGRAM_API_KEY": "k"})["bot_voice"]
+    assert f.state == DORMANT
+    assert "CLOUDFLARE_TURN_TOKEN_ID" in f.missing
+    assert "TURN_SERVER_URL" not in f.missing
+
+
+def test_half_a_cloudflare_pair_is_partial_not_dormant():
+    values = {"DEEPGRAM_API_KEY": "k", "CLOUDFLARE_TURN_TOKEN_ID": "id"}
+    f = _by_id(values)["bot_voice"]
+    assert f.state == PARTIAL
+    assert f.missing == ["CLOUDFLARE_TURN_API_TOKEN"]
+
+
+# ── required vs optional ────────────────────────────────────────────────────
+
+REQUIRED_IDS = {"core", "meetings", "voice", "bot_voice", "email", "callbacks"}
+OPTIONAL_IDS = {"graph", "mcp", "ats", "google_auth"}
+
+
+def test_the_required_set_matches_the_spec():
+    """Pins the docs/superpowers/specs/2026-08-12-setup-wiki-design.md list, so
+    the wiki and the panel cannot drift apart. An unset REQUIRED feature must
+    never render as merely 'off'."""
+    features = {f.id: f for f in evaluate({})}
+    assert {i for i, f in features.items() if f.required} == REQUIRED_IDS
+    assert {i for i, f in features.items() if not f.required} == OPTIONAL_IDS
+
+
 # ── email picks its required key from the provider ──────────────────────────
 
 def test_email_dormant_with_no_provider():

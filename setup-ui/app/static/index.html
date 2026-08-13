@@ -225,16 +225,23 @@
     const pill = $("readiness-pill"), list = $("readiness-list");
     try {
       const { features } = await api("/api/readiness");
-      const map = { live: ["ok", "live"], partial: ["warn", "incomplete"],
-                    dormant: ["", "off"], unknown: ["", "can't check"] };
-      const live = features.filter((f) => f.state === "live").length;
-      const gaps = features.filter((f) => f.state === "partial").length;
+      // A REQUIRED feature that is unset is not "off" — it is unfinished. Only
+      // the genuinely optional ones get the neutral label.
+      const label = (f) => {
+        if (f.state === "live") return ["ok", "live"];
+        if (f.state === "unknown") return ["", "can't check"];
+        if (f.state === "partial") return ["warn", "incomplete"];
+        return f.required ? ["bad", "not set up"] : ["", "off"];
+      };
+      const gaps = features.filter((f) => f.required && f.state !== "live").length;
 
-      pill.className = `pill ${gaps ? "warn" : "ok"}`;
-      pill.textContent = gaps ? `${gaps} incomplete` : `${live} live`;
+      pill.className = `pill ${gaps ? "bad" : "ok"}`;
+      pill.textContent = gaps
+        ? `${gaps} required ${gaps === 1 ? "step" : "steps"} left`
+        : "ready";
 
       list.innerHTML = features.map((f) => {
-        const [cls, label] = map[f.state] || ["", f.state];
+        const [cls, lbl] = label(f);
         // Only explain a feature that is not finished. A live one needs no prose.
         const detail = f.state === "live" ? "" : `
           <div class="help" id="readiness-detail-${f.id}" style="margin-top:3px">
@@ -244,8 +251,8 @@
         return `
           <div id="readiness-row-${f.id}" style="border-top:1px solid var(--line);padding:10px 0">
             <div class="row" style="justify-content:space-between;gap:8px">
-              <span id="readiness-name-${f.id}">${f.name}</span>
-              <span class="pill ${cls}" id="readiness-pill-${f.id}">${label}</span>
+              <span id="readiness-name-${f.id}">${f.name}${f.required ? "" : `<span class="help" style="margin-left:6px">optional</span>`}</span>
+              <span class="pill ${cls}" id="readiness-pill-${f.id}">${lbl}</span>
             </div>${detail}
           </div>`;
       }).join("");

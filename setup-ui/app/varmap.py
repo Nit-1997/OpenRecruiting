@@ -144,13 +144,27 @@ GROUPS: list[Group] = [
     Group(
         id="voice",
         title="Voice",
-        blurb="Realtime media relay. The Deepgram key is under Get started.",
+        blurb=(
+            "The TURN relay, which MEETING-BOT voice needs and browser voice "
+            "does not: a Recall bot runs in Recall's cloud and its media is UDP, "
+            "which no HTTP tunnel carries. Fill in EITHER provider below, not "
+            "both. The Deepgram key is under Get started."
+        ),
         variables=[
-            Variable("TURN_SERVER_URL", "TURN relay URL",
-                     "Required for MEETING-BOT voice, not for browser voice. A "
-                     "Recall bot runs in Recall's cloud and its media is UDP, "
-                     "which no HTTP tunnel carries; a TURN relay is what lets it "
-                     "reach an agent behind NAT. e.g. turn:turn.cloudflare.com:3478",
+            Variable("CLOUDFLARE_TURN_TOKEN_ID", "Cloudflare TURN token id",
+                     "Cloudflare's relay does not issue long-term credentials — "
+                     "the voice agent mints a short-lived pair per call from "
+                     "this key. That is why there is no username/password field "
+                     "for it. Write-only like a secret: it is an identifier "
+                     "rather than a credential, but nothing needs it echoed back "
+                     "and the secret heuristic is better left fail-closed.",
+                     secret=True, services=["voice-agent"]),
+            Variable("CLOUDFLARE_TURN_API_TOKEN", "Cloudflare TURN API token",
+                     secret=True, services=["voice-agent"]),
+            Variable("TURN_SERVER_URL", "TURN relay URL (other providers)",
+                     "For any relay with long-term credentials — coturn, "
+                     "metered.ca. Takes priority over the Cloudflare pair above "
+                     "when set. e.g. turn:relay.example.com:3478",
                      services=["voice-agent"]),
             Variable("TURN_USERNAME", "TURN username", services=["voice-agent"]),
             Variable("TURN_CREDENTIAL", "TURN credential",
@@ -411,7 +425,28 @@ UNMANAGED: dict[str, str] = {
             "PERSONA_REDUCE_MODEL", "RECALL_TRANSCRIPT_MODEL", "RESUME_EXTRACTION_MODEL",
             "SCREENING_ASSESSOR_MODEL", "SCREENING_GENERATOR_MODEL",
             "DEBRIEF_CHAT_MAX_ITERS", "DEBRIEF_CHAT_MAX_TOKENS",
+            "VOICE_FEEDBACK_MODEL", "VOICE_INTAKE_MODEL", "VOICE_SCREENING_MODEL",
         )
+    },
+    # Voice agent tuning. Turn detection, context-window trimming and a session
+    # timeout — all with working defaults, none of them a credential or a
+    # decision anyone makes during setup. Listed so the completeness test can
+    # see the whole voice-agent Settings class without the UI growing thirteen
+    # knobs nobody asked for.
+    **{
+        name: "voice agent tuning; working default, not a setup decision"
+        for name in (
+            "FLUX_EOT_THRESHOLD", "FLUX_EAGER_EOT_THRESHOLD", "FLUX_EOT_TIMEOUT_MS",
+            "MAX_CONTEXT_TOKENS", "TARGET_CONTEXT_TOKENS",
+            "MAX_UNSUMMARIZED_MESSAGES", "MIN_MESSAGES_AFTER_SUMMARY",
+            "INTAKE_V2_VOICE_SESSION_TIMEOUT_SECS",
+        )
+    },
+    # Voice agent container wiring: where it listens and how it reaches the
+    # backend inside the compose network. Same category as Service wiring above.
+    **{
+        name: "voice agent container wiring; compose defaults are correct"
+        for name in ("BACKEND_URL", "SERVICE_PORT")
     },
     # AWS. boto3 IS installed and s3_service.py IS real, so this is not dead
     # code — but it has exactly two callers: the admin blog CMS image upload and

@@ -313,7 +313,7 @@ def test_readiness_reports_every_feature_with_its_consequence(client):
 
     assert body["features"]
     for feature in body["features"]:
-        assert set(feature) == {"id", "name", "state", "missing", "consequence", "doc"}
+        assert set(feature) == {"id", "name", "state", "missing", "consequence", "required", "doc"}
         assert feature["state"] in {"live", "partial", "dormant", "unknown"}
         assert feature["consequence"]
 
@@ -329,6 +329,19 @@ def test_readiness_reflects_the_env_file_it_reads(client):
 
     after = {f["id"]: f for f in c.get("/api/readiness", headers=headers).json()["features"]}
     assert after["ats"]["state"] == "live"
+
+
+def test_readiness_marks_required_features_so_the_panel_can_rank_them(client):
+    """An unset required feature must be distinguishable from one that is off by
+    choice; the panel renders the two differently."""
+    c, _, _, headers = _signed_in(client)
+
+    features = {f["id"]: f for f in c.get("/api/readiness", headers=headers).json()["features"]}
+
+    assert features["core"]["required"] is True
+    assert features["email"]["required"] is True
+    assert features["ats"]["required"] is False
+    assert features["google_auth"]["required"] is False
 
 
 def test_readiness_never_claims_google_auth_works(client):
