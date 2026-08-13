@@ -10,6 +10,13 @@ software.
 Each step links to a page that walks it in detail. Do them in order — several
 depend on values produced by an earlier one.
 
+> **Have Claude Code do it with you.** This repo ships a skill at
+> `.claude/skills/setup-openrecruiting/`. Open Claude Code in the clone and say
+> *"help me set up OpenRecruiting"*. It reads these pages, asks for one
+> credential at a time, writes `.env`, recreates the right services, runs every
+> verification below, and diagnoses what fails. It still cannot create your
+> accounts or click through Cloudflare for you — that part is yours either way.
+
 ---
 
 ## What you'll need

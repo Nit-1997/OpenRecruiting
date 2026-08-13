@@ -13,6 +13,10 @@ feedback, a WebRTC voice agent, and a recruiting knowledge graph. Apache-2.0.
 Roughly 90 minutes, most of it spent creating accounts rather than configuring
 software.
 
+Using Claude Code? Open it in the clone and say *"help me set up
+OpenRecruiting"* — the repo ships a skill that walks the guide with you, writes
+the config, and verifies each step.
+
 ```bash
 git clone https://github.com/Nit-1997/OpenRecruiting.git && cd OpenRecruiting
 cp .env.example .env
