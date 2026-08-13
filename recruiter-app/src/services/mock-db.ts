@@ -171,10 +171,8 @@ function emptyDb(): MockDb {
     billing: {
       intake_total: 5,
       intake_used: 0,
-      intake_topup: 0,
       interview_total: 25,
       interview_used: 0,
-      interview_topup: 0,
     },
     integrations: [],
     profile: {

@@ -46,7 +46,6 @@ def test_get_team_overview(recruiter_client, respx_mock):
         {"id": "inv1", "email": "pending@m.ai", "invited_by": RECRUITER_USER_ID, "status": "pending",
          "created_at": "2025-01-03T00:00:00+00:00", "expires_at": "2025-01-17T00:00:00+00:00"},
     ])
-    mock_select(respx_mock, "subscriptions", [{"custom_max_users": 5, "plans": {"max_users": 3}}])
 
     resp = recruiter_client.get("/api/v2/team")
     assert resp.status_code == 200
@@ -56,28 +55,19 @@ def test_get_team_overview(recruiter_client, respx_mock):
     assert body["members"][0]["role"] == "owner"
     assert body["members"][1]["role"] == "recruiter"
     assert body["seat_usage"]["used"] == 2
-    assert body["seat_usage"]["total"] == 5  # custom_max_users wins
     assert len(body["pending_invites"]) == 1
 
 
-def test_get_team_seat_limit_falls_back_to_plan(recruiter_client, respx_mock):
+def test_get_team_reports_unlimited_seats(recruiter_client, respx_mock):
+    """Seats are uncapped — an org is bounded by its credit budget, not a head
+    count. -1 is the sentinel the team UI renders as "unlimited seats"."""
     mock_select(respx_mock, "organizations", [{"name": "Acme"}])
     mock_select(respx_mock, "profiles", [])
     mock_select(respx_mock, "organization_invites", [])
-    mock_select(respx_mock, "subscriptions", [{"custom_max_users": None, "plans": {"max_users": 7}}])
+
     resp = recruiter_client.get("/api/v2/team")
     assert resp.status_code == 200
-    assert resp.json()["seat_usage"]["total"] == 7
-
-
-def test_get_team_no_subscription_defaults_to_one_seat(recruiter_client, respx_mock):
-    mock_select(respx_mock, "organizations", [{"name": "Acme"}])
-    mock_select(respx_mock, "profiles", [])
-    mock_select(respx_mock, "organization_invites", [])
-    mock_select(respx_mock, "subscriptions", [])
-    resp = recruiter_client.get("/api/v2/team")
-    assert resp.status_code == 200
-    assert resp.json()["seat_usage"]["total"] == 1
+    assert resp.json()["seat_usage"]["total"] == -1
 
 
 # ----------------------- accept-invite -----------------------

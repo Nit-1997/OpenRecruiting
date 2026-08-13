@@ -1,7 +1,7 @@
 """BE-T1: broad CRUD/read coverage for the admin router surface.
 
 Covers the directly-DB-mockable admin handlers (assessment_templates,
-blog_posts, promotions, organizations, users, candidates) on their success and
+blog_posts, organizations, users, candidates) on their success and
 404/409 paths, complementing the atomicity-focused tests in the sibling files
 and the staff-gate audit in test_staff_gate. RPC/service-delegating groups
 (requisitions, feedback_jobs, intake_jobs) are covered separately.
@@ -204,66 +204,6 @@ def test_delete_blog_post(staff_client, respx_mock):
         return_value=httpx.Response(200, json=[])
     )
     resp = staff_client.delete(f"{ADMIN}/blog-posts/hello-world")
-    assert resp.status_code == 200, resp.text
-
-
-# ── promotions ───────────────────────────────────────────────────────────────
-
-def _promo_row(pid="00000000-0000-0000-0000-0000000000f1", active=True):
-    return {
-        "id": pid,
-        "code": "SAVE20",
-        "percent_off": 20,
-        "is_active": active,
-        "created_at": NOW,
-    }
-
-
-def test_list_promotions(staff_client, respx_mock):
-    def _promos(request):
-        if request.headers.get("Prefer") == "count=exact":
-            return _count(1)
-        return httpx.Response(200, json=[_promo_row()])
-
-    respx_mock.get(rest_url("promotions")).mock(side_effect=_promos)
-    resp = staff_client.get(f"{ADMIN}/promotions")
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["total"] == 1
-
-
-def test_create_promotion_deactivates_others(staff_client, respx_mock):
-    respx_mock.patch(rest_url("promotions")).mock(
-        return_value=httpx.Response(200, json=[])
-    )
-    respx_mock.post(rest_url("promotions")).mock(
-        return_value=httpx.Response(201, json=[_promo_row()])
-    )
-    resp = staff_client.post(
-        f"{ADMIN}/promotions",
-        json={"code": "save20", "percent_off": 20, "is_active": True},
-    )
-    assert resp.status_code == 201, resp.text
-    assert resp.json()["code"] == "SAVE20"
-
-
-def test_update_promotion_404(staff_client, respx_mock):
-    respx_mock.patch(rest_url("promotions")).mock(
-        return_value=httpx.Response(200, json=[])
-    )
-    resp = staff_client.put(
-        f"{ADMIN}/promotions/00000000-0000-0000-0000-0000000000f1",
-        json={"percent_off": 30},
-    )
-    assert resp.status_code == 404, resp.text
-
-
-def test_delete_promotion(staff_client, respx_mock):
-    respx_mock.delete(rest_url("promotions")).mock(
-        return_value=httpx.Response(200, json=[])
-    )
-    resp = staff_client.delete(
-        f"{ADMIN}/promotions/00000000-0000-0000-0000-0000000000f1"
-    )
     assert resp.status_code == 200, resp.text
 
 

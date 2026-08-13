@@ -8,7 +8,5 @@ class BillingOverview(BaseModel):
     """
     intake_total: int = 0
     intake_used: int = 0
-    intake_topup: int = 0
     interview_total: int = 0
     interview_used: int = 0
-    interview_topup: int = 0

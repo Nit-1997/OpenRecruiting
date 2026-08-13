@@ -85,56 +85,32 @@ async def complete_user_signup(user_id: str) -> dict:
     if invite:
         target_org_id = invite["organization_id"]
 
-        current_members = await supabase.table("profiles") \
-            .select("id") \
-            .eq("organization_id", target_org_id) \
-            .is_("deleted_at", "null") \
-            .count_async()
-
-        sub_result = await supabase.table("subscriptions") \
-            .select("custom_max_users, plan_id, plans(max_users)") \
-            .eq("organization_id", target_org_id) \
-            .eq("status", "active") \
-            .limit(1) \
+        # Seats are unlimited — an org is bounded by its credit budget, not by a
+        # head count — so a valid invite always lands the user in its org.
+        await supabase.table("organization_invites") \
+            .update({"status": "accepted", "accepted_at": "now()"}) \
+            .eq("id", invite["id"]) \
             .execute_async()
 
-        seat_ok = True
-        if sub_result.data:
-            sub = sub_result.data[0] if isinstance(sub_result.data, list) else sub_result.data
-            max_users = sub.get("custom_max_users")
-            if max_users is None and sub.get("plans"):
-                max_users = sub["plans"].get("max_users")
-            if max_users and max_users != -1 and current_members >= max_users:
-                seat_ok = False
-                logger.warning("invite_seat_limit_reached", extra={
-                    "org_id": target_org_id, "current": current_members, "max": max_users,
-                })
+        profile_result = await supabase.table("profiles").insert({
+            "id": user_id,
+            "email": email,
+            "full_name": full_name,
+            "avatar_url": avatar_url,
+            "organization_id": target_org_id,
+        }).execute_async()
 
-        if seat_ok:
-            await supabase.table("organization_invites") \
-                .update({"status": "accepted", "accepted_at": "now()"}) \
-                .eq("id", invite["id"]) \
-                .execute_async()
+        org_name_display = invite.get("organizations", {}).get("name", "their org")
+        logger.info("signup_via_invite", extra={
+            "user_id": user_id, "email": email,
+            "org_id": target_org_id, "org_name": org_name_display,
+        })
 
-            profile_result = await supabase.table("profiles").insert({
-                "id": user_id,
-                "email": email,
-                "full_name": full_name,
-                "avatar_url": avatar_url,
-                "organization_id": target_org_id,
-            }).execute_async()
-
-            org_name_display = invite.get("organizations", {}).get("name", "enterprise org")
-            logger.info("signup_via_invite", extra={
-                "user_id": user_id, "email": email,
-                "org_id": target_org_id, "org_name": org_name_display,
-            })
-
-            return {
-                "is_new": True,
-                "profile": profile_result.data,
-                "organization_id": target_org_id,
-            }
+        return {
+            "is_new": True,
+            "profile": profile_result.data,
+            "organization_id": target_org_id,
+        }
 
     if get_settings().SIGNUP_INVITE_ONLY:
         logger.warning("signup_blocked", extra={

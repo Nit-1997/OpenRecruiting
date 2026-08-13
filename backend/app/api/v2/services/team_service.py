@@ -4,35 +4,22 @@ Team service for v2.
 Single source of truth for teammate invites. `POST /api/v2/team/invite`
 (recruiter, authed) calls `invite_teammate`.
 
-Keeping one implementation here means duplicate handling, seat enforcement,
-the 7-day expiry, the Supabase invite-email + phantom-profile creation, and the
-invite-row insert stay in one place. The router layer maps the returned invite
-row to its own response shape and maps the raised domain errors
-(ConflictError/ForbiddenError) to HTTP via the app-wide v2 error handlers.
+Keeping one implementation here means duplicate handling, the 7-day expiry, the
+Supabase invite-email + phantom-profile creation, and the invite-row insert stay
+in one place. The router layer maps the returned invite row to its own response
+shape and maps the raised ConflictError to HTTP via the app-wide v2 error
+handlers.
+
+Seats are unlimited: an org is bounded by its credit budget, not by a head
+count. See services/credit_service.py.
 """
 
-from app.api.v2.core.exceptions import ConflictError, ForbiddenError
+from app.api.v2.core.exceptions import ConflictError
 from app.config import get_settings
 from app.logging_config import get_logger
 from app.services.supabase import SupabaseAdminClient
 
 logger = get_logger(__name__)
-
-
-async def _get_seat_limit(supabase: SupabaseAdminClient, org_id: str) -> int:
-    sub = await supabase.table("subscriptions") \
-        .select("custom_max_users, plans(max_users)") \
-        .eq("organization_id", org_id) \
-        .eq("status", "active") \
-        .limit(1) \
-        .execute_async()
-    if not sub.data:
-        return 1
-    row = sub.data[0] if isinstance(sub.data, list) else sub.data
-    limit = row.get("custom_max_users")
-    if limit is None and row.get("plans"):
-        limit = row["plans"].get("max_users")
-    return limit if limit is not None else 1
 
 
 async def invite_teammate(
@@ -48,7 +35,6 @@ async def invite_teammate(
         ConflictError: duplicate member / pending invite / existing OpenRecruiting
             account, or the invite-email send failed (EMAIL_FAILED — static
             message, the raw provider error is logged server-side only).
-        ForbiddenError: the org's seat limit is reached.
     """
     email = email.lower()
 
@@ -70,21 +56,6 @@ async def invite_teammate(
         .execute_async()
     if existing_invite.data:
         raise ConflictError("INVITE_EXISTS", f"An invite has already been sent to {email}")
-
-    seat_limit = await _get_seat_limit(supabase, org_id)
-    if seat_limit != -1:
-        members_result = await supabase.table("profiles") \
-            .select("id") \
-            .eq("organization_id", org_id) \
-            .is_("deleted_at", "null") \
-            .execute_async()
-        pending_result = await supabase.table("organization_invites") \
-            .select("id") \
-            .eq("organization_id", org_id) \
-            .eq("status", "pending") \
-            .execute_async()
-        if len(members_result.data or []) + len(pending_result.data or []) >= seat_limit:
-            raise ForbiddenError(f"Seat limit reached ({seat_limit}). Contact support to increase.")
 
     settings = get_settings()
 

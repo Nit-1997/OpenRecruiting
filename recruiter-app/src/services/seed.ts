@@ -492,10 +492,8 @@ export function buildSeed(): MockDb {
     billing: {
       intake_total: 25,
       intake_used: 4,
-      intake_topup: 0,
       interview_total: 250,
       interview_used: 68,
-      interview_topup: 0,
     },
     integrations: buildIntegrations(),
     profile: {

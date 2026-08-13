@@ -29,26 +29,24 @@ async def test_complete_signup_returns_existing_profile(monkeypatch):
     assert result == {"is_new": False, "profile": profile}
 
 
-# --- Seat-limit branch (BE-P0-1) ----------------------------------------------
+# --- Invite branch -----------------------------------------------------------
 
 _FUTURE = "2999-01-01T00:00:00+00:00"
 _TARGET_ORG = "org-target-1"
-_SEAT_LIMIT = 5
 
 
-class _SeatLimitTable:
-    """Routes per-table behaviour for the invite seat-limit path.
+class _InviteTable:
+    """Routes per-table behaviour for the invite-accept path.
 
     The signup flow issues, in order:
-      profiles(single)         -> no existing profile
-      organization_invites     -> one valid pending invite
-      profiles.count_async()   -> current member count
-      subscriptions            -> active sub capping seats at max_users
+      profiles(single)      -> no existing profile
+      organization_invites  -> one valid pending invite
+      organization_invites  -> mark accepted
+      profiles              -> insert the new profile
     """
 
-    def __init__(self, name, member_count):
+    def __init__(self, name):
         self._name = name
-        self._member_count = member_count
         self._single = False
 
     def select(self, *a, **k):
@@ -66,13 +64,15 @@ class _SeatLimitTable:
     def limit(self, *a, **k):
         return self
 
+    def update(self, *a, **k):
+        return self
+
+    def insert(self, *a, **k):
+        return self
+
     def single(self):
         self._single = True
         return self
-
-    async def count_async(self):
-        # count_async returns an int directly (no .count attribute).
-        return self._member_count
 
     async def execute_async(self):
         if self._name == "profiles" and self._single:
@@ -84,24 +84,16 @@ class _SeatLimitTable:
                 "email": "newcomer@enterprise.com",
                 "status": "pending",
                 "expires_at": _FUTURE,
-                "organizations": {"id": _TARGET_ORG, "name": "Enterprise Co", "org_type": "enterprise"},
+                "organizations": {"id": _TARGET_ORG, "name": "Enterprise Co", "org_type": "team"},
             }])
-        if self._name == "subscriptions":
-            return _Resp([{
-                "custom_max_users": _SEAT_LIMIT,
-                "plan_id": "plan-1",
-                "plans": {"max_users": _SEAT_LIMIT},
-                "status": "active",
-            }])
+        if self._name == "profiles":
+            return _Resp([{"id": "new-user-1", "organization_id": _TARGET_ORG}])
         return _Resp([])
 
 
-class _SeatLimitSupa:
-    def __init__(self, member_count):
-        self._member_count = member_count
-
+class _InviteSupa:
     def table(self, name):
-        return _SeatLimitTable(name, self._member_count)
+        return _InviteTable(name)
 
     async def get_auth_user(self, user_id):
         return {
@@ -111,25 +103,22 @@ class _SeatLimitSupa:
 
 
 @pytest.mark.asyncio
-async def test_complete_signup_seat_limit_reached_blocks_without_typeerror(monkeypatch):
-    """When member count == max_users the seat gate must fire and the user is
-    blocked. This used to raise TypeError because the code called
-    .select("id", count="exact") then read .count; the fix uses count_async().
-
-    SIGNUP_INVITE_ONLY is forced on: with the gate off, a user whose invite is
-    refused by the seat cap falls through to getting their own organization
-    instead of being blocked."""
+async def test_valid_invite_admits_user_regardless_of_member_count(monkeypatch):
+    """Seats are unlimited: an org is bounded by its credit budget, not a head
+    count, so a valid invite always lands the user in the inviting org. This
+    replaces the old seat-cap gate, which read the now-dropped subscriptions
+    and plans tables."""
     from types import SimpleNamespace
 
     monkeypatch.setattr(
-        signup_service,
-        "get_supabase_admin_client",
-        lambda: _SeatLimitSupa(member_count=_SEAT_LIMIT),
+        signup_service, "get_supabase_admin_client", lambda: _InviteSupa()
     )
     monkeypatch.setattr(
         signup_service, "get_settings",
         lambda: SimpleNamespace(SIGNUP_INVITE_ONLY=True),
     )
 
-    with pytest.raises(signup_service.SignupBlockedError):
-        await signup_service.complete_user_signup("new-user-1")
+    result = await signup_service.complete_user_signup("new-user-1")
+
+    assert result["is_new"] is True
+    assert result["organization_id"] == _TARGET_ORG

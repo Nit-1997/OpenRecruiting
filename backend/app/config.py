@@ -250,11 +250,6 @@ class Settings(BaseSettings):
     # Internal API (agent-to-backend communication)
     INTERNAL_API_SECRET: str = ""
 
-    # Dodo Payments
-    DODO_PAYMENTS_API_KEY: str = ""
-    DODO_WEBHOOK_SECRET: str = ""
-    DODO_ENVIRONMENT: str = "test_mode"
-
     # Knit (unified ATS integrations). KNIT_API_KEY doubles as the webhook
     # HMAC secret per Knit's signing contract (X-Knit-Signature).
     KNIT_API_KEY: str = ""

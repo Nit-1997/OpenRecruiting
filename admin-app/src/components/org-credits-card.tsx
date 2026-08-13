@@ -14,9 +14,7 @@ interface CreditRow {
   credit_type: string;
   total: number;
   used: number;
-  monthly_remaining: number | "unlimited";
-  topup_remaining: number;
-  effective_remaining: number | "unlimited";
+  remaining: number | "unlimited";
 }
 
 export function OrgCreditsCard({ orgId }: { orgId: string }) {
@@ -41,7 +39,7 @@ export function OrgCreditsCard({ orgId }: { orgId: string }) {
       if (!session?.access_token) return;
 
       const response = await fetch(
-        `${API_V2_URL}/api/v2/admin/billing/organizations/${orgId}/credits`,
+        `${API_V2_URL}/api/v2/admin/organizations/${orgId}/credits`,
         { headers: { Authorization: `Bearer ${session.access_token}` } },
       );
       if (!response.ok) throw new Error("Failed to load credits");
@@ -87,7 +85,7 @@ export function OrgCreditsCard({ orgId }: { orgId: string }) {
       if (!session?.access_token) return;
 
       const response = await fetch(
-        `${API_V2_URL}/api/v2/admin/billing/organizations/${orgId}/credits`,
+        `${API_V2_URL}/api/v2/admin/organizations/${orgId}/credits`,
         {
           method: "PUT",
           headers: {
@@ -276,7 +274,6 @@ function CreditMeter({
       )}
       <p id={`${id}-used`} className="mt-1.5 text-xs text-muted-foreground">
         {row.used} used
-        {row.topup_remaining > 0 && ` · +${row.topup_remaining} topup`}
       </p>
     </div>
   );

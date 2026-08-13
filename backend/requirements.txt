@@ -10,8 +10,6 @@ boto3>=1.34.0
 # Streaming only. The nine non-streaming call sites moved to the LiteLLM gateway
 # via llm-core in phase 2; text_runner and debrief_chat/runner still stream
 # then breaks two routers at import.
-# Dodo Payments SDK — required by admin billing_service (ported from v1)
-dodopayments>=1.84.0
 # Jinja2 — email template rendering, required by services/email (activated by feedback portal)
 Jinja2>=3.0
 # Intake JD extract pipeline

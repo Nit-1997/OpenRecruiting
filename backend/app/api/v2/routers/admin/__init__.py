@@ -11,25 +11,21 @@ from fastapi import APIRouter
 
 from app.api.v2.routers.admin import (
     assessment_templates,
-    billing,
     blog_posts,
     candidates,
     feedback_jobs,
     intake_jobs,
     organizations,
-    promotions,
     requisitions,
     users,
 )
 
 router = APIRouter(prefix="/admin")
 router.include_router(assessment_templates.router)
-router.include_router(billing.router)
 router.include_router(blog_posts.router)
 router.include_router(candidates.router)
 router.include_router(feedback_jobs.router)
 router.include_router(intake_jobs.router)
 router.include_router(organizations.router)
-router.include_router(promotions.router)
 router.include_router(requisitions.router)
 router.include_router(users.router)

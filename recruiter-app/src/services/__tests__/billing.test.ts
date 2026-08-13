@@ -5,7 +5,7 @@
 //
 // `src/domain/billing.ts` is a flat credit budget: there are no plans or
 // subscriptions, so the overview carries only the org's intake/interview
-// totals, usage, and any topup balance.
+// totals and usage.
 process.env.NEXT_PUBLIC_API_URL = 'http://test.invalid';
 
 import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
@@ -62,10 +62,8 @@ describe('billing service', () => {
     const overview: BillingOverview = {
       intake_total: 25,
       intake_used: 4,
-      intake_topup: 0,
       interview_total: 250,
       interview_used: 68,
-      interview_topup: 0,
     };
     nextResponse = overview;
 
@@ -87,10 +85,8 @@ describe('billing service', () => {
     nextResponse = {
       intake_total: -1,
       intake_used: 3,
-      intake_topup: 0,
       interview_total: -1,
       interview_used: 9,
-      interview_topup: 0,
     } satisfies BillingOverview;
 
     const o = await billing.getOverview();

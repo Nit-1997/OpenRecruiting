@@ -13,13 +13,6 @@ from tests.helpers.supabase_mocks import rest_url
 TEAM_INVITE = "/api/v2/team/invite"
 
 
-def _mock_subscriptions_unlimited(respx_mock):
-    # Seat check: -1 == unlimited so the seat gate never blocks the test.
-    respx_mock.get(rest_url("subscriptions")).mock(
-        return_value=httpx.Response(200, json=[{"custom_max_users": -1, "plans": None}])
-    )
-
-
 def test_team_invite_duplicate_member_returns_409(recruiter_client, respx_mock):
     # First profiles query (member-exists check) returns a match -> 409 ALREADY_MEMBER.
     respx_mock.get(rest_url("profiles")).mock(
@@ -51,7 +44,6 @@ def test_invite_email_failure_returns_static_message_no_raw_exception(
     respx_mock.get(rest_url("organization_invites")).mock(
         return_value=httpx.Response(200, json=[])
     )
-    _mock_subscriptions_unlimited(respx_mock)
 
     secret_leak = "supabase admin key sk_live_DEADBEEF rejected by gotrue"
     monkeypatch.setattr(

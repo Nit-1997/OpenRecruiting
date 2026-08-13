@@ -32,14 +32,12 @@ export function BillingTab({ id }: { id: string }) {
             label="Interviews"
             used={overview.interview_used}
             total={overview.interview_total}
-            topup={overview.interview_topup}
           />
           <CreditMeter
             id={`${id}-credits-intake`}
             label="Intakes"
             used={overview.intake_used}
             total={overview.intake_total}
-            topup={overview.intake_topup}
           />
         </div>
       </section>
@@ -52,13 +50,11 @@ function CreditMeter({
   label,
   used,
   total,
-  topup,
 }: {
   id: string;
   label: string;
   used: number;
   total: number;
-  topup: number;
 }) {
   const remaining = total === -1 ? -1 : Math.max(0, total - used);
   const remainingDisplay = remaining === -1 ? '∞' : String(remaining);
@@ -71,7 +67,6 @@ function CreditMeter({
         {remainingDisplay}
         <span className="ml-1 font-sans text-[12px] text-text-muted">/ {totalDisplay}</span>
       </p>
-      {topup > 0 && <p className="mt-1 text-[11px] text-text-muted">+{topup} topup</p>}
     </div>
   );
 }

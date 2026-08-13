@@ -85,21 +85,9 @@ class InviteRequest(BaseModel):
     role: str = "recruiter"
 
 
-async def _get_seat_limit(org_id: str) -> int:
-    supabase = get_supabase_admin_client()
-    sub = await supabase.table("subscriptions") \
-        .select("custom_max_users, plans(max_users)") \
-        .eq("organization_id", org_id) \
-        .eq("status", "active") \
-        .limit(1) \
-        .execute_async()
-    if not sub.data:
-        return 1
-    row = sub.data[0] if isinstance(sub.data, list) else sub.data
-    limit = row.get("custom_max_users")
-    if limit is None and row.get("plans"):
-        limit = row["plans"].get("max_users")
-    return limit if limit is not None else 1
+# Seats are unlimited: an org is bounded by its credit budget, not by a head
+# count. -1 is the sentinel the team UI already renders as "unlimited seats".
+UNLIMITED_SEATS = -1
 
 
 @router.get("", response_model=TeamOverviewOut)
@@ -135,7 +123,6 @@ async def get_team(
 
     raw_members = members_result.data or []
     raw_invites = invites_result.data or []
-    seat_limit = await _get_seat_limit(org_id)
 
     owner_id = raw_members[0]["id"] if raw_members else None
     members = [
@@ -183,7 +170,7 @@ async def get_team(
         organization_name=org_name,
         members=members,
         pending_invites=invites,
-        seat_usage={"used": len(members), "total": seat_limit},
+        seat_usage={"used": len(members), "total": UNLIMITED_SEATS},
     )
 
 

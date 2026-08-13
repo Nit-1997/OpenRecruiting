@@ -94,8 +94,9 @@ services:
     env_file: [.env]
     restart: unless-stopped
 
-  # Staff-only admin portal: customers, subscriptions, promotions, blog,
-  # assessments. Gated on profiles.is_staff -- see docs/security.md. It holds
+  # Staff-only admin portal: organizations (customers, incl. their credit
+  # budget), blog, requisitions. Gated on profiles.is_staff -- see
+  # docs/security.md. It holds
   # its own session cookie (openrecruiting-admin-auth), deliberately separate
   # from the recruiter app's, so signing into one is not signing into the other.
   admin-app:

@@ -4,8 +4,6 @@
 export interface BillingOverview {
   intake_total: number;
   intake_used: number;
-  intake_topup: number;
   interview_total: number;
   interview_used: number;
-  interview_topup: number;
 }

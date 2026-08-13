@@ -1,5 +1,5 @@
 """Extra coverage for signup_service.complete_user_signup — the invite happy
-path (no seat cap), the no-invite block, the auth-user-missing error, and the
+path, the no-invite block, the auth-user-missing error, and the
 invite-lookup transient-failure re-raise (which must NOT delete the orphan auth
 row).
 """
@@ -66,8 +66,6 @@ class _RoutedTable:
             return _resp(None)  # no existing profile
         if self._name == "organization_invites":
             return _resp(self._plan.get("invite"))
-        if self._name == "subscriptions":
-            return _resp(self._plan.get("subscription", []))
         if self._name == "organizations" and self._insert:
             # Self-serve path: the org the user gets when signup is not gated.
             return _resp([{"id": "org-self-serve", "name": self._plan.get("org_name")}])
@@ -110,7 +108,6 @@ async def test_signup_via_valid_invite_no_subscription_cap():
             "expires_at": _FUTURE,
             "organizations": {"id": _ORG, "name": "Enterprise Co"},
         }],
-        "subscription": [],  # no active sub -> seat_ok stays True
         "member_count": 0,
     }
     with _patch(plan):

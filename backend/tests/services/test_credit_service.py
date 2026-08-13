@@ -1,5 +1,6 @@
-"""Behavioral tests for credit_service — the two-tier (monthly + topup) credit
-accounting reads and the atomic `use_credit` RPC that raises 402 on exhaustion.
+"""Behavioral tests for credit_service — the org credit budget reads, the
+provisioning/budget writes, and the atomic `use_credit` RPC that raises 402 on
+exhaustion.
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -20,22 +21,6 @@ def _supa_single(execute_result):
     return supa, b
 
 
-def _supa_two_reads(monthly, topup):
-    """Stub returning `monthly` for the first read and `topup` for the second —
-    check_credits issues usage_credits then topup_credits."""
-    monthly_b = MagicMock()
-    topup_b = MagicMock()
-    for b in (monthly_b, topup_b):
-        for m in ("select", "eq", "single"):
-            getattr(b, m).return_value = b
-    monthly_b.execute_async = AsyncMock(return_value=MagicMock(data=monthly))
-    topup_b.execute_async = AsyncMock(return_value=MagicMock(data=topup))
-
-    supa = MagicMock()
-    supa.table.side_effect = lambda name: monthly_b if name == "usage_credits" else topup_b
-    return supa
-
-
 # ---------------------------------------------------------------------------
 # check_credits
 # ---------------------------------------------------------------------------
@@ -47,46 +32,43 @@ async def test_check_credits_free_default_for_new_org():
         result = await credit_mod.check_credits("o1", "interview")
     assert result["source"] == "free_default"
     assert result["has_credits"] is True
-    assert result["monthly_remaining"] == 1
+    assert result["remaining"] == 1
 
 
-async def test_check_credits_unlimited_enterprise():
+async def test_check_credits_unlimited():
     supa, _ = _supa_single(MagicMock(data={"total": -1, "used": 9999}))
     with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
         result = await credit_mod.check_credits("o1", "interview")
-    assert result["monthly_remaining"] == -1
-    assert result["source"] == "monthly"
-
-
-async def test_check_credits_monthly_remaining():
-    supa, _ = _supa_single(MagicMock(data={"total": 10, "used": 4}))
-    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
-        result = await credit_mod.check_credits("o1", "interview")
-    assert result["monthly_remaining"] == 6
-    assert result["source"] == "monthly"
-
-
-async def test_check_credits_falls_back_to_topup():
-    supa = _supa_two_reads(
-        monthly={"total": 5, "used": 5},  # exhausted
-        topup=[{"remaining": 2}, {"remaining": 0}, {"remaining": 3}],
-    )
-    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
-        result = await credit_mod.check_credits("o1", "interview")
-    assert result["source"] == "topup"
-    assert result["topup_remaining"] == 5
+    assert result["remaining"] == -1
+    assert result["source"] == "budget"
     assert result["has_credits"] is True
 
 
-async def test_check_credits_none_when_all_exhausted():
-    supa = _supa_two_reads(
-        monthly={"total": 5, "used": 5},
-        topup=[],
-    )
+async def test_check_credits_remaining_from_budget():
+    supa, _ = _supa_single(MagicMock(data={"total": 10, "used": 4}))
+    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
+        result = await credit_mod.check_credits("o1", "interview")
+    assert result["remaining"] == 6
+    assert result["source"] == "budget"
+    assert result["has_credits"] is True
+
+
+async def test_check_credits_none_when_budget_exhausted():
+    supa, _ = _supa_single(MagicMock(data={"total": 5, "used": 5}))
     with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
         result = await credit_mod.check_credits("o1", "interview")
     assert result["source"] == "none"
     assert result["has_credits"] is False
+    assert result["remaining"] == 0
+
+
+async def test_check_credits_never_reports_topup():
+    """The topup fallback is gone — its key must not resurface."""
+    supa, _ = _supa_single(MagicMock(data={"total": 5, "used": 5}))
+    with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
+        result = await credit_mod.check_credits("o1", "interview")
+    assert "topup_remaining" not in result
+    assert "monthly_remaining" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -94,9 +76,9 @@ async def test_check_credits_none_when_all_exhausted():
 # ---------------------------------------------------------------------------
 
 
-async def test_use_credit_consumes_monthly():
+async def test_use_credit_consumes_from_budget():
     supa = MagicMock()
-    supa.rpc = AsyncMock(return_value=MagicMock(data="monthly"))
+    supa.rpc = AsyncMock(return_value=MagicMock(data="budget"))
     with patch.object(credit_mod, "get_supabase_admin_client", return_value=supa):
         await credit_mod.use_credit("o1", "interview")
     supa.rpc.assert_awaited_once()
