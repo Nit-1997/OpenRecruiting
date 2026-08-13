@@ -179,6 +179,13 @@ GROUPS: list[Group] = [
             "Recall is cloud-only and calls you, so both are needed there."
         ),
         variables=[
+            Variable("RECALL_BASE_URL", "Recall API base URL",
+                     "Defaults to the us-west-2 region. If your Recall account "
+                     "is in another region every call 401s, so this is a real "
+                     "decision rather than a tuning knob — it sat in UNMANAGED "
+                     "as 'default is correct' while docs/setup/recall.md told "
+                     "people to change it.",
+                     services=["backend"]),
             Variable("RECALL_BOT_NAME", "Bot display name",
                      "Changing this needs a matching edit in "
                      "backend/app/services/recall_webhook/constants.py — the "
@@ -482,7 +489,7 @@ UNMANAGED: dict[str, str] = {
             "CANDIDATE_DETECT_ENABLED", "CANDIDATE_DETECT_MIN_PARTICIPANTS",
             "END_STATE_CONFIDENCE_THRESHOLD", "END_STATE_DETECT_ENABLED",
             "END_STATE_GRACE_SECONDS",
-            "RECALL_BASE_URL", "RECALL_BOT_EXIT_TIMEOUT", "RECALL_BOT_NOONE_JOINED_TIMEOUT",
+            "RECALL_BOT_EXIT_TIMEOUT", "RECALL_BOT_NOONE_JOINED_TIMEOUT",
             "RECALL_BOT_SILENCE_TIMEOUT", "RECALL_REALTIME_WEBHOOK_PATH",
             "RECALL_TRANSCRIPT_LANGUAGE", "RECALL_TRANSCRIPT_PROVIDER",
             "RECALL_TRANSCRIPT_SEPARATE_STREAMS", "RECALL_TRANSCRIPT_WORD_BOOST",

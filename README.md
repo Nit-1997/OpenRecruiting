@@ -4,11 +4,13 @@ An open-source, self-hostable recruiting platform: AI-run intake calls, candidat
 and interview-round management, meeting capture with AI-generated interview
 feedback, a WebRTC voice agent, and a recruiting knowledge graph. Apache-2.0.
 
-> Originally built as **Mazle**. This is an **archived reference release** — it
-> is not maintained and issues may not be answered. It is published so the work
-> is readable and forkable, not because anyone is supporting it.
+> Originally built as **Mazle**. Support is best-effort and issues may take a
+> while, but the project is meant to be run — PRs welcome.
 
-## Quick start
+## Setting it up
+
+**→ [SETUP.md](SETUP.md) is the full walkthrough.** Roughly 90 minutes, most of
+it spent creating accounts rather than configuring software.
 
 ```bash
 git clone https://github.com/Nit-1997/OpenRecruiting.git && cd OpenRecruiting
@@ -17,28 +19,34 @@ docker compose up -d --build
 ```
 
 Then open **<http://127.0.0.1:3010>** — the setup UI. Choose a password, and it
-walks you through the rest: every setting grouped by what it enables, live
-container health, and a Save button that restarts only the services a change
-affects. No hand-editing `.env` first.
+takes it from there: every setting grouped by what it enables, live container
+health, a readiness panel showing which features are actually working, and a Save
+button that restarts only the services a change affects. No hand-editing `.env`.
 
-It boots even when nothing else is configured, which is the point. Every
-dependency except the database is optional — an unset key disables that feature
-rather than breaking the stack, and the UI tells you which.
+**What you need to bring.** Seven accounts, none of them optional if you want to
+run a real interview:
 
-**The one thing it cannot do for you** is create your database. Supabase needs a
-project (free tier is fine) and `schema.sql` pasted into its SQL editor: the
-service key can read your data but cannot run DDL, so nothing here can apply a
-schema on your behalf without a database superuser password we deliberately do
-not ask for. The setup UI detects whether the schema is applied and gives you
-the exact steps and your project's own link. See
-[`docs/setup/supabase.md`](docs/setup/supabase.md).
+| | |
+|---|---|
+| [Supabase](docs/setup/supabase.md) | database and sign-in |
+| [Anthropic](docs/setup/ai-keys.md) | intake, feedback, screening |
+| [Deepgram](docs/setup/ai-keys.md) | speech-to-text |
+| [Recall.ai](docs/setup/recall.md) | the bot that joins and records |
+| [Cloudflare](docs/setup/cloudflare.md) | domain, tunnel, TURN relay |
+| [Resend](docs/setup/email.md) | invitations, feedback links, resets |
 
-Optional, when you want them:
+The stack *starts* with any of these unset — an unset key disables that feature
+rather than breaking the boot, and the readiness panel tells you which. But an
+instance missing Recall, the tunnel or TURN cannot capture an interview, and one
+missing email never contacts a candidate. Genuinely optional:
+[Google sign-in](docs/setup/google-auth.md), which model each workload uses, and
+the Cortex MCP connector.
 
-- **[`staff_user.sql`](staff_user.sql)** — provisions a staff account for the
-  admin portal on :3001. Edit the CONFIG block and run it.
-- **[`docs/setup/recall.md`](docs/setup/recall.md)** — an API key and a tunnel,
-  for real meeting capture.
+**The one thing the setup UI cannot do for you** is create your database.
+Supabase needs a project (free tier is fine) and `schema.sql` pasted into its SQL
+editor: the service key can read your data but cannot run DDL, so nothing here
+can apply a schema without a database password we deliberately do not ask for.
+The UI detects whether the schema is applied and gives you the exact steps.
 
 ```bash
 make verify
@@ -74,23 +82,26 @@ Twelve containers:
 | `cortex-backend` :8010, `cortex-mcp` :8020, `neo4j` :7474 | the knowledge graph |
 | `voice-agent` :8011, `voice-frontend` :3003 | WebRTC voice calls |
 
-You bring three cloud services: **Supabase** (database and auth — required),
-**Recall.ai** (meeting bots — optional), and **OpenAI / Anthropic / Deepgram**
-(LLM and speech — optional). A feature whose key is missing is disabled, not
-broken: the stack still comes up.
-
-**The one asterisk:** Recall is a cloud service that calls *your* backend, so
-live meeting capture needs a public URL. On a laptop that means
-`ngrok http 8004`. Everything else works without it.
+**Why a domain is not negotiable.** Recall runs in its own cloud and calls *your*
+backend when a recording finishes, so it needs a public address — that is the
+Cloudflare tunnel. The bot's audio is a separate problem: media is UDP, which no
+HTTP tunnel carries, which is what the TURN relay is for. Everything is served
+through **one hostname**, path-routed by Caddy; the frontends expect the voice
+agent on the same origin, so splitting across subdomains breaks voice and MCP.
 
 ## Docs
 
 | | |
 |---|---|
+| **[Setup](SETUP.md)** | **start here — clone to working instance** |
+| [Supabase](docs/setup/supabase.md) | database, keys, schema, staff access |
+| [Cloudflare](docs/setup/cloudflare.md) | domain, tunnel, TURN relay |
+| [Recall](docs/setup/recall.md) | meeting capture and webhooks |
+| [AI keys](docs/setup/ai-keys.md) | Anthropic, Deepgram, OpenAI, model choice |
+| [Email](docs/setup/email.md) | Resend or Zoho |
+| [Google sign-in](docs/setup/google-auth.md) | optional OAuth |
 | [Architecture](docs/architecture.md) | service map, auth flow, the job seam, how things degrade |
 | [Security](docs/security.md) | trust boundaries, the RLS model, what is left to you |
-| [Supabase setup](docs/setup/supabase.md) | the required ten minutes |
-| [Recall setup](docs/setup/recall.md) | meeting capture and the tunnel |
 | [E2E checklist](docs/e2e-checklist.md) | what was verified before release — and what wasn't |
 | [Engineering notes](docs/blog/README.md) | how it was extracted, and what broke |
 

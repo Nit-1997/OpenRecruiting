@@ -1,13 +1,14 @@
 # Recall.ai setup
 
 Recall.ai runs the meeting bots that join interviews, record them, and produce
-transcripts. It is entirely optional: **the platform runs fine without it**, you
-just don't get automatic meeting capture or the AI interview feedback that
-depends on a transcript.
+transcripts. **It is required.** The stack starts without it, but no interview is
+ever captured and no AI feedback is ever generated — which is most of what this
+platform is for.
 
 It is also the one dependency that has to reach *you*. Recall is a cloud service
 that calls your backend over webhooks, so your backend needs a URL Recall can
-resolve from the internet. On a laptop that means a tunnel.
+resolve from the internet. That is what the Cloudflare tunnel is for — set it up
+first: [Cloudflare setup](cloudflare.md).
 
 ## 1. Get an API key
 
@@ -42,19 +43,18 @@ you rename the bot, add the lowercased name to both files.
 
 ## 3. Expose your backend publicly
 
-Pick either:
+Follow [Cloudflare setup](cloudflare.md) first. It gives you a permanent
+hostname served through the bundled `cloudflared` container, with Caddy
+path-routing `/api/*` to the backend.
 
-```bash
-ngrok http 8004
-# or
-cloudflared tunnel --url http://localhost:8004
-```
+Set that hostname once, as **Public address** under **Get started** in the setup
+UI at `:3010`. It expands into the eight variables that need it, including
+`WEBHOOK_BASE_URL`.
 
-Copy the resulting `https://…` URL into `.env`:
-
-```bash
-WEBHOOK_BASE_URL=https://your-tunnel-url
-```
+> An ad-hoc tunnel — `ngrok http 8004`, or `cloudflared tunnel --url` — will
+> carry webhooks, but gives you a *new* hostname every restart and none of the
+> path routing the frontends expect for voice and MCP. Fine for a quick test,
+> wrong for a real install.
 
 ## 4. Register the webhooks
 
@@ -94,13 +94,15 @@ exercises the signed path properly.
 
 ## What happens without a tunnel
 
-Everything else keeps working. You can create requisitions, run AI intake, manage
-candidates and rounds, and use the voice agent. What you lose is the callback:
-bots will join and record, but the "recording finished" event never reaches you,
-so transcripts never land and AI interview feedback never triggers.
+The rest of the app keeps working — requisitions, AI intake, candidates and
+rounds, browser voice. What you lose is the callback: bots join and record, but
+the "recording finished" event never reaches you, so transcripts never land and
+AI interview feedback never triggers.
 
-If that's your situation, you can still exercise the feedback pipeline by
-submitting interviewer feedback through the feedback portal instead.
+That is not a usable install, which is why the tunnel is required rather than
+recommended. If you are mid-setup and want to exercise the feedback pipeline
+before the tunnel is up, you can submit interviewer feedback by hand through the
+feedback portal.
 
 ## Troubleshooting
 
@@ -110,9 +112,21 @@ one in the Recall dashboard, or the backend was not restarted after you set it.
 **Bots never join.** Check `RECALL_API_KEY` and that `RECALL_BASE_URL` matches
 your account's region.
 
-**Bots join but nothing comes back.** Your `WEBHOOK_BASE_URL` is not reachable
-from the internet — a restarted ngrok gives you a *new* URL, and the old one in
-the dashboard is now dead.
+**Bots join but nothing comes back.** Your public address is not reachable from
+the internet. Check the tunnel is connected, and that the hostname registered in
+Recall's dashboard is the one your tunnel actually serves:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -X POST https://<your-hostname>/api/v2/webhooks/recall/bot-status \
+  -H 'Content-Type: application/json' -d '{}'
+# 401
+```
+
+Anything other than `401` means Recall cannot reach you either. See
+[Cloudflare troubleshooting](cloudflare.md#troubleshooting). If you used an
+ad-hoc tunnel, note that restarting it issues a *new* hostname and the one in
+Recall's dashboard is now dead.
 
 **The bot's own words show up as interviewer feedback.** `RECALL_BOT_NAME` and
 the speaker-name sets have drifted apart. See step 2.

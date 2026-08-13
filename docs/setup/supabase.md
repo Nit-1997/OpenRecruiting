@@ -18,10 +18,20 @@ Open **SQL Editor → New query**, paste the entire contents of [`schema.sql`](.
 and press **Run**.
 
 This is one consolidated file — the project's whole history of migrations squashed into a
-single idempotent script. It creates 53 tables, 178 functions, 89 row-level-security
-policies, 222 indexes and 25 triggers, and enables RLS on 50 tables. It should finish
-with **no errors**. It is safe to run on a fresh project only; it is not a migration
-runner and does not track versions.
+single script. It should finish with **no errors**.
+
+It runs as **one transaction**, so it either lands completely or changes nothing. If the
+SQL editor times out part-way through, the database is left untouched and you can simply
+run it again.
+
+It also **refuses to run twice**. A second attempt stops immediately with:
+
+```
+OpenRecruiting schema is already applied to this database. Nothing was changed.
+```
+
+That is the file protecting you, not an error to work around. It is not a migration
+runner and does not track versions — it is for a fresh project.
 
 The `REVOKE EXECUTE ... FROM authenticated, PUBLIC` lines near the end are not noise —
 they are what stops the `SECURITY DEFINER` functions from being callable by ordinary
@@ -68,11 +78,14 @@ dashboard's value.
 Under **Authentication → URL Configuration**:
 
 - **Site URL:** `http://localhost:3000`
-- **Redirect URLs:** add both `http://localhost:3000/**` and `http://localhost:3005/**`
+- **Redirect URLs:** add `http://localhost:3000/**` and `http://localhost:3005/**`, plus
+  your public hostname once you have one — `https://app.example.com/**`
 
 Then under **Authentication → Sign In / Providers**, make sure **Email** is enabled.
-Password sign-in works out of the box. Magic links and OAuth need extra configuration
-(SMTP credentials, or provider client IDs) and are optional.
+Password sign-in works out of the box.
+
+Google sign-in is optional and configured separately — see
+[Google sign-in](google-auth.md).
 
 If you skip this step, login appears to succeed and then bounces you back to the login
 page — the redirect is rejected by Supabase, not by the app.
@@ -93,8 +106,8 @@ UPDATE public.profiles SET is_staff = true WHERE email = 'you@example.com';
 
 ## 6. Staff access to the admin portal
 
-`admin-app` on <http://localhost:3001> is the staff console — customers,
-subscriptions, promotions, blog and assessments. It is gated entirely on
+`admin-app` on <http://localhost:3001> is the staff console — organizations and
+their credit budgets, requisitions, and the blog. It is gated entirely on
 `profiles.is_staff`, which is effectively superuser across every organization in
 the instance. Do not set it on ordinary recruiter accounts.
 
@@ -119,8 +132,13 @@ need `staff_user.sql` (or the statement above) once.
 
 ## Troubleshooting
 
-**"relation does not exist" when the app loads.** `schema.sql` did not finish. Re-run it
-and read the error — the SQL editor stops at the first failure.
+**"relation does not exist" when the app loads.** `schema.sql` never completed. Because it
+runs in one transaction, a failure rolled the whole thing back — so nothing was half-built.
+Read the error the SQL editor reported, fix the cause, and run the file once more.
+
+**"schema is already applied".** The guard at the top of the file found the `organizations`
+table, so it stopped without changing anything. If you genuinely want to start over, delete
+the project's data first; do not try to force the file through.
 
 **Login loops back to the login page.** Step 4 — the redirect URLs are missing.
 
