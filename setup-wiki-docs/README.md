@@ -19,15 +19,15 @@ them, but you cannot run a meaningful session:
 
 | Service | What it does | Cost to start |
 |---|---|---|
-| [Supabase](docs/setup/supabase.md) | database and sign-in | free tier |
-| [Anthropic](docs/setup/ai-keys.md) | AI intake, feedback, screening | pay as you go |
-| [Deepgram](docs/setup/ai-keys.md) | speech-to-text for voice | free credit |
-| [Recall.ai](docs/setup/recall.md) | the bot that joins and records | paid |
-| [Cloudflare](docs/setup/cloudflare.md) | a domain, a tunnel, a TURN relay | domain is paid; tunnel and TURN free |
-| [Resend](docs/setup/email.md) | invitations, feedback links, password resets | free tier |
+| [Supabase](supabase.md) | database and sign-in | free tier |
+| [Anthropic](ai-keys.md) | AI intake, feedback, screening | pay as you go |
+| [Deepgram](ai-keys.md) | speech-to-text for voice | free credit |
+| [Recall.ai](recall.md) | the bot that joins and records | paid |
+| [Cloudflare](cloudflare.md) | a domain, a tunnel, a TURN relay | domain is paid; tunnel and TURN free |
+| [Resend](email.md) | invitations, feedback links, password resets | free tier |
 
 Genuinely optional, and skippable on a first pass: [Google
-sign-in](docs/setup/google-auth.md), changing which model each workload uses,
+sign-in](google-auth.md), changing which model each workload uses,
 and the Cortex MCP connector.
 
 You also need **Docker** with Compose, and a domain you control.
@@ -51,11 +51,11 @@ anywhere yet.
 
 | | Page | You end up with |
 |---|---|---|
-| 1a | [Supabase](docs/setup/supabase.md#1-create-the-project) | project URL, publishable key, secret key, JWT secret |
-| 1b | [AI keys](docs/setup/ai-keys.md) | Anthropic key, Deepgram key |
-| 1c | [Cloudflare](docs/setup/cloudflare.md) | tunnel token, public hostname, TURN token id + API token |
-| 1d | [Recall](docs/setup/recall.md) | API key, webhook signing secret |
-| 1e | [Email](docs/setup/email.md) | Resend API key, a verified from-address |
+| 1a | [Supabase](supabase.md#1-create-the-project) | project URL, publishable key, secret key, JWT secret |
+| 1b | [AI keys](ai-keys.md) | Anthropic key, Deepgram key |
+| 1c | [Cloudflare](cloudflare.md) | tunnel token, public hostname, TURN token id + API token |
+| 1d | [Recall](recall.md) | API key, webhook signing secret |
+| 1e | [Email](email.md) | Resend API key, a verified from-address |
 
 **Do Cloudflare before Recall.** Recall's webhooks are registered against your
 public hostname, and creating the tunnel is what gives you that hostname. It
@@ -132,7 +132,7 @@ data but cannot run DDL; applying a schema needs the database password, which
 this UI deliberately never asks for.
 
 In the Supabase dashboard: **SQL Editor → New query**, paste the entire contents
-of [`schema.sql`](schema.sql), and **Run**.
+of [`schema.sql`](../schema.sql), and **Run**.
 
 It runs as a single transaction, so it either lands completely or changes
 nothing. If you run it twice it refuses with a plain message rather than
@@ -142,7 +142,7 @@ half-applying.
 should turn `ready`.
 
 Full detail, including the optional demo data: [Supabase
-setup](docs/setup/supabase.md#2-apply-the-schema).
+setup](supabase.md#2-apply-the-schema).
 
 ---
 
@@ -156,7 +156,7 @@ sent — and nothing surfaces an error, because the send is never attempted.
 
 **Verify** — the readiness panel shows Email as `live`.
 
-Detail: [Email setup](docs/setup/email.md).
+Detail: [Email setup](email.md).
 
 ---
 
@@ -164,7 +164,7 @@ Detail: [Email setup](docs/setup/email.md).
 
 Staff can see every organization in the instance and set their credit budgets.
 
-Edit the CONFIG block at the top of [`staff_user.sql`](staff_user.sql) with your
+Edit the CONFIG block at the top of [`staff_user.sql`](../staff_user.sql) with your
 email and a password, then run it in the Supabase SQL editor. It creates the auth
 user, a confirmed email identity, and the staff profile together, and is safe to
 re-run.
@@ -205,7 +205,7 @@ Nothing before this proves the product works. This is the acceptance test.
 
 If the bot joins but nothing comes back, the webhook is not reaching you —
 that is step 1c/1d, and [Recall
-troubleshooting](docs/setup/recall.md#troubleshooting) covers it.
+troubleshooting](recall.md#troubleshooting) covers it.
 
 ---
 

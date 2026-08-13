@@ -12,15 +12,14 @@ first: [Cloudflare setup](cloudflare.md).
 
 ## 1. Get an API key
 
-Create an account at <https://recall.ai>, copy your API key, and set it in `.env`:
+Create an account at <https://recall.ai> and copy your API key.
 
-```bash
-RECALL_API_KEY=your-key-here
-```
+In the setup UI at **<http://127.0.0.1:3010>**, paste it into **Get started →
+Recall API key**.
 
-Check the region while you're there. `RECALL_BASE_URL` defaults to
-`https://us-west-2.recall.ai/api/v1`; if your account is in another region,
-change it or every call will 401.
+Check your account's region while you are there. **Meeting capture → Recall API
+base URL** defaults to `us-west-2`; if your account lives elsewhere, change it or
+every call returns 401.
 
 ## 2. Leave the bot name alone (unless you read this)
 
@@ -65,17 +64,9 @@ In the Recall dashboard, add these endpoints (both, they carry different events)
 | `<WEBHOOK_BASE_URL>/api/v2/webhooks/recall/bot-status` | bot lifecycle: joining, recording, done, failed |
 | `<WEBHOOK_BASE_URL>/api/v2/webhooks/recall/realtime` | live transcript, participant join/leave, chat |
 
-Set a signing secret in the dashboard and put the same value in `.env`:
-
-```bash
-RECALL_WEBHOOK_SECRET=the-signing-secret
-```
-
-Then restart the backend so it picks the config up:
-
-```bash
-docker compose up -d backend
-```
+Set a signing secret in the Recall dashboard, then paste the same value into
+**Get started → Recall webhook secret** in the setup UI and press **Review &
+apply**. It restarts the backend for you.
 
 ## 5. Check it
 
@@ -106,8 +97,9 @@ feedback portal.
 
 ## Troubleshooting
 
-**Every webhook returns 401.** The signing secret in `.env` does not match the
-one in the Recall dashboard, or the backend was not restarted after you set it.
+**Every webhook returns 401.** The signing secret in the setup UI does not match
+the one in the Recall dashboard, or the value was saved but never applied — press
+**Review & apply**, which is what actually recreates the backend.
 
 **Bots never join.** Check `RECALL_API_KEY` and that `RECALL_BASE_URL` matches
 your account's region.

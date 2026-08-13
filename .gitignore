@@ -56,3 +56,8 @@ lighthouse-*.json
 # Timestamped .env backups written by setup-ui before each save.
 .env.bak.*
 litellm-config.yaml.bak.*
+
+# Planning specs, engineering notes and architecture write-ups. Kept locally,
+# not shipped: they are working documents, not documentation for users. The
+# setup guides users need live in setup-wiki-docs/.
+docs/

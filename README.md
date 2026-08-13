@@ -9,8 +9,9 @@ feedback, a WebRTC voice agent, and a recruiting knowledge graph. Apache-2.0.
 
 ## Setting it up
 
-**→ [SETUP.md](SETUP.md) is the full walkthrough.** Roughly 90 minutes, most of
-it spent creating accounts rather than configuring software.
+**→ [setup-wiki-docs/](setup-wiki-docs/README.md) is the full walkthrough.**
+Roughly 90 minutes, most of it spent creating accounts rather than configuring
+software.
 
 ```bash
 git clone https://github.com/Nit-1997/OpenRecruiting.git && cd OpenRecruiting
@@ -28,18 +29,18 @@ run a real interview:
 
 | | |
 |---|---|
-| [Supabase](docs/setup/supabase.md) | database and sign-in |
-| [Anthropic](docs/setup/ai-keys.md) | intake, feedback, screening |
-| [Deepgram](docs/setup/ai-keys.md) | speech-to-text |
-| [Recall.ai](docs/setup/recall.md) | the bot that joins and records |
-| [Cloudflare](docs/setup/cloudflare.md) | domain, tunnel, TURN relay |
-| [Resend](docs/setup/email.md) | invitations, feedback links, resets |
+| [Supabase](setup-wiki-docs/supabase.md) | database and sign-in |
+| [Anthropic](setup-wiki-docs/ai-keys.md) | intake, feedback, screening |
+| [Deepgram](setup-wiki-docs/ai-keys.md) | speech-to-text |
+| [Recall.ai](setup-wiki-docs/recall.md) | the bot that joins and records |
+| [Cloudflare](setup-wiki-docs/cloudflare.md) | domain, tunnel, TURN relay |
+| [Resend](setup-wiki-docs/email.md) | invitations, feedback links, resets |
 
 The stack *starts* with any of these unset — an unset key disables that feature
 rather than breaking the boot, and the readiness panel tells you which. But an
 instance missing Recall, the tunnel or TURN cannot capture an interview, and one
 missing email never contacts a candidate. Genuinely optional:
-[Google sign-in](docs/setup/google-auth.md), which model each workload uses, and
+[Google sign-in](setup-wiki-docs/google-auth.md), which model each workload uses, and
 the Cortex MCP connector.
 
 **The one thing the setup UI cannot do for you** is create your database.
@@ -93,17 +94,13 @@ agent on the same origin, so splitting across subdomains breaks voice and MCP.
 
 | | |
 |---|---|
-| **[Setup](SETUP.md)** | **start here — clone to working instance** |
-| [Supabase](docs/setup/supabase.md) | database, keys, schema, staff access |
-| [Cloudflare](docs/setup/cloudflare.md) | domain, tunnel, TURN relay |
-| [Recall](docs/setup/recall.md) | meeting capture and webhooks |
-| [AI keys](docs/setup/ai-keys.md) | Anthropic, Deepgram, OpenAI, model choice |
-| [Email](docs/setup/email.md) | Resend or Zoho |
-| [Google sign-in](docs/setup/google-auth.md) | optional OAuth |
-| [Architecture](docs/architecture.md) | service map, auth flow, the job seam, how things degrade |
-| [Security](docs/security.md) | trust boundaries, the RLS model, what is left to you |
-| [E2E checklist](docs/e2e-checklist.md) | what was verified before release — and what wasn't |
-| [Engineering notes](docs/blog/README.md) | how it was extracted, and what broke |
+| **[Setup](setup-wiki-docs/README.md)** | **start here — clone to working instance** |
+| [Supabase](setup-wiki-docs/supabase.md) | database, keys, schema, staff access |
+| [Cloudflare](setup-wiki-docs/cloudflare.md) | domain, tunnel, TURN relay |
+| [Recall](setup-wiki-docs/recall.md) | meeting capture and webhooks |
+| [AI keys](setup-wiki-docs/ai-keys.md) | Anthropic, Deepgram, OpenAI, model choice |
+| [Email](setup-wiki-docs/email.md) | Resend or Zoho |
+| [Google sign-in](setup-wiki-docs/google-auth.md) | optional OAuth |
 
 ## Development
 

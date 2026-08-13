@@ -14,7 +14,7 @@ below, only for direct `psql` access).
 
 ## 2. Apply the schema
 
-Open **SQL Editor → New query**, paste the entire contents of [`schema.sql`](../../schema.sql),
+Open **SQL Editor → New query**, paste the entire contents of [`schema.sql`](../schema.sql),
 and press **Run**.
 
 This is one consolidated file — the project's whole history of migrations squashed into a
@@ -37,41 +37,50 @@ The `REVOKE EXECUTE ... FROM authenticated, PUBLIC` lines near the end are not n
 they are what stops the `SECURITY DEFINER` functions from being callable by ordinary
 logged-in users. Do not strip them.
 
-**Optional demo data:** paste [`seed.sql`](../../seed.sql) into a new query and run it.
+**Optional demo data:** paste [`seed.sql`](../seed.sql) into a new query and run it.
 It adds one organization, a requisition with two rounds, two candidates and a transcript.
 Read the note at the bottom of that file — you must attach your account to the demo
 organization after signing up, or row-level security will (correctly) hide all of it.
 
-## 3. Copy your keys into `.env`
+## 3. Enter your keys
 
-Go to **Project Settings → API keys** and fill these into your `.env`:
+Open the setup UI at **<http://127.0.0.1:3010>** and fill in the first four
+fields under **Get started**:
 
-| Supabase value | `.env` keys |
+| Setup UI field | Where to find it in Supabase |
 |---|---|
-| Project URL | `SUPABASE_URL` **and** `NEXT_PUBLIC_SUPABASE_URL` |
-| `anon` / publishable key | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` **and** `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
-| `service_role` / secret key | `SUPABASE_SECRET_KEY` |
-| JWT Secret (**API → JWT Settings**) | `SUPABASE_JWT_SECRET` |
+| Supabase project URL | Project Settings → API keys → Project URL |
+| Supabase publishable key | Project Settings → API keys → `anon` / publishable |
+| Supabase secret key | Project Settings → API keys → `service_role` / secret |
+| Supabase JWT secret | Project Settings → API → JWT Settings → JWT Secret |
 
-`SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `SUPABASE_JWT_SECRET` are the three values the
-backend has no default for — leave any of them blank and the API refuses to start.
+Press **Review & apply**. The UI writes them and recreates only the services that
+read them.
 
-The browser-safe key has two names because Supabase renamed it: newer projects call it
-"publishable", older ones "anon". They are the same string, and you set **both** variables
-to it — the landing app reads the publishable name, the recruiter app accepts either, and
-`docker-compose.yml` passes both to every frontend image as build args. There is no
-backend `SUPABASE_ANON_KEY`; nothing server-side reads that key.
+> **One field per real decision.** The project URL and the publishable key each
+> live under *two* variable names, because the backend and the browser read
+> different ones. The setup UI writes both copies from the single value you
+> entered — that duplication used to be yours to keep in sync, and drift between
+> the copies is a failure this project has already shipped.
 
-The `service_role` key bypasses row-level security entirely. It belongs to the backend
-only, under the name `SUPABASE_SECRET_KEY`. Never put it in a `NEXT_PUBLIC_*` variable —
-those are compiled into the browser bundle and are readable by anyone who loads the page.
+Three of those four have no default: the backend refuses to start without the
+project URL, the secret key, or the JWT secret.
 
-`SUPABASE_JWT_SECRET` is required, but not for the reason its name suggests. This
-project's Supabase issues **ES256** access tokens, which the backend verifies against
-your project's public JWKS — the shared secret plays no part in checking a user login.
-It signs the backend's *own* HS256 tokens: screening sessions, OTP codes and public
-feedback links. Any long random string works if you would rather not reuse the
-dashboard's value.
+**Why the publishable key has two names.** Supabase renamed it — newer projects
+say "publishable", older ones say "anon". Same string. It is publishable by
+design and safe in a browser.
+
+**The secret key bypasses row-level security entirely.** It belongs to the
+backend alone. The setup UI treats it as write-only and never returns it to the
+page; if you ever set it by hand, never put it in a `NEXT_PUBLIC_*` variable —
+those are compiled into the browser bundle.
+
+**The JWT secret is required, but not for the reason its name suggests.** This
+project's Supabase issues **ES256** access tokens, which the backend verifies
+against your project's public JWKS — the shared secret plays no part in checking
+a user login. It signs the backend's *own* HS256 tokens: screening sessions, OTP
+codes and public feedback links. Any long random string works if you would rather
+not reuse the dashboard's value.
 
 ## 4. Configure auth URLs
 
@@ -95,8 +104,8 @@ page — the redirect is rejected by Supabase, not by the app.
 Sign up through the landing app at `http://localhost:3000` once the stack is running.
 The backend creates your profile on first login.
 
-Self-hosted instances are not invite-gated by default (`SIGNUP_INVITE_ONLY=false` in
-`.env`). Set it to `true` if you want to close signup on a shared deployment.
+Self-hosted instances are not invite-gated by default. To close signup on a
+shared deployment, turn on **Advanced → Invite-only signup** in the setup UI.
 
 To make yourself a staff user, run this in the SQL editor after signing up:
 
@@ -112,7 +121,7 @@ their credit budgets, requisitions, and the blog. It is gated entirely on
 the instance. Do not set it on ordinary recruiter accounts.
 
 To create a staff account in one step, edit the CONFIG block at the top of
-[`staff_user.sql`](../../staff_user.sql) and run it in the SQL editor. It
+[`staff_user.sql`](../staff_user.sql) and run it in the SQL editor. It
 provisions the Supabase Auth user, the confirmed email identity and the staff
 profile together, and is safe to re-run (it resets the password rather than
 creating a duplicate).

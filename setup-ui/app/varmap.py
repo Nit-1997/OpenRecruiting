@@ -292,8 +292,13 @@ GROUPS: list[Group] = [
                      "results. Despite the name this is NOT Lambda-only — the "
                      "backend rejects every worker callback when it is unset, "
                      "including on the default http path, so feedback results "
-                     "never come back.",
-                     secret=True, services=["backend"]),
+                     "never come back. BOTH SIDES need it: the backend compares "
+                     "it (api/v2/routers/webhooks_feedback.py) and feedback-agent "
+                     "sends it (production/handler.py, which app.py runs "
+                     "verbatim). Restarting only the backend would leave the "
+                     "worker holding the old value and the callback still "
+                     "rejected.",
+                     secret=True, services=["backend", "feedback-agent"]),
         ],
     ),
     Group(

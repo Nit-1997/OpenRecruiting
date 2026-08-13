@@ -62,7 +62,8 @@ model for high-volume screening, a stronger one for feedback.
 
 The readiness panel on `:3010` shows **Core** and **Browser voice** as `live`.
 
-To check the gateway is actually serving your key:
+To check the gateway is actually serving your key — this reads `.env` rather than
+setting it, so it is safe to run at any time:
 
 ```bash
 KEY=$(grep '^LITELLM_MASTER_KEY=' .env | cut -d= -f2-)
