@@ -14,10 +14,18 @@ so it stays reachable on a completely unconfigured stack.
 THROUGH THE GATEWAY, NEVER DIRECT. The model id is sent to litellm's wildcard
 route, so this process passes a model NAME and never a provider key. That keeps
 the gateway the single egress point, which is the property the whole migration
-was for. It is also why a probe works on a model that has not been saved yet.
+was for. It is also why any model of a configured provider can be tested without
+first writing it into the config and restarting — but the PROVIDER does have to
+be saved, because the wildcard route is what the save creates.
 
-Roughly $0.005 on a mid-priced model — four calls with small max_tokens. Cost is
-reported back so the user sees what a test spent.
+WITH THE QUIRKS, NOT WITHOUT THEM. The wildcard route carries no per-model
+settings, so the caller must pass the same params the generator would write.
+Skipping that measures a configuration nobody will ever run: the first version
+of this did, and failed z-ai/glm-5.2 on an empty reply and a silent stream —
+both of which are exactly what its reasoning quirk fixes.
+
+Roughly $0.0005 on a mid-priced model — four calls with small max_tokens. Cost
+is reported back so the user sees what a test spent.
 """
 
 from __future__ import annotations
@@ -75,6 +83,9 @@ class ProbeResult:
     ok: bool = False
     #: Set when the model works but something about it needs saying.
     warning: str = ""
+    #: Human-readable list of the quirks the probe ran WITH, so a pass is never
+    #: mistaken for "this model needs no configuration".
+    applied: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -99,15 +110,32 @@ class Prober:
             raise ProbeError(_explain(resp.status_code, resp.text))
         return resp.json()
 
-    async def run(self, provider_prefix: str, provider_id: str, model_id: str) -> ProbeResult:
-        """Four calls against `<prefix>/<model id>` through the wildcard route."""
+    async def run(
+        self,
+        provider_prefix: str,
+        provider_id: str,
+        model_id: str,
+        quirk_params: dict[str, Any] | None = None,
+        quirk_notes: tuple[str, ...] = (),
+    ) -> ProbeResult:
+        """Four calls against `<prefix>/<model id>` through the wildcard route.
+
+        `quirk_params` MUST be the same params the generator would write for this
+        model. The wildcard route carries no quirks of its own, so without them
+        this measures a configuration nobody will ever run: the first version
+        did exactly that and failed z-ai/glm-5.2 on an empty reply and a silent
+        stream — both of which are precisely what its reasoning quirk fixes. A
+        probe that condemns a model the product would have used correctly is
+        worse than no probe.
+        """
         if not self._key:
             raise ProbeError(
                 "The gateway master key is not set, so nothing can be tested. Fill in "
                 "LITELLM_MASTER_KEY under AI models first."
             )
         target = f"{provider_prefix}/{model_id}"
-        result = ProbeResult(model=model_id, provider=provider_id)
+        extra = dict(quirk_params or {})
+        result = ProbeResult(model=model_id, provider=provider_id, applied=quirk_notes)
         cost = 0.0
 
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
@@ -118,6 +146,7 @@ class Prober:
                     "model": target,
                     "messages": [{"role": "user", "content": "Reply with the single word: ready"}],
                     "max_tokens": 64,
+                    **extra,
                 },
             )
             cost += _cost_of(data)
@@ -147,6 +176,7 @@ class Prober:
                     "messages": [{"role": "user", "content": _JOB_PROMPT}],
                     "tools": [_JD_TOOL],
                     "max_tokens": 256,
+                    **extra,
                 },
             )
             cost += _cost_of(data)
@@ -163,7 +193,7 @@ class Prober:
                 result.checks.append(Check("Calls a tool", True, f"title={call['title']!r}"))
 
             # 3. Streaming.
-            deltas, stream_detail = await self._stream(client, target)
+            deltas, stream_detail = await self._stream(client, target, extra)
             result.checks.append(
                 Check("Streams", bool(deltas), stream_detail)
             )
@@ -176,6 +206,7 @@ class Prober:
                     "messages": [{"role": "user", "content": _JOB_PROMPT}],
                     "tools": [_CANDIDATE_TOOL, _JD_TOOL],
                     "max_tokens": 256,
+                    **extra,
                 },
             )
             cost += _cost_of(data)
@@ -198,12 +229,15 @@ class Prober:
             )
         return result
 
-    async def _stream(self, client: httpx.AsyncClient, target: str) -> tuple[int, str]:
+    async def _stream(
+        self, client: httpx.AsyncClient, target: str, extra: dict[str, Any]
+    ) -> tuple[int, str]:
         body = {
             "model": target,
             "messages": [{"role": "user", "content": "Count from one to five, in words."}],
             "max_tokens": 64,
             "stream": True,
+            **extra,
         }
         deltas = 0
         try:
@@ -275,6 +309,15 @@ def _explain(status: int, body: object) -> str:
         return (
             "The provider rejected the key (401). Check that the key belongs to this "
             f"provider — a key from a different provider fails exactly like this. {snippet}"
+        )
+    if "no healthy deployments" in text.lower():
+        # litellm's phrasing for "I have never heard of this model", which reads
+        # like an outage. It is almost always a provider that was saved but whose
+        # gateway restart has not finished, or a model id with a typo.
+        return (
+            "The gateway has no route for this model. Either the provider was saved "
+            "but the gateway has not finished restarting — wait a few seconds and try "
+            "again — or the model id is misspelled."
         )
     if status == 404:
         return f"The gateway does not know this model id (404). Check the spelling. {snippet}"

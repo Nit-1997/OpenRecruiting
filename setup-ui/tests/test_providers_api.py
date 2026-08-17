@@ -322,6 +322,70 @@ def test_probing_requires_authentication(client):
     assert c.post("/api/probe", json={"provider": "anthropic", "model": "x"}).status_code == 401
 
 
+def test_probing_an_unconfigured_provider_explains_what_to_do(client):
+    """The gateway's wildcard route only exists for saved providers, so this
+    otherwise fails deep inside litellm as "no healthy deployments" — which tells
+    the user nothing about pressing Add +."""
+    c, auth, env, registry, _ = client
+    env.write_text(SAMPLE_ENV.replace("OPENROUTER_API_KEY=", "OPENROUTER_API_KEY=sk-or-v1-x"))
+    registry.write_text(
+        json.dumps({"default": "anthropic", "providers": {"anthropic": {"preferred": "claude-sonnet-5"}}})
+    )
+
+    resp = c.post("/api/probe", headers=auth, json={"provider": "openrouter", "model": "z-ai/glm-5.2"})
+
+    assert resp.status_code == 400
+    assert "Add OpenRouter first" in resp.json()["detail"]
+
+
+def test_the_probe_runs_with_the_same_quirks_the_generator_would_write(client, monkeypatch):
+    """The wildcard route carries no per-model settings. Probing without them
+    measured a configuration nobody runs: it failed z-ai/glm-5.2 on an empty
+    reply and a silent stream, both of which are what its reasoning quirk fixes.
+    A probe that condemns a model the product would have used correctly is worse
+    than no probe."""
+    import app.main as main
+    from app.probe import Check, ProbeResult
+
+    seen: dict = {}
+
+    async def _fetch(provider_id):
+        if provider_id != "openrouter":
+            return {}
+        return {
+            "openrouter/z-ai/glm-5.2": {
+                "supported_parameters": ["tools"],
+                "reasoning": {"default_enabled": True, "supported_efforts": ["xhigh", "high"]},
+            }
+        }
+
+    async def _run(self, prefix, provider_id, model_id, quirk_params=None, quirk_notes=()):
+        seen["params"] = quirk_params
+        seen["notes"] = quirk_notes
+        return ProbeResult(
+            model=model_id, provider=provider_id,
+            checks=[Check("Returns text", True, "'ready'")], ok=True,
+            applied=quirk_notes,
+        )
+
+    monkeypatch.setattr(main.catalogue, "fetch", _fetch)
+    monkeypatch.setattr(main.Prober, "run", _run)
+
+    c, auth, env, _, _ = client
+    env.write_text(SAMPLE_ENV.replace("OPENROUTER_API_KEY=", "OPENROUTER_API_KEY=sk-or-v1-x"))
+    c.post("/api/providers", headers=auth, json={"provider": "openrouter", "preferred": "z-ai/glm-5.2"})
+
+    resp = c.post(
+        "/api/probe", headers=auth, json={"provider": "openrouter", "model": "z-ai/glm-5.2"}
+    )
+
+    assert resp.status_code == 200
+    assert seen["params"] == {"reasoning": {"enabled": False}}
+    # Reported back, so a pass is never read as "this model needs no settings".
+    assert seen["notes"] and "reasoning" in seen["notes"][0]
+    assert resp.json()["applied"]
+
+
 # ── registry loading ────────────────────────────────────────────────────────
 
 

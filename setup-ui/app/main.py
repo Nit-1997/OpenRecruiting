@@ -30,7 +30,7 @@ from app.litellm_cfg import read_aliases
 from app.probe import ProbeError, Prober
 from app.readiness import evaluate as evaluate_readiness
 from app.supabase_setup import check_schema, manual_instructions
-from app import catalogue, derive, litellm_gen, providers, workloads
+from app import catalogue, derive, litellm_gen, providers, quirks, workloads
 from app.varmap import GROUPS, affected_services, all_variables, is_secret
 
 ENV_PATH = Path(os.environ.get("SETUP_ENV_PATH", "/repo/.env"))
@@ -531,13 +531,34 @@ async def probe_model(body: ProbeBody) -> dict:
             detail=f"{spec.label} has no key set, so there is nothing to test with. "
             f"Save {spec.key_var} first.",
         )
+    # The probe rides the gateway's wildcard route, and that route only exists
+    # for providers already in the generated config. Testing a model of a
+    # provider you have not added yet fails deep inside litellm as "no healthy
+    # deployments", which tells the user nothing about what to do next.
+    if body.provider not in _load_registry().providers:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Add {spec.label} first, then test. The gateway only routes to "
+            "providers it has been told about — press Add + and the test will work.",
+        )
+
+    # The same quirks the generator would write for this model. Without them the
+    # probe measures a configuration that will never run — see probe.py.
+    model_id = body.model.strip()
+    try:
+        metadata = (await catalogue.fetch(spec.id)).get(f"{spec.id}/{model_id}")
+    except catalogue.CatalogueError:
+        metadata = None
+    derived = quirks.derive(spec, model_id, metadata)
 
     prober = Prober(
         values.get("LLM_GATEWAY_URL", "") or "http://litellm:4000",
         values.get("LITELLM_MASTER_KEY", ""),
     )
     try:
-        result = await prober.run(spec.prefix, spec.id, body.model.strip())
+        result = await prober.run(
+            spec.prefix, spec.id, model_id, derived.params, derived.notes
+        )
     except ProbeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return result.as_dict()
