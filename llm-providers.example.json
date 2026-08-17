@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "Which model provider each workload uses. Copy to llm-providers.json, or just",
+    "use the setup UI's AI models card, which writes this file for you.",
+    "",
+    "NO SECRETS LIVE HERE. Provider and model ids only. API keys stay in .env,",
+    "which the litellm container alone reads — that is what keeps the gateway the",
+    "single point of egress and keeps every application container credential-free.",
+    "",
+    "'default' is the provider every workload uses. 'preferred' is its model;",
+    "'fast' is the cheap one used by the five workloads that run a cheaper tier",
+    "today (intake-jd, candidate-detect, parse-role-intent, feedback-haiku,",
+    "intake-agent-haiku). Leave 'fast' out to use 'preferred' for everything —",
+    "which costs more, because those five were deliberately put on a cheap tier.",
+    "",
+    "'overrides' repoints one workload at a different provider or model. Anything",
+    "not listed follows the default.",
+    "",
+    "Deleting this file is safe: the built-in defaults reproduce the configuration",
+    "this project shipped before providers were configurable."
+  ],
+
+  "default": "anthropic",
+
+  "providers": {
+    "anthropic": {
+      "preferred": "claude-sonnet-5",
+      "fast": "claude-haiku-4-5-20251001"
+    },
+    "openai": {
+      "preferred": "gpt-5.6-terra"
+    },
+    "ollama": {
+      "preferred": "gemma4:latest"
+    },
+    "openrouter": {
+      "preferred": "deepseek/deepseek-v4-flash",
+      "fast": "deepseek/deepseek-v4-flash"
+    }
+  },
+
+  "overrides": {}
+}
