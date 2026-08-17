@@ -14,6 +14,7 @@ Security posture, in order of how much weight each carries:
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -25,15 +26,20 @@ from app.applier import Applier, ApplyError
 from app.auth import Auth, AuthError
 from app.docker_ctl import DockerControl, DockerError
 from app.envfile import atomic_write, parse, update
-from app.litellm_cfg import read_aliases, set_model
+from app.litellm_cfg import read_aliases
+from app.probe import ProbeError, Prober
 from app.readiness import evaluate as evaluate_readiness
 from app.supabase_setup import check_schema, manual_instructions
-from app import derive
+from app import catalogue, derive, litellm_gen, providers, workloads
 from app.varmap import GROUPS, affected_services, all_variables, is_secret
 
 ENV_PATH = Path(os.environ.get("SETUP_ENV_PATH", "/repo/.env"))
 ENV_EXAMPLE_PATH = Path(os.environ.get("SETUP_ENV_EXAMPLE_PATH", "/repo/.env.example"))
 LITELLM_PATH = Path(os.environ.get("SETUP_LITELLM_PATH", "/repo/litellm-config.yaml"))
+#: Which provider and model this deployment chose. No secrets — keys stay in
+#: .env. Absent means the built-in defaults, so a fresh clone behaves exactly as
+#: it did before providers were configurable.
+REGISTRY_PATH = Path(os.environ.get("SETUP_REGISTRY_PATH", "/repo/llm-providers.json"))
 STATE_PATH = Path(os.environ.get("SETUP_STATE_PATH", "/state/password.json"))
 DOCKER_PROXY = os.environ.get("SETUP_DOCKER_PROXY", "http://socket-proxy:2375")
 STATIC_DIR = Path(__file__).parent / "static"
@@ -318,77 +324,44 @@ async def readiness() -> dict:
     }
 
 
-class ModelBody(BaseModel):
-    alias: str
-    model: str
+# ── model providers ─────────────────────────────────────────────────────────
+# The AI setup, in one place: choose a provider, give it a key and a preferred
+# model, and every workload follows it. Before this, the only provider fields
+# were two hardcoded keys and the only way to change a model was a YAML file.
 
 
-@app.get("/api/models", dependencies=[Depends(require_auth)])
-async def models() -> dict:
-    """The 27 per-workload aliases, as they are configured right now.
+async def _catalogue_for(registry: providers.Registry) -> dict:
+    """Metadata for every configured provider, best effort.
 
-    This is what the gateway migration was for — each workload independently
-    repointable. Surfacing it is the difference between "you can change the
-    model" and "you can change the model if you know YAML and which of 27
-    aliases the screening agent uses".
+    Best effort ON PURPOSE: a catalogue outage must not block a save. Quirk
+    derivation falls back to provider-level constants without it, which is the
+    same answer this project shipped before catalogues existed.
     """
-    if not LITELLM_PATH.exists():
-        return {"error": f"{LITELLM_PATH} not found", "aliases": []}
-    aliases = read_aliases(LITELLM_PATH.read_text(encoding="utf-8"))
-    return {
-        "error": "",
-        "aliases": [
-            {
-                "name": a.name,
-                "model": a.model,
-                "provider": a.provider,
-                "supports_tools": a.supports_tools,
-                "drops_temperature": a.drops_temperature,
-                "description": a.description,
-            }
-            for a in aliases
-        ],
-    }
+    merged: dict = {}
+    for provider_id in registry.providers:
+        try:
+            merged.update(await catalogue.fetch(provider_id))
+        except catalogue.CatalogueError:
+            continue
+    return merged
 
 
-@app.post("/api/models", dependencies=[Depends(require_auth)])
-async def set_alias_model(body: ModelBody) -> dict:
-    """Repoint one alias and reload the gateway.
+async def _write_and_reload(registry: providers.Registry) -> dict:
+    """Persist the registry, regenerate the gateway config, restart the gateway.
 
-    Only litellm restarts: it is the single reader of this file, and every other
-    service reaches models through it by alias. That is precisely the property
-    the migration bought.
+    ONLY litellm restarts. It is the single reader of that file and every other
+    service reaches models through it by alias — the property the gateway
+    migration bought, and the reason changing every model in the deployment does
+    not disturb a call in progress.
     """
-    if not body.model.strip():
-        raise HTTPException(status_code=400, detail="Model cannot be empty.")
-    if not LITELLM_PATH.exists():
-        raise HTTPException(status_code=500, detail=f"{LITELLM_PATH} not found")
-
-    text = LITELLM_PATH.read_text(encoding="utf-8")
     try:
-        updated = set_model(text, body.alias, body.model.strip())
-    except LookupError as exc:
+        rendered = litellm_gen.render(registry, await _catalogue_for(registry))
+    except (providers.RegistryError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    warning = ""
-    alias = next((a for a in read_aliases(updated) if a.name == body.alias), None)
-    if alias:
-        if alias.supports_tools and alias.provider == "ollama_chat":
-            warning = (
-                f"{body.alias} sends tools, and local models rarely support native "
-                "function calling. If this alias serves a streaming workload it will "
-                "silently stop recording answers rather than degrade."
-            )
-        elif alias.provider == "openai" and not alias.drops_temperature:
-            warning = (
-                f"{body.alias} now points at OpenAI but does not drop `temperature`. "
-                "Nine call sites send temperature=0 and GPT-5 models accept only the "
-                "default, so those calls will 400 until "
-                'additional_drop_params: ["temperature"] is added.'
-            )
-
     try:
-        backup = atomic_write(LITELLM_PATH, updated)
+        atomic_write(REGISTRY_PATH, json.dumps(providers.to_dict(registry), indent=2) + "\n")
+        backup = atomic_write(LITELLM_PATH, rendered)
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Could not write config: {exc}") from exc
 
@@ -399,9 +372,246 @@ async def set_alias_model(body: ModelBody) -> dict:
     except DockerError as exc:
         ok, detail = False, str(exc)
 
-    return {"alias": body.alias, "model": body.model.strip(),
-            "backup": backup.name if backup else None,
-            "restarted": ok, "detail": detail, "warning": warning}
+    return {"restarted": ok, "detail": detail, "backup": backup.name if backup else None}
+
+
+def _load_registry() -> providers.Registry:
+    try:
+        return providers.load(REGISTRY_PATH)
+    except providers.RegistryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class ProviderBody(BaseModel):
+    provider: str
+    preferred: str
+    fast: str = ""
+    #: Write-only, like every other secret here. Omit to leave the stored key
+    #: alone — the UI shows `•••• set` and never receives it back.
+    api_key: str = ""
+    make_default: bool = False
+
+
+@app.get("/api/providers", dependencies=[Depends(require_auth)])
+async def list_providers() -> dict:
+    registry = _load_registry()
+    values = _read_env()
+    return {
+        "default": registry.default,
+        "available": [
+            {
+                "id": spec.id,
+                "label": spec.label,
+                "needs_key": bool(spec.key_var),
+                "key_var": spec.key_var or "",
+                "default_preferred": spec.default_preferred,
+                "default_fast": spec.default_fast,
+                "has_catalogue": bool(spec.catalogue_url),
+            }
+            for spec in providers.PROVIDERS.values()
+        ],
+        "configured": [
+            {
+                "id": pid,
+                "label": providers.PROVIDERS[pid].label,
+                "preferred": entry.preferred,
+                "fast": entry.fast,
+                "is_default": pid == registry.default,
+                # Whether the credential this provider needs is actually present.
+                # The failure this whole feature exists to prevent is a provider
+                # that looks configured while its key is empty or belongs to
+                # someone else, so "set" is reported per provider, not globally.
+                "key_set": (
+                    True
+                    if not providers.PROVIDERS[pid].key_var
+                    else bool(values.get(providers.PROVIDERS[pid].key_var, ""))
+                ),
+            }
+            for pid, entry in registry.providers.items()
+        ],
+    }
+
+
+@app.post("/api/providers", dependencies=[Depends(require_auth)])
+async def upsert_provider(body: ProviderBody) -> dict:
+    spec = providers.PROVIDERS.get(body.provider)
+    if spec is None:
+        raise HTTPException(status_code=400, detail=f"Unknown provider '{body.provider}'.")
+    if not body.preferred.strip():
+        raise HTTPException(status_code=400, detail="A preferred model is required.")
+
+    registry = _load_registry()
+    registry.providers[body.provider] = providers.ProviderEntry(
+        preferred=body.preferred.strip(), fast=body.fast.strip()
+    )
+    if body.make_default or len(registry.providers) == 1:
+        # First one added becomes the default, as asked. Also covers the case
+        # where the previous default was just deleted.
+        registry.default = body.provider
+
+    if body.api_key.strip() and spec.key_var:
+        base = ENV_PATH.read_text(encoding="utf-8") if ENV_PATH.exists() else ""
+        try:
+            atomic_write(ENV_PATH, update(base, {spec.key_var: body.api_key.strip()}))
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail=f"Could not write .env: {exc}") from exc
+
+    result = await _write_and_reload(registry)
+    # The key lives in .env, which litellm reads via env_file — and env_file is
+    # read at container CREATE time, so a restart would reuse the old value and
+    # the save would appear to work while changing nothing. Recreate instead.
+    if body.api_key.strip() and spec.key_var:
+        try:
+            outcome = await applier.recreate(["litellm"])
+            result["restarted"] = bool(outcome.get("ok"))
+            result["detail"] = "" if outcome.get("ok") else str(outcome.get("detail", ""))
+        except ApplyError as exc:
+            result["restarted"], result["detail"] = False, str(exc)
+
+    return {"provider": body.provider, "default": registry.default, **result}
+
+
+@app.delete("/api/providers/{provider_id}", dependencies=[Depends(require_auth)])
+async def delete_provider(provider_id: str) -> dict:
+    registry = _load_registry()
+    if provider_id not in registry.providers:
+        raise HTTPException(status_code=404, detail=f"'{provider_id}' is not configured.")
+    if len(registry.providers) == 1:
+        raise HTTPException(
+            status_code=400,
+            detail="This is the only provider. Add another before removing it, or "
+            "every workload would have nowhere to run.",
+        )
+    registry.providers.pop(provider_id)
+    # Overrides pointing at a provider that no longer exists would fail the next
+    # render, so they go with it rather than leaving the file unrenderable.
+    dropped = [a for a, o in registry.overrides.items() if o["provider"] == provider_id]
+    for alias in dropped:
+        registry.overrides.pop(alias)
+    if registry.default == provider_id:
+        registry.default = next(iter(registry.providers))
+
+    result = await _write_and_reload(registry)
+    return {"removed": provider_id, "default": registry.default,
+            "dropped_overrides": dropped, **result}
+
+
+@app.get("/api/providers/{provider_id}/catalogue", dependencies=[Depends(require_auth)])
+async def provider_catalogue(provider_id: str) -> dict:
+    try:
+        models = await catalogue.fetch(provider_id)
+    except catalogue.CatalogueError as exc:
+        return {"error": str(exc), "models": []}
+    return {"error": "", "models": catalogue.summarise(provider_id, models)}
+
+
+class ProbeBody(BaseModel):
+    provider: str
+    model: str
+
+
+@app.post("/api/probe", dependencies=[Depends(require_auth)])
+async def probe_model(body: ProbeBody) -> dict:
+    """Make a model actually do the four things this stack needs.
+
+    Metadata says what a model claims; this says what it does. Reached through
+    the gateway's wildcard route, so a model can be tested BEFORE it is saved and
+    no provider key ever enters this process.
+    """
+    spec = providers.PROVIDERS.get(body.provider)
+    if spec is None:
+        raise HTTPException(status_code=400, detail=f"Unknown provider '{body.provider}'.")
+    if not body.model.strip():
+        raise HTTPException(status_code=400, detail="A model id is required.")
+
+    values = _read_env()
+    if spec.key_var and not values.get(spec.key_var, ""):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{spec.label} has no key set, so there is nothing to test with. "
+            f"Save {spec.key_var} first.",
+        )
+
+    prober = Prober(
+        values.get("LLM_GATEWAY_URL", "") or "http://litellm:4000",
+        values.get("LITELLM_MASTER_KEY", ""),
+    )
+    try:
+        result = await prober.run(spec.prefix, spec.id, body.model.strip())
+    except ProbeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return result.as_dict()
+
+
+class OverrideBody(BaseModel):
+    alias: str
+    provider: str = ""
+    model: str = ""
+
+
+@app.get("/api/models", dependencies=[Depends(require_auth)])
+async def models() -> dict:
+    """Every workload alias, and what it currently resolves to.
+
+    This is what the gateway migration was for — each workload independently
+    repointable. Surfacing it is the difference between "you can change the
+    model" and "you can change the model if you know YAML and which of 27
+    aliases the screening agent uses".
+    """
+    registry = _load_registry()
+    live = {}
+    if LITELLM_PATH.exists():
+        live = {a.name: a for a in read_aliases(LITELLM_PATH.read_text(encoding="utf-8"))}
+
+    rows = []
+    for workload in workloads.WORKLOADS:
+        override = registry.overrides.get(workload.name)
+        alias = live.get(workload.name)
+        rows.append(
+            {
+                "name": workload.name,
+                "tier": workload.tier,
+                "description": workload.comment.replace("\n", " "),
+                "model": alias.model if alias else "",
+                "supports_tools": alias.supports_tools if alias else None,
+                "override": override or None,
+                # A model with no native tool calling does not degrade these, it
+                # breaks them: emulated tools and streaming do not compose.
+                "streams_tools": workload.name in workloads.STREAMING_TOOL_ALIASES,
+            }
+        )
+    return {"error": "", "default": registry.default, "aliases": rows}
+
+
+@app.post("/api/models", dependencies=[Depends(require_auth)])
+async def set_alias_override(body: OverrideBody) -> dict:
+    """Pin one workload to a specific provider and model, or clear the pin.
+
+    An empty provider clears the override, so the workload goes back to following
+    the default. That is the escape hatch for the one workload that needs a
+    different model without turning the other 21 into hand-managed entries.
+    """
+    if body.alias not in workloads.by_name():
+        raise HTTPException(status_code=400, detail=f"No workload named '{body.alias}'.")
+
+    registry = _load_registry()
+    if not body.provider.strip():
+        registry.overrides.pop(body.alias, None)
+    else:
+        if body.provider not in registry.providers:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{body.provider}' is not configured. Add it under AI models first.",
+            )
+        if not body.model.strip():
+            raise HTTPException(status_code=400, detail="A model id is required.")
+        registry.overrides[body.alias] = {
+            "provider": body.provider,
+            "model": body.model.strip(),
+        }
+
+    result = await _write_and_reload(registry)
+    return {"alias": body.alias, "override": registry.overrides.get(body.alias), **result}
 
 
 @app.get("/healthz")

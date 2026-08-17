@@ -27,6 +27,7 @@ change intact.
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -190,14 +191,20 @@ DEFAULT_REGISTRY = Registry(
 
 
 def load(path: Path) -> Registry:
-    """The registry, or the built-in default when the file is absent.
+    """The registry, or a COPY of the built-in default when the file is absent.
 
     Absent is the NORMAL state, not an error: the defaults reproduce the
     behaviour every existing deployment already has, so this feature costs a
     fresh clone nothing until someone opens the page.
+
+    The copy is load-bearing. Callers mutate what they get back — adding a
+    provider, dropping an override — and handing out the module-level default
+    meant the first save rewrote the DEFAULT for the life of the process. Every
+    later "what does a fresh install look like?" then answered with the last
+    thing somebody saved. Caught by two provider tests polluting a third.
     """
     if not path.exists():
-        return DEFAULT_REGISTRY
+        return deepcopy(DEFAULT_REGISTRY)
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:

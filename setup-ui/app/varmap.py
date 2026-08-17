@@ -111,6 +111,15 @@ GROUPS: list[Group] = [
                      "also reads it directly for graph embeddings, so it restarts "
                      "too.",
                      secret=True, services=["litellm", "cortex-backend"]),
+            Variable("OPENROUTER_API_KEY", "OpenRouter API key",
+                     "One key for ~400 models, open-weight ones included. Prefer "
+                     "the AI models card above to this field: it writes the key "
+                     "AND repoints the workloads, whereas setting the key alone "
+                     "leaves every alias still pointing at the old provider — "
+                     "which is exactly the shape of the bug this replaced, where "
+                     "a key in the wrong box read as configured everywhere and "
+                     "401'd on every call.",
+                     secret=True, services=["litellm"]),
             Variable("RECALL_API_KEY", "Recall API key",
                      "Meeting capture. Unset means no bot can join a call.",
                      secret=True, services=["backend"]),

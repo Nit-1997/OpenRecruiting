@@ -31,7 +31,6 @@ from dataclasses import dataclass
 import yaml
 
 _ALIAS_LINE = re.compile(r"^(\s*)-\s+model_name:\s*(\S+)\s*$")
-_MODEL_LINE = re.compile(r"^(\s*)model:\s*(\S+)\s*$")
 
 
 @dataclass(frozen=True)
@@ -100,35 +99,3 @@ def _descriptions(text: str) -> dict[str, str]:
             # description of the NEXT alias.
             buffer = []
     return result
-
-
-def set_model(text: str, alias: str, new_model: str) -> str:
-    """Repoint one alias, changing exactly one line.
-
-    Raises LookupError when the alias or its `model:` line is not found, rather
-    than appending something plausible — a silently added alias would be served
-    by the gateway and never noticed.
-    """
-    lines = text.splitlines()
-    start = None
-    indent = ""
-    for i, line in enumerate(lines):
-        match = _ALIAS_LINE.match(line)
-        if match and match.group(2) == alias:
-            start, indent = i, match.group(1)
-            break
-    if start is None:
-        raise LookupError(f"No alias named '{alias}' in litellm-config.yaml")
-
-    for i in range(start + 1, len(lines)):
-        # Stop at the next alias so we can never edit a neighbour's model line.
-        nxt = _ALIAS_LINE.match(lines[i])
-        if nxt and len(nxt.group(1)) <= len(indent):
-            break
-        model_match = _MODEL_LINE.match(lines[i])
-        if model_match:
-            lines[i] = f"{model_match.group(1)}model: {new_model}"
-            result = "\n".join(lines)
-            return result + "\n" if text.endswith("\n") else result
-
-    raise LookupError(f"Alias '{alias}' has no model: line to change")
