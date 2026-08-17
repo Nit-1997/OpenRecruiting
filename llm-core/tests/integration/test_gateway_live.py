@@ -37,9 +37,32 @@ pytestmark = pytest.mark.live_gateway
 
 # One alias per provider the gateway fronts. `smoke-local` is declared
 # supports_function_calling: false, so it exercises the JSON emulation path.
-HOSTED_ALIASES = ["smoke-anthropic", "smoke-openai"]
-LOCAL_ALIAS = "smoke-local"
-ALL_ALIASES = [*HOSTED_ALIASES, LOCAL_ALIAS]
+#
+# OVERRIDABLE, because this suite is the only place that measures whether a model
+# can really do the four things every workload needs — text, native tools with
+# typed arguments, streaming, and multi-tool routing. Pointing it at a candidate
+# model is how "can we run on this?" gets an answer instead of an opinion, and
+# hardcoding the list meant re-editing the file to ask. The DEFAULTS are
+# unchanged, so the cost note in this module's docstring still describes what a
+# plain run spends; an override is opt-in and pays for its own calls.
+#
+#   LIVE_HOSTED_ALIASES=or-qwen,or-glm LIVE_LOCAL_ALIAS= python -m pytest ...
+#
+# An empty LIVE_LOCAL_ALIAS skips the emulation tests rather than failing them,
+# for runs on a host with no Ollama.
+HOSTED_ALIASES = [
+    a.strip()
+    for a in os.environ.get(
+        "LIVE_HOSTED_ALIASES", "smoke-anthropic,smoke-openai"
+    ).split(",")
+    if a.strip()
+]
+LOCAL_ALIAS = os.environ.get("LIVE_LOCAL_ALIAS", "smoke-local").strip()
+ALL_ALIASES = [*HOSTED_ALIASES, *([LOCAL_ALIAS] if LOCAL_ALIAS else [])]
+
+requires_local = pytest.mark.skipif(
+    not LOCAL_ALIAS, reason="LIVE_LOCAL_ALIAS is empty; no local model to emulate against"
+)
 
 JD_TOOL = {
     "type": "function",
@@ -163,6 +186,7 @@ async def test_native_tool_call_returns_typed_arguments(
     assert "SRE" in call.arguments["title"]
 
 
+@requires_local
 async def test_local_tool_call_is_emulated_and_carries_required_property(
     client: LLMClient,
 ) -> None:
@@ -226,6 +250,7 @@ async def test_streaming_yields_text_deltas_and_a_terminal_done(
     assert done["text"].strip() != ""
 
 
+@requires_local
 async def test_streaming_with_emulated_tools_yields_text_not_tool_calls(
     client: LLMClient,
 ) -> None:
@@ -296,6 +321,7 @@ async def test_multi_tool_routing_selects_the_right_tool(
     assert reply.tool_call_named("emit_candidate_profile") is None
 
 
+@requires_local
 async def test_local_multi_tool_routing_selects_the_right_tool(
     client: LLMClient,
 ) -> None:

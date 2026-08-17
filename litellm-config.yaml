@@ -251,6 +251,90 @@ model_list:
       api_base: os.environ/OLLAMA_API_BASE
     model_info: {supports_function_calling: false}
 
+  # --- OpenRouter: the fourth provider, and the open-weight spike -------------
+  # OpenRouter fronts ~414 models behind one key, 346 of which advertise `tools`
+  # in the `supported_parameters` array of https://openrouter.ai/api/v1/models.
+  # That array is what makes "pick any model" safe to offer: it is the only
+  # machine-readable answer to the question `model_info.supports_function_calling`
+  # asks, and getting that flag wrong in the `true` direction makes a streaming
+  # workload stop recording answers with NO visible error (see llm-core's
+  # capabilities.py, which fails OPEN — it defaults to true on uncertainty).
+  #
+  # The five below are the open-weight spike set: one flagship per major family,
+  # every one of them advertising `tools` AND `response_format`. They are here to
+  # be measured, not to serve traffic — no workload alias points at them.
+  #
+  # MEASURED 2026-08-17 against llm-core/tests/integration/test_gateway_live.py
+  # (text / native tools with typed args / streaming / multi-tool routing), three
+  # consecutive passes, 20 of 20 each, plus temperature=0 on all five. Total spend
+  # for the whole exercise: $0.02.
+  #
+  #   model                        tools  stream  temp=0  quirk
+  #   deepseek/deepseek-v4-flash    ok     ok      ok     none
+  #   qwen/qwen3.8-27b              ok     ok      ok     reasoning effort low
+  #   z-ai/glm-5.2                  ok     ok      ok     reasoning disabled
+  #   meta-llama/llama-4-maverick   ok     ok      ok     none
+  #   moonshotai/kimi-k2.6          ok     ok      ok     reasoning disabled
+  #
+  # THE REASONING QUIRK IS THE FINDING, and it is not optional. A reasoning model
+  # spends `max_tokens` on hidden reasoning BEFORE emitting content, so a call
+  # site asking for 64 tokens gets `finish_reason: length` and an EMPTY string —
+  # the failure this repo already knows as a degraded reply that reads like a real
+  # answer. It fires stochastically, so it passes a single manual test and breaks
+  # in production. Measured on glm-5.2: 77 reasoning tokens before 3 of content.
+  #
+  # Derive it from the catalogue's `reasoning` object, never by hand:
+  #   reasoning.default_enabled is falsy      -> no quirk (deepseek, llama)
+  #   a low effort tier exists                -> reasoning: {effort: <lowest>}
+  #   default_enabled but no low tier         -> reasoning: {enabled: false}
+  #
+  # Prefer the low tier over disabling: turning reasoning OFF entirely cost
+  # qwen3.8-27b its multi-tool routing (4/5 correct, one reply with no tool call
+  # at all), while effort:low restored it to 5/5. `mandatory: false` on all five
+  # is what makes disabling legal at all — a model with mandatory reasoning must
+  # get the token budget instead.
+  #
+  # Unlike openai/, none of these needed additional_drop_params: all five accept
+  # temperature=0, so the nine call sites that send it are safe here.
+  - model_name: smoke-openrouter
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4-flash
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: or-deepseek
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4-flash
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: or-qwen
+    litellm_params:
+      model: openrouter/qwen/qwen3.8-27b
+      api_key: os.environ/OPENROUTER_API_KEY
+      reasoning: {effort: low}
+    model_info: {supports_function_calling: true}
+
+  - model_name: or-glm
+    litellm_params:
+      model: openrouter/z-ai/glm-5.2
+      api_key: os.environ/OPENROUTER_API_KEY
+      reasoning: {enabled: false}
+    model_info: {supports_function_calling: true}
+
+  - model_name: or-llama
+    litellm_params:
+      model: openrouter/meta-llama/llama-4-maverick
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info: {supports_function_calling: true}
+
+  - model_name: or-kimi
+    litellm_params:
+      model: openrouter/moonshotai/kimi-k2.6
+      api_key: os.environ/OPENROUTER_API_KEY
+      reasoning: {enabled: false}
+    model_info: {supports_function_calling: true}
+
 litellm_settings:
   drop_params: true        # silently drop params a provider does not accept
   num_retries: 2
