@@ -307,7 +307,10 @@ async def readiness() -> dict:
     schema state is /api/database; a feature can be `live` here while a
     container is down.
     """
-    features = evaluate_readiness(_read_env())
+    # The registry is passed in, not read inside: readiness stays a pure function
+    # of its arguments, and "is the chosen provider's key set" cannot be answered
+    # without knowing which provider was chosen.
+    features = evaluate_readiness(_read_env(), _load_registry())
     return {
         "features": [
             {

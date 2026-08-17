@@ -135,6 +135,36 @@ def test_every_configured_provider_gets_a_wildcard_route_for_the_probe():
     assert wildcards == {"anthropic/*", "openai/*", "ollama_chat/*"}
 
 
+def test_the_wildcard_route_carries_its_providers_quirks():
+    """A wildcard is a real deployment. `openai/*` without additional_drop_params
+    400s on all nine of this repo's temperature=0 call sites, and makes the probe
+    that rides this route report a good model as broken. Caught in review by
+    backend/tests/services/intake/test_llm_stream.py, which scans EVERY openai
+    entry in the generated file."""
+    parsed = yaml.safe_load(render(DEFAULT_REGISTRY))
+    wildcard = next(m for m in parsed["model_list"] if m["model_name"] == "openai/*")
+
+    assert wildcard["litellm_params"]["additional_drop_params"] == ["temperature"]
+
+
+def test_every_openai_entry_including_wildcards_drops_temperature():
+    """The same property the backend suite asserts, checked here too so it fails
+    in the suite that owns the generator rather than only downstream."""
+    registry = Registry(
+        default="openai", providers={"openai": ProviderEntry(preferred="gpt-5.6-terra")}
+    )
+    parsed = yaml.safe_load(render(registry))
+    openai_entries = [
+        m for m in parsed["model_list"]
+        if str(m["litellm_params"].get("model", "")).startswith("openai/")
+    ]
+    assert openai_entries
+    for entry in openai_entries:
+        assert "temperature" in (entry["litellm_params"].get("additional_drop_params") or []), (
+            entry["model_name"]
+        )
+
+
 # ── switching provider ──────────────────────────────────────────────────────
 
 

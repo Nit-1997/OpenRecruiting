@@ -145,6 +145,12 @@ _CREDENTIAL_MARKERS = (
     "OPENAI_API_KEY",
     '"x-api-key"',
     "from anthropic import",
+    # Added with OpenRouter support. A guard that lists only the providers that
+    # existed when it was written stops being a guard the moment a new one is
+    # added — the whole point is that NO application module holds a provider
+    # credential, not that none holds one of two particular credentials.
+    "openrouter.ai/api",
+    "OPENROUTER_API_KEY",
 )
 
 

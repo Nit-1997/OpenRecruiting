@@ -257,6 +257,7 @@ model_list:
     litellm_params:
       model: openai/*
       api_key: os.environ/OPENAI_API_KEY
+      additional_drop_params: ["temperature"]
 
   - model_name: ollama_chat/*
     litellm_params:

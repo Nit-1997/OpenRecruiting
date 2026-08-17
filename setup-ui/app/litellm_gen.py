@@ -194,6 +194,18 @@ def render(registry: Registry, catalogue: dict[str, dict[str, Any]] | None = Non
             lines.append(f"      api_key: os.environ/{spec.key_var}")
         if spec.base_var:
             lines.append(f"      api_base: os.environ/{spec.base_var}")
+        # PROVIDER-level quirks apply here too. A wildcard is a real deployment:
+        # `openai/*` without additional_drop_params 400s on every one of this
+        # repo's nine temperature=0 call sites, and the probe that rides this
+        # route would report a perfectly good model as broken. Caught by
+        # backend/tests/services/intake/test_llm_stream.py, which had already
+        # predicted "the day someone adds a second openai deployment and forgets".
+        #
+        # Model-level quirks (reasoning) deliberately do NOT appear: a wildcard
+        # serves every model of the provider and they differ per model. The
+        # caller passes those per request — see app/probe.py.
+        for key, value in derive(spec, "*", None).params.items():
+            lines.append(f"      {key}: {_scalar(value)}")
         lines.append("")
 
     lines.append(_FOOTER)
