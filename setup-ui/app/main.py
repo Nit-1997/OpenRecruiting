@@ -14,6 +14,7 @@ Security posture, in order of how much weight each carries:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -240,15 +241,40 @@ async def apply(body: SaveBody) -> JSONResponse:
             })
         # Health is checked separately: compose reports the recreate succeeded,
         # which is not the same as the service coming back up.
+        #
+        # CONCURRENTLY, and that is not a tuning choice. These ran in a loop, each
+        # waiting up to 90s, so the wait was the SUM of every service's timeout:
+        # a Supabase change touches 11 services, which is 990s of polling inside
+        # one HTTP request that has sent no bytes. Every real save on a first run
+        # hit it, because containers that are not configured yet are exactly the
+        # ones that never come up — so each one burned its full 90s. Browsers and
+        # proxies drop an idle request long before that, and the page reported
+        # `NetworkError when attempting to fetch resource`, which reads like the
+        # save failed. It had not: .env is written above, before any of this.
+        #
+        # Waiting in parallel makes the cost the SLOWEST service rather than the
+        # sum, so the same 11-service save waits ~90s at worst.
         if outcome.get("ok"):
-            for result in results:
+            async def _health(result: dict) -> None:
                 try:
-                    healthy = await docker.wait_until_ok(result["service"])
-                    if not healthy:
+                    if not await docker.wait_until_ok(result["service"]):
                         result["ok"] = False
                         result["detail"] = "recreated but not healthy yet"
                 except DockerError as exc:
                     result["detail"] = f"recreated; health unknown ({exc})"
+
+            # return_exceptions so one unexpected failure cannot discard the
+            # results of the other ten — which services came back is the whole
+            # answer the user is waiting for.
+            for service, outcome_or_error in zip(
+                results,
+                await asyncio.gather(
+                    *(_health(r) for r in results), return_exceptions=True
+                ),
+            ):
+                if isinstance(outcome_or_error, BaseException):
+                    service["ok"] = False
+                    service["detail"] = f"health check failed: {outcome_or_error}"
     except ApplyError as exc:
         results = [{"service": s, "ok": False, "detail": str(exc)} for s in services]
 

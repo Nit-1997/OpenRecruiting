@@ -137,6 +137,87 @@ def test_applying_writes_the_value_and_preserves_comments(client, monkeypatch):
     assert resp.json()["backup"], "a backup must be written before overwriting .env"
 
 
+def test_health_waits_run_concurrently_not_one_after_another(client, monkeypatch):
+    """These ran in a loop, so the wait was the SUM of every service's timeout.
+
+    A Supabase change touches 11 services at 90s each: 990 seconds of polling
+    inside one HTTP request that has sent no bytes. First runs hit it every time,
+    because the containers that are not configured yet are exactly the ones that
+    never come up, so each burned its full timeout. Browsers and proxies drop an
+    idle request long before that and the page said `NetworkError when attempting
+    to fetch resource`, which reads like the save failed — it had not, .env is
+    written before any of this.
+
+    Asserts overlap rather than wall-clock duration, so it cannot go flaky on a
+    loaded machine: if the waits are sequential, no two are ever in flight
+    together and peak concurrency is 1.
+    """
+    import asyncio
+
+    c, main, env, headers = _signed_in(client)
+    in_flight = 0
+    peak = 0
+
+    async def recreated(services):
+        return {"ok": True, "detail": "recreated", "services": " ".join(services)}
+
+    async def slow_ok(service, timeout=90.0):
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        try:
+            await asyncio.sleep(0.05)
+            return True
+        finally:
+            in_flight -= 1
+
+    monkeypatch.setattr(main.applier, "recreate", recreated)
+    monkeypatch.setattr(main.docker, "wait_until_ok", slow_ok)
+
+    # SUPABASE_URL fans out to every Supabase consumer plus the frontends.
+    resp = c.post(
+        "/api/apply", json={"changes": {"SUPABASE_URL": "https://new.supabase.co"}},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    services = resp.json()["restarts"]
+    assert len(services) > 3, "expected a multi-service fan-out to test against"
+    assert peak == len(services), (
+        f"health waits are running {peak} at a time across {len(services)} services — "
+        "sequential waits are what made an 11-service save take ~19 minutes"
+    )
+    assert all(s["ok"] for s in services)
+
+
+def test_one_health_check_blowing_up_does_not_discard_the_other_results(client, monkeypatch):
+    """Which services came back is the whole answer the user is waiting for, so a
+    single unexpected failure must not take the rest of the report with it."""
+    c, main, env, headers = _signed_in(client)
+
+    async def recreated(services):
+        return {"ok": True, "detail": "recreated", "services": " ".join(services)}
+
+    async def explode(service, timeout=90.0):
+        if service == "backend":
+            raise RuntimeError("boom")
+        return True
+
+    monkeypatch.setattr(main.applier, "recreate", recreated)
+    monkeypatch.setattr(main.docker, "wait_until_ok", explode)
+
+    resp = c.post(
+        "/api/apply", json={"changes": {"SUPABASE_URL": "https://new.supabase.co"}},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    by_name = {s["service"]: s for s in resp.json()["restarts"]}
+    assert by_name["backend"]["ok"] is False
+    assert "boom" in by_name["backend"]["detail"]
+    assert by_name["landing"]["ok"] is True, "an unrelated service must still report"
+
+
 def test_a_failed_restart_is_reported_per_service_not_raised(client, monkeypatch):
     """Five restarts must not collapse into one opaque error — the user needs
     to know WHICH came back unhealthy."""
