@@ -74,6 +74,10 @@ release moves that block under a version heading and tags it.
   about which providers existed.
 - `landing/src/lib/backend-url.ts` carried a pre-open-source brand reference,
   which had been failing the `debrand` CI gate on every push since 2026-08-11.
+- The `secrets` gate failed on every pull request — `gitleaks-action` requires
+  `GITHUB_TOKEN` on `pull_request` events (it asks the API for the commit range)
+  but not on `push` (it diffs locally), so the job passed on every push and broke
+  the moment a PR was opened.
 
 ## [1.0.0] — 2026-08-13
 
