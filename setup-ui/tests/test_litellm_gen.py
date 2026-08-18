@@ -14,6 +14,8 @@ until someone opens the page and chooses something.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 import yaml
 
@@ -21,6 +23,9 @@ from app.litellm_gen import render
 from app.providers import DEFAULT_REGISTRY, ProviderEntry, Registry
 from app.quirks import derive
 from app.providers import PROVIDERS
+
+#: The real file the gateway boots from, two levels up from setup-ui/tests.
+REPO_CONFIG = Path(__file__).resolve().parents[2] / "litellm-config.yaml"
 
 
 #: Every alias of the pre-generator litellm-config.yaml, verbatim.
@@ -312,3 +317,43 @@ def test_a_mandatory_reasoning_model_is_flagged_rather_than_silently_disabled():
     quirks = derive(PROVIDERS["openrouter"], "some/thinker", metadata)
     assert quirks.params["reasoning"] == {"effort": "high"}
     assert quirks.warning, "a model that cannot stop reasoning must warn the user"
+
+
+def test_the_committed_config_is_what_the_defaults_render():
+    """The checked-in litellm-config.yaml must BE the generator's default output.
+
+    It drifted once already: the file was committed carrying `smoke-openrouter`
+    and an `openrouter/*` wildcard picked up from a developer's local
+    llm-providers.json — a file this repo gitignores. On a fresh clone the
+    gateway therefore routed a provider that /api/providers and the readiness
+    panel both reported as not configured, /api/probe refused to test it with
+    "Add OpenRouter first" even though the route existed, and the first save from
+    the setup UI silently deleted both entries. A generated artifact that no
+    committed input reproduces is not reviewable, so this pins it.
+    """
+    committed = REPO_CONFIG.read_text(encoding="utf-8")
+    assert committed == render(DEFAULT_REGISTRY), (
+        "litellm-config.yaml is not render(DEFAULT_REGISTRY). Regenerate it, or "
+        "change DEFAULT_REGISTRY if the default really did move — but do not "
+        "commit output built from a local llm-providers.json."
+    )
+
+
+def test_a_local_tier_alias_ignores_any_override_so_the_api_must_refuse_one():
+    """Documents WHY set_alias_override rejects local-tier aliases.
+
+    The generator pins these to Ollama before it ever consults overrides, so an
+    override on one persisted, was echoed back by GET /api/models, painted the
+    row "pinned" — and changed nothing in the gateway. If this ever starts
+    honouring overrides, that refusal becomes wrong and should go.
+    """
+    registry = Registry(
+        default="anthropic",
+        providers={
+            "anthropic": ProviderEntry(preferred="claude-sonnet-5"),
+            "ollama": ProviderEntry(preferred="gemma4:latest"),
+        },
+        overrides={"intake-jd-local": {"provider": "anthropic", "model": "claude-opus-5"}},
+    )
+    entry = _entries(render(registry))["intake-jd-local"]
+    assert entry["litellm_params"]["model"] == "ollama_chat/gemma4:latest"

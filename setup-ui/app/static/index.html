@@ -419,6 +419,10 @@
       setMsg($("providers-result"),
         `${spec.label} saved. Default provider: ${r.default}.\n` +
         `gateway ${r.restarted ? "restarted" : "restart FAILED"}${r.detail ? " — " + r.detail : ""}`);
+      // A save can succeed and still have written a config missing per-model
+      // settings, or bound every workload to a model that cannot call a tool.
+      // Neither surfaces anywhere else, so neither is allowed to pass quietly.
+      if (r.degraded || r.warning) setMsg($("providers-error"), [r.degraded, r.warning].filter(Boolean).join("\n\n"));
       $("provider-key").value = "";
       $("provider-make-default").checked = false;
       await Promise.all([loadProviders(), loadModels(), loadReadiness()]);
@@ -431,9 +435,10 @@
     if (!p) return;
     setMsg($("providers-error"), ""); setMsg($("providers-result"), "");
     try {
-      await api("/api/providers", { method: "POST", body: JSON.stringify({
+      const r = await api("/api/providers", { method: "POST", body: JSON.stringify({
         provider: id, preferred: p.preferred, fast: p.fast, make_default: true })});
       setMsg($("providers-result"), `Every workload now uses ${p.label}.`);
+      if (r.degraded || r.warning) setMsg($("providers-error"), [r.degraded, r.warning].filter(Boolean).join("\n\n"));
       await Promise.all([loadProviders(), loadModels(), loadReadiness()]);
     } catch (err) { setMsg($("providers-error"), err.message); }
   }
@@ -445,6 +450,7 @@
       const r = await api(`/api/providers/${id}`, { method: "DELETE" });
       setMsg($("providers-result"), `Removed ${r.removed}. Default provider: ${r.default}.` +
         (r.dropped_overrides.length ? `\nAlso cleared pins on: ${r.dropped_overrides.join(", ")}` : ""));
+      if (r.degraded || r.warning) setMsg($("providers-error"), [r.degraded, r.warning].filter(Boolean).join("\n\n"));
       await Promise.all([loadProviders(), loadModels(), loadReadiness()]);
     } catch (err) { setMsg($("providers-error"), err.message); }
   }
@@ -507,16 +513,17 @@
               ${a.streams_tools ? '<span class="pill warn" id="model-st-' + a.name + '" title="Streams AND sends tools. A model without native function calling does not degrade this workload, it stops it recording answers.">streams tools</span>' : ""}
               ${a.supports_tools === false ? '<span class="pill bad" id="model-notools-' + a.name + '" title="This model does not call tools natively; they are emulated in the prompt.">no native tools</span>' : ""}
             </div>
-            <span class="pill${a.override ? "" : " ok"}" id="model-src-${a.name}">${a.override ? "pinned" : "follows default"}</span>
+            <span class="pill${a.override ? "" : " ok"}" id="model-src-${a.name}">${a.tier === "local" ? "always Ollama" : a.override ? "pinned" : "follows default"}</span>
           </div>
           ${a.description ? `<p class="help" id="model-desc-${a.name}" style="margin:4px 0 6px">${esc(a.description)}</p>` : ""}
           <div class="row">
-            <select id="model-prov-${a.name}" style="max-width:190px">
+            <select id="model-prov-${a.name}" style="max-width:190px"${a.tier === "local" ? " disabled" : ""}>
               <option value="">— follow default —</option>${options}
             </select>
-            <input type="text" id="model-input-${a.name}" placeholder="${esc(a.model)}" value="${esc(a.override ? a.override.model : "")}" />
-            <button class="ghost" id="model-save-${a.name}" data-alias="${a.name}">Save</button>
+            <input type="text" id="model-input-${a.name}" placeholder="${esc(a.model)}" value="${esc(a.override ? a.override.model : "")}"${a.tier === "local" ? " disabled" : ""} />
+            <button class="ghost" id="model-save-${a.name}" data-alias="${a.name}"${a.tier === "local" ? " disabled" : ""}>Save</button>
           </div>
+          ${a.tier === "local" ? `<p class="help" id="model-locked-${a.name}" style="margin:6px 0 0">Local A/B variant — always runs on Ollama, which is what it is for. Change Ollama's model under AI models to move it.</p>` : ""}
         </div>`).join("");
 
       d.aliases.forEach((a) => {
@@ -545,6 +552,7 @@
       setMsg($("app-result"),
         `${r.alias} ${r.override ? "-> " + r.override.provider + " / " + r.override.model : "follows the default provider"}\n` +
         `gateway ${r.restarted ? "restarted" : "restart FAILED"}${r.detail ? " — " + r.detail : ""}`);
+      if (r.degraded) setMsg($("app-error"), r.degraded);
       await loadModels();
     } catch (err) { setMsg($("app-error"), err.message); }
     finally { btn.disabled = false; btn.textContent = "Save"; }

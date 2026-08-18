@@ -406,3 +406,178 @@ def test_loading_a_missing_registry_never_hands_out_the_shared_default(tmp_path)
     assert "openrouter" not in second.providers
     assert second.default == "anthropic"
     assert providers.DEFAULT_REGISTRY.default == "anthropic"
+
+
+# ── guards that used to be claimed but not implemented ──────────────────────
+
+def test_a_local_tier_alias_cannot_be_pinned(client):
+    """The generator pins local-tier aliases to Ollama before it consults
+    overrides, so one saved here persisted, came back from GET /api/models,
+    painted the row 'pinned' — and changed nothing in the gateway, forever."""
+    c, headers, _env, registry, _config = client
+    c.post("/api/providers", json={"provider": "anthropic", "preferred": "claude-sonnet-5"},
+           headers=headers)
+
+    resp = c.post("/api/models",
+                  json={"alias": "intake-jd-local", "provider": "anthropic",
+                        "model": "claude-opus-5"},
+                  headers=headers)
+
+    assert resp.status_code == 400
+    assert "always runs on Ollama" in resp.json()["detail"]
+    assert "intake-jd-local" not in json.loads(registry.read_text())["overrides"]
+
+
+def test_a_streaming_tool_alias_cannot_be_pinned_to_a_model_without_native_tools(client):
+    """workloads.py has always said 'the UI refuses to bind one'. It did not.
+    Emulated tools do not compose with streaming, so this does not degrade the
+    workload — it stops it recording answers, with no error anywhere."""
+    c, headers, _env, registry, _config = client
+    c.post("/api/providers", json={"provider": "anthropic", "preferred": "claude-sonnet-5"},
+           headers=headers)
+    c.post("/api/providers", json={"provider": "ollama", "preferred": "gemma4:latest"},
+           headers=headers)
+
+    resp = c.post("/api/models",
+                  json={"alias": "voice-intake", "provider": "ollama", "model": "gemma4:latest"},
+                  headers=headers)
+
+    assert resp.status_code == 400
+    assert "does not call tools natively" in resp.json()["detail"]
+    assert "voice-intake" not in json.loads(registry.read_text())["overrides"]
+
+
+def test_a_non_streaming_alias_may_still_be_pinned_to_a_local_model(client):
+    """The refusal is scoped to the three that stream AND send tools. Pinning a
+    plain extraction workload at a local model is a legitimate thing to want."""
+    c, headers, _env, registry, _config = client
+    c.post("/api/providers", json={"provider": "anthropic", "preferred": "claude-sonnet-5"},
+           headers=headers)
+    c.post("/api/providers", json={"provider": "ollama", "preferred": "gemma4:latest"},
+           headers=headers)
+
+    resp = c.post("/api/models",
+                  json={"alias": "resume-extract", "provider": "ollama", "model": "gemma4:latest"},
+                  headers=headers)
+
+    assert resp.status_code == 200
+    assert json.loads(registry.read_text())["overrides"]["resume-extract"] == {
+        "provider": "ollama", "model": "gemma4:latest"
+    }
+
+
+def test_making_a_toolless_provider_the_default_warns_rather_than_refuses(client):
+    """An all-local deployment is legitimate, so this is a warning — but three
+    workloads stream and send tools, and that cannot pass silently."""
+    c, headers, _env, _registry, _config = client
+    resp = c.post("/api/providers",
+                  json={"provider": "ollama", "preferred": "gemma4:latest",
+                        "make_default": True},
+                  headers=headers)
+
+    assert resp.status_code == 200
+    warning = resp.json()["warning"]
+    assert "does not call tools natively" in warning
+    for alias in ("voice-intake", "voice-screening", "intake-text"):
+        assert alias in warning
+
+
+def test_a_tool_capable_default_warns_about_nothing(client):
+    c, headers, _env, _registry, _config = client
+    resp = c.post("/api/providers",
+                  json={"provider": "anthropic", "preferred": "claude-sonnet-5",
+                        "make_default": True},
+                  headers=headers)
+    assert resp.json()["warning"] == ""
+
+
+def test_a_catalogue_outage_during_a_save_is_reported_not_swallowed(client, monkeypatch):
+    """Rendering without metadata drops the per-model `reasoning` quirk, which is
+    the empty-reply failure quirks.py exists to prevent. The save is still
+    allowed — an outage must not block one — but it says so."""
+    import app.catalogue as catalogue
+    import app.main as main
+
+    async def _boom(_provider_id):
+        raise catalogue.CatalogueError("Could not fetch the OpenRouter model list: down")
+
+    c, headers, _env, _registry, _config = client
+    c.post("/api/providers", json={"provider": "anthropic", "preferred": "claude-sonnet-5"},
+           headers=headers)
+    monkeypatch.setattr(main.catalogue, "fetch", _boom)
+
+    resp = c.post("/api/providers",
+                  json={"provider": "openrouter", "preferred": "z-ai/glm-5.2",
+                        "api_key": "sk-or-real"},
+                  headers=headers)
+
+    assert resp.status_code == 200
+    assert "compatibility settings were left out" in resp.json()["degraded"]
+
+
+def test_a_save_with_a_reachable_catalogue_reports_no_degradation(client):
+    c, headers, _env, _registry, _config = client
+    resp = c.post("/api/providers", json={"provider": "anthropic", "preferred": "claude-sonnet-5"},
+                  headers=headers)
+    assert resp.json()["degraded"] == ""
+
+
+def test_the_first_provider_save_seeds_env_from_the_example(tmp_path, monkeypatch):
+    """This card renders above the settings groups, so on a fresh clone it is the
+    first thing that writes .env. Starting from "" produced a one-line file
+    holding nothing but the key, permanently losing every documented default —
+    and /api/apply's own example fallback never fires again, because .env now
+    exists."""
+    example = tmp_path / ".env.example"
+    example.write_text(
+        "LLM_GATEWAY_URL=http://litellm:4000\nEMAIL_PROVIDER=zoho\nANTHROPIC_API_KEY=\n",
+        encoding="utf-8",
+    )
+    env = tmp_path / ".env"
+
+    monkeypatch.setenv("SETUP_ENV_PATH", str(env))
+    monkeypatch.setenv("SETUP_ENV_EXAMPLE_PATH", str(example))
+    monkeypatch.setenv("SETUP_STATE_PATH", str(tmp_path / "password.json"))
+    monkeypatch.setenv("SETUP_REGISTRY_PATH", str(tmp_path / "llm-providers.json"))
+    monkeypatch.setenv("SETUP_LITELLM_PATH", str(tmp_path / "litellm-config.yaml"))
+
+    import importlib
+
+    import app.catalogue as catalogue
+    import app.main as main
+
+    importlib.reload(main)
+    catalogue.reset()
+
+    async def _noop(*a, **k):
+        return None
+
+    async def _wait(*a, **k):
+        return True
+
+    async def _fetch(_p):
+        return {}
+
+    async def _recreate(services):
+        return {"ok": True, "detail": "", "services": " ".join(services)}
+
+    monkeypatch.setattr(main.docker, "restart", _noop)
+    monkeypatch.setattr(main.docker, "wait_until_ok", _wait)
+    monkeypatch.setattr(main.catalogue, "fetch", _fetch)
+    monkeypatch.setattr(main.applier, "recreate", _recreate)
+
+    c = TestClient(main.app)
+    token = c.post("/api/password", json={"password": "a-good-password"}).json()["token"]
+    assert not env.exists()
+
+    c.post("/api/providers",
+           json={"provider": "anthropic", "preferred": "claude-sonnet-5",
+                 "api_key": "sk-ant-new"},
+           headers={"x-setup-token": token})
+
+    written = env.read_text(encoding="utf-8")
+    assert "ANTHROPIC_API_KEY=sk-ant-new" in written
+    assert "LLM_GATEWAY_URL=http://litellm:4000" in written, (
+        "documented defaults from .env.example were dropped by the first write"
+    )
+    assert "EMAIL_PROVIDER=zoho" in written

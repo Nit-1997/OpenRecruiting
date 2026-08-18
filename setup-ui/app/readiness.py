@@ -203,11 +203,45 @@ def _models(values: dict[str, str], registry) -> Feature:
             "No model provider is configured. " + consequence,
             doc="llm-providers.example.json",
         )
-    if spec.key_var and not _set(values, spec.key_var):
+
+    def _creds(pid: str) -> list[str]:
+        """The variables this provider needs and does not have.
+
+        `base_var` counts as much as `key_var`: Ollama needs no key, so checking
+        only the key reported an Ollama default with no address as fully live.
+        """
+        s = PROVIDERS[pid]
+        return [n for n in (s.key_var, s.base_var) if n and not _set(values, n)]
+
+    missing = _creds(registry.default)
+    if missing:
         return Feature(
-            "models", "AI models", PARTIAL, [spec.key_var],
-            f"{spec.label} is selected but its key is empty. " + consequence,
+            "models", "AI models", PARTIAL, missing,
+            f"{spec.label} is selected but {' and '.join(missing)} is empty. "
+            + consequence,
         )
+
+    # Providers named by an OVERRIDE serve real traffic too. Checking only the
+    # default reported live for a deployment whose voice-intake was pinned to a
+    # provider with an empty key — every call on that one workload 401s at
+    # request time, which is the same invisible failure in a smaller blast
+    # radius, and this panel is the surface whose whole job is to catch it.
+    pinned = {o["provider"] for o in registry.overrides.values()}
+    for pid in sorted(pinned - {registry.default}):
+        if pid not in PROVIDERS:
+            continue
+        gaps = _creds(pid)
+        if gaps:
+            aliases = sorted(
+                a for a, o in registry.overrides.items() if o["provider"] == pid
+            )
+            return Feature(
+                "models", "AI models", PARTIAL, gaps,
+                f"{', '.join(aliases)} {'is' if len(aliases) == 1 else 'are'} pinned "
+                f"to {PROVIDERS[pid].label}, whose {' and '.join(gaps)} is empty. "
+                f"Those workloads fail at request time; the rest run on {spec.label}.",
+            )
+
     return Feature("models", "AI models", LIVE, [], consequence)
 
 

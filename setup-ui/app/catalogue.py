@@ -28,21 +28,34 @@ _TTL_SECONDS = 600.0
 _FAILURE_TTL_SECONDS = 30.0
 _TIMEOUT = httpx.Timeout(20.0, connect=5.0)
 
-_cache: dict[str, tuple[float, dict[str, dict[str, Any]]]] = {}
+#: provider -> (expires_at, models, error). `models` is None when the last fetch
+#: FAILED, and that distinction is load-bearing: an empty dict is a legitimate
+#: answer meaning "this provider publishes no catalogue", so caching a failure as
+#: {} made every call after the first one report success with zero models. The
+#: caller then derived quirks from nothing — silently dropping the reasoning
+#: settings that quirks.py exists to emit — and the model picker rendered "0
+#: models" instead of the reason. A failure stays a failure for its whole TTL.
+_cache: dict[str, tuple[float, dict[str, dict[str, Any]] | None, str]] = {}
 
 
 class CatalogueError(Exception):
     """The model list could not be fetched. Safe to show."""
 
 
-def _fresh(provider_id: str) -> dict[str, dict[str, Any]] | None:
+def _fresh(provider_id: str) -> tuple[dict[str, dict[str, Any]] | None, str] | None:
+    """The cached outcome, or None when there is nothing usable cached.
+
+    Returns a (models, error) pair so a cached FAILURE is distinguishable from a
+    cached empty catalogue. None as the outer value means "nothing cached";
+    None as `models` means "the cached outcome was a failure".
+    """
     hit = _cache.get(provider_id)
     if not hit:
         return None
-    expires, value = hit
+    expires, value, error = hit
     if time.monotonic() >= expires:
         return None
-    return value
+    return value, error
 
 
 def reset() -> None:
@@ -64,7 +77,13 @@ async def fetch(provider_id: str) -> dict[str, dict[str, Any]]:
 
     cached = _fresh(provider_id)
     if cached is not None:
-        return cached
+        value, error = cached
+        # A cached failure re-raises rather than returning {}. Returning the empty
+        # dict here is what let a 30-second outage read as "this provider offers
+        # no models" everywhere downstream.
+        if value is None:
+            raise CatalogueError(error)
+        return value
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
@@ -72,9 +91,11 @@ async def fetch(provider_id: str) -> dict[str, dict[str, Any]]:
             resp.raise_for_status()
             payload = resp.json()
     except (httpx.HTTPError, ValueError) as exc:
-        # Negative-cache so a type-ahead does not retry per keystroke.
-        _cache[provider_id] = (time.monotonic() + _FAILURE_TTL_SECONDS, {})
-        raise CatalogueError(f"Could not fetch the {spec.label} model list: {exc}") from exc
+        # Negative-cache so a type-ahead does not retry per keystroke. Cached as
+        # a FAILURE, not as an empty catalogue — see the note on _cache.
+        message = f"Could not fetch the {spec.label} model list: {exc}"
+        _cache[provider_id] = (time.monotonic() + _FAILURE_TTL_SECONDS, None, message)
+        raise CatalogueError(message) from exc
 
     models: dict[str, dict[str, Any]] = {}
     for item in payload.get("data") or []:
@@ -82,7 +103,7 @@ async def fetch(provider_id: str) -> dict[str, dict[str, Any]]:
         if isinstance(model_id, str) and model_id:
             models[f"{provider_id}/{model_id}"] = item
 
-    _cache[provider_id] = (time.monotonic() + _TTL_SECONDS, models)
+    _cache[provider_id] = (time.monotonic() + _TTL_SECONDS, models, "")
     return models
 
 

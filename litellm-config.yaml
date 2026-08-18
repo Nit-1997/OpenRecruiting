@@ -229,12 +229,6 @@ model_list:
       api_base: os.environ/OLLAMA_API_BASE
     model_info: {supports_function_calling: false}
 
-  - model_name: smoke-openrouter
-    litellm_params:
-      model: openrouter/deepseek/deepseek-v4-flash
-      api_key: os.environ/OPENROUTER_API_KEY
-    model_info: {supports_function_calling: true}
-
   - model_name: gemma-local
     litellm_params:
       model: ollama_chat/gemma4:latest
@@ -269,11 +263,6 @@ model_list:
     litellm_params:
       model: ollama_chat/*
       api_base: os.environ/OLLAMA_API_BASE
-
-  - model_name: openrouter/*
-    litellm_params:
-      model: openrouter/*
-      api_key: os.environ/OPENROUTER_API_KEY
 
 litellm_settings:
   drop_params: true        # silently drop params a provider does not accept

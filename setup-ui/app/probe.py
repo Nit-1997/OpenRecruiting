@@ -150,9 +150,24 @@ class Prober:
                 },
             )
             cost += _cost_of(data)
-            text = (data["choices"][0]["message"].get("content") or "").strip()
-            finish = data["choices"][0].get("finish_reason")
-            if text:
+            # Subscripting `choices` directly raised IndexError on a 200 with an
+            # empty list — which litellm returns when an upstream content filter
+            # drops the completion — and that escaped this method's ProbeError
+            # contract as an unhandled 500. Every other reader in this file
+            # already guarded it; this one did not.
+            choice = _choice(data)
+            text = ((choice.get("message") or {}).get("content") or "").strip()
+            finish = choice.get("finish_reason")
+            if not choice:
+                result.checks.append(
+                    Check(
+                        "Returns text",
+                        False,
+                        "the gateway returned no choices at all — usually an upstream "
+                        "content filter dropping the completion",
+                    )
+                )
+            elif text:
                 result.checks.append(Check("Returns text", True, repr(text[:60])))
             else:
                 # The signature of a reasoning model with no budget left. Named
@@ -275,13 +290,26 @@ def _cost_of(data: dict[str, Any]) -> float:
         return 0.0
 
 
+def _choice(data: dict[str, Any]) -> dict[str, Any]:
+    """The first choice, or an empty dict when the gateway returned none.
+
+    One helper rather than three inline guards, because the one call site that
+    open-coded the subscript is the one that crashed.
+    """
+    choices = data.get("choices") or []
+    return choices[0] if isinstance(choices, list) and choices else {}
+
+
+def _tool_calls(data: dict[str, Any]) -> list[dict[str, Any]]:
+    return (_choice(data).get("message") or {}).get("tool_calls") or []
+
+
 def _tool_names(data: dict[str, Any]) -> list[str]:
-    calls = (data.get("choices") or [{}])[0].get("message", {}).get("tool_calls") or []
-    return [c.get("function", {}).get("name", "") for c in calls]
+    return [c.get("function", {}).get("name", "") for c in _tool_calls(data)]
 
 
 def _first_tool_call(data: dict[str, Any], name: str) -> dict[str, Any] | None:
-    calls = (data.get("choices") or [{}])[0].get("message", {}).get("tool_calls") or []
+    calls = _tool_calls(data)
     for call in calls:
         fn = call.get("function") or {}
         if fn.get("name") != name:

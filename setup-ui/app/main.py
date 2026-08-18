@@ -74,6 +74,21 @@ def _read_env() -> dict[str, str]:
     return values
 
 
+def _env_base() -> str:
+    """The text a write to `.env` should start from.
+
+    `.env.example` when there is no `.env` yet, because the example is the only
+    place several documented defaults live and a first write that starts from an
+    empty string drops every one of them permanently — `.env` then exists, so
+    this fallback never fires again.
+    """
+    if ENV_PATH.exists():
+        return ENV_PATH.read_text(encoding="utf-8")
+    if ENV_EXAMPLE_PATH.exists():
+        return ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
+    return ""
+
+
 def require_auth(request: Request) -> None:
     token = request.headers.get("x-setup-token")
     if not auth.verify(token):
@@ -217,12 +232,8 @@ async def apply(body: SaveBody) -> JSONResponse:
     if not changes:
         raise HTTPException(status_code=400, detail="Nothing to save.")
 
-    base = ENV_PATH.read_text(encoding="utf-8") if ENV_PATH.exists() else ""
-    if not base and ENV_EXAMPLE_PATH.exists():
-        base = ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
-
     try:
-        backup = atomic_write(ENV_PATH, update(base, changes))
+        backup = atomic_write(ENV_PATH, update(_env_base(), changes))
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {exc}") from exc
 
@@ -359,32 +370,58 @@ async def readiness() -> dict:
 # were two hardcoded keys and the only way to change a model was a YAML file.
 
 
-async def _catalogue_for(registry: providers.Registry) -> dict:
-    """Metadata for every configured provider, best effort.
+async def _catalogue_for(registry: providers.Registry) -> tuple[dict, list[str]]:
+    """Metadata for every configured provider, best effort, plus who failed.
 
-    Best effort ON PURPOSE: a catalogue outage must not block a save. Quirk
-    derivation falls back to provider-level constants without it, which is the
-    same answer this project shipped before catalogues existed.
+    Best effort ON PURPOSE: a catalogue outage must not block a save. But it must
+    not be SILENT either, which is what returning only the merged dict made it.
+    Quirk derivation without metadata falls back to provider-level constants,
+    and for a reasoning model that means the `reasoning` quirk is simply absent —
+    the exact empty-reply failure quirks.py exists to prevent, written into the
+    config by a save that reported success. The labels come back so the caller
+    can say so out loud.
     """
     merged: dict = {}
+    degraded: list[str] = []
     for provider_id in registry.providers:
         try:
             merged.update(await catalogue.fetch(provider_id))
         except catalogue.CatalogueError:
-            continue
-    return merged
+            degraded.append(providers.PROVIDERS[provider_id].label)
+    return merged, degraded
 
 
-async def _write_and_reload(registry: providers.Registry) -> dict:
-    """Persist the registry, regenerate the gateway config, restart the gateway.
+#: Said when a save had to render without catalogue metadata. Deliberately
+#: concrete about the consequence: "metadata unavailable" reads as cosmetic.
+_DEGRADED_WARNING = (
+    "Saved, but the model list for {names} could not be fetched, so per-model "
+    "compatibility settings were left out of the gateway config. A reasoning "
+    "model configured this way can spend its whole token budget thinking and "
+    "return an empty reply. Save again once the provider is reachable to write "
+    "the full settings."
+)
 
-    ONLY litellm restarts. It is the single reader of that file and every other
+
+async def _write_and_reload(
+    registry: providers.Registry, *, recreate: bool = False
+) -> dict:
+    """Persist the registry, regenerate the gateway config, reload the gateway.
+
+    ONLY litellm reloads. It is the single reader of that file and every other
     service reaches models through it by alias — the property the gateway
     migration bought, and the reason changing every model in the deployment does
     not disturb a call in progress.
+
+    `recreate` picks HOW. A restart is enough for a config-file change, which the
+    container re-reads on boot. It is NOT enough when `.env` changed, because
+    env_file is read at container create time — so the caller that just wrote a
+    key asks for a recreate here rather than letting this restart first and then
+    recreating on top of it, which reloaded the gateway twice and made the user
+    wait through both.
     """
+    catalogue_data, degraded = await _catalogue_for(registry)
     try:
-        rendered = litellm_gen.render(registry, await _catalogue_for(registry))
+        rendered = litellm_gen.render(registry, catalogue_data)
     except (providers.RegistryError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -394,14 +431,72 @@ async def _write_and_reload(registry: providers.Registry) -> dict:
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Could not write config: {exc}") from exc
 
-    try:
-        await docker.restart("litellm")
-        ok = await docker.wait_until_ok("litellm")
-        detail = "" if ok else "restarted but not healthy yet"
-    except DockerError as exc:
-        ok, detail = False, str(exc)
+    if recreate:
+        try:
+            outcome = await applier.recreate(["litellm"])
+            ok = bool(outcome.get("ok"))
+            detail = "" if ok else str(outcome.get("detail", ""))
+            # compose reporting the recreate succeeded is NOT the gateway coming
+            # back up. Reporting "restarted" off the exit status alone is how a
+            # litellm that never came healthy gets announced as fine.
+            if ok and not await docker.wait_until_ok("litellm"):
+                ok, detail = False, "recreated but not healthy yet"
+        except (ApplyError, DockerError) as exc:
+            ok, detail = False, str(exc)
+    else:
+        try:
+            await docker.restart("litellm")
+            ok = await docker.wait_until_ok("litellm")
+            detail = "" if ok else "restarted but not healthy yet"
+        except DockerError as exc:
+            ok, detail = False, str(exc)
 
-    return {"restarted": ok, "detail": detail, "backup": backup.name if backup else None}
+    return {
+        "restarted": ok,
+        "detail": detail,
+        "backup": backup.name if backup else None,
+        "degraded": _DEGRADED_WARNING.format(names=", ".join(degraded)) if degraded else "",
+    }
+
+
+async def _supports_tools(spec: providers.ProviderSpec, model_id: str) -> bool:
+    """Whether this model does NATIVE function calling, catalogue first.
+
+    Falls back to the provider-level constant when no catalogue can answer, which
+    is the same fallback the generator uses — so this cannot disagree with what
+    gets written into the config.
+    """
+    try:
+        metadata = (await catalogue.fetch(spec.id)).get(f"{spec.id}/{model_id}")
+    except catalogue.CatalogueError:
+        metadata = None
+    return quirks.derive(spec, model_id, metadata).supports_tools
+
+
+async def _binding_warning(registry: providers.Registry) -> str:
+    """Said when the DEFAULT provider's model cannot call tools natively.
+
+    A warning rather than a refusal, unlike the per-alias pin below: choosing a
+    local model for everything is a legitimate thing to want, and blocking it
+    would make an all-Ollama deployment unreachable. But three workloads stream
+    AND send tools, and those do not degrade on such a model — they stop
+    recording answers — so it cannot pass without being said.
+    """
+    spec = providers.PROVIDERS.get(registry.default)
+    entry = registry.providers.get(registry.default)
+    if spec is None or entry is None:
+        return ""
+    model_id = entry.preferred
+    if await _supports_tools(spec, model_id):
+        return ""
+    return (
+        f"{spec.label}'s {model_id} does not call tools natively, so tools are "
+        "emulated in the prompt. That breaks "
+        f"{', '.join(sorted(workloads.STREAMING_TOOL_ALIASES))} outright rather "
+        "than degrading them — they stream and send tools at the same time, and "
+        "emulated tools do not compose with streaming. Pin those three to a "
+        "tool-capable model under Models per task."
+    )
 
 
 def _load_registry() -> providers.Registry:
@@ -478,26 +573,35 @@ async def upsert_provider(body: ProviderBody) -> dict:
         # where the previous default was just deleted.
         registry.default = body.provider
 
-    if body.api_key.strip() and spec.key_var:
-        base = ENV_PATH.read_text(encoding="utf-8") if ENV_PATH.exists() else ""
+    wrote_key = bool(body.api_key.strip() and spec.key_var)
+    if wrote_key:
+        # The SAME two-step base as /api/apply, and for the same reason. This
+        # card renders above the settings groups, so on a fresh clone that never
+        # copied .env.example it is the first thing that writes .env — and
+        # starting from "" produced a one-line file holding nothing but the key.
+        # Every service mounts that file, so every documented default in the
+        # example (LLM_GATEWAY_URL among them) would simply be gone, and
+        # /api/apply's own example fallback never fires again because .env now
+        # exists.
+        base = _env_base()
         try:
             atomic_write(ENV_PATH, update(base, {spec.key_var: body.api_key.strip()}))
         except OSError as exc:
             raise HTTPException(status_code=500, detail=f"Could not write .env: {exc}") from exc
 
-    result = await _write_and_reload(registry)
     # The key lives in .env, which litellm reads via env_file — and env_file is
     # read at container CREATE time, so a restart would reuse the old value and
     # the save would appear to work while changing nothing. Recreate instead.
-    if body.api_key.strip() and spec.key_var:
-        try:
-            outcome = await applier.recreate(["litellm"])
-            result["restarted"] = bool(outcome.get("ok"))
-            result["detail"] = "" if outcome.get("ok") else str(outcome.get("detail", ""))
-        except ApplyError as exc:
-            result["restarted"], result["detail"] = False, str(exc)
-
-    return {"provider": body.provider, "default": registry.default, **result}
+    # Asked for up front rather than bolted on afterwards: doing both meant the
+    # gateway went down, came up, and went down again while the user waited.
+    result = await _write_and_reload(registry, recreate=wrote_key)
+    warning = await _binding_warning(registry)
+    return {
+        "provider": body.provider,
+        "default": registry.default,
+        "warning": warning,
+        **result,
+    }
 
 
 @app.delete("/api/providers/{provider_id}", dependencies=[Depends(require_auth)])
@@ -521,8 +625,12 @@ async def delete_provider(provider_id: str) -> dict:
         registry.default = next(iter(registry.providers))
 
     result = await _write_and_reload(registry)
+    # Removing the default promotes whichever provider happens to be first, and
+    # that can be Ollama — which cannot call tools. Same warning as the add path;
+    # the user did not pick this default, so it matters more here, not less.
     return {"removed": provider_id, "default": registry.default,
-            "dropped_overrides": dropped, **result}
+            "dropped_overrides": dropped,
+            "warning": await _binding_warning(registry), **result}
 
 
 @app.get("/api/providers/{provider_id}/catalogue", dependencies=[Depends(require_auth)])
@@ -641,13 +749,27 @@ async def set_alias_override(body: OverrideBody) -> dict:
     the default. That is the escape hatch for the one workload that needs a
     different model without turning the other 21 into hand-managed entries.
     """
-    if body.alias not in workloads.by_name():
+    workload = workloads.by_name().get(body.alias)
+    if workload is None:
         raise HTTPException(status_code=400, detail=f"No workload named '{body.alias}'.")
 
     registry = _load_registry()
     if not body.provider.strip():
         registry.overrides.pop(body.alias, None)
     else:
+        # The generator pins every local-tier alias to Ollama before it ever
+        # consults overrides, so one saved here persisted, came back from
+        # GET /api/models, painted the row "pinned" — and changed nothing in the
+        # gateway, forever. These aliases exist precisely to BE the local A/B
+        # arm of a comparison (see workloads.py), so the honest answer is that
+        # they cannot be repointed, not that the pin quietly evaporates.
+        if workload.tier == "local":
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{body.alias}' is a local A/B variant and always runs on "
+                "Ollama — that is what it is for. Change Ollama's model under AI "
+                "models to move it, or pin the non-local alias beside it.",
+            )
         if body.provider not in registry.providers:
             raise HTTPException(
                 status_code=400,
@@ -655,6 +777,23 @@ async def set_alias_override(body: OverrideBody) -> dict:
             )
         if not body.model.strip():
             raise HTTPException(status_code=400, detail="A model id is required.")
+        # The refusal workloads.py has always claimed the UI makes. These three
+        # stream AND send tools; a model without native function calling does not
+        # degrade them, it stops them recording answers, because llm-core's
+        # stream_turn injects the emulated schema and never parses the reply back.
+        # A warning is not enough for a failure with no error anywhere.
+        spec = providers.PROVIDERS[body.provider]
+        if body.alias in workloads.STREAMING_TOOL_ALIASES and not await _supports_tools(
+            spec, body.model.strip()
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{body.alias}' streams and sends tools at the same time, and "
+                f"{body.model.strip()} does not call tools natively — they would be "
+                "emulated in the prompt, which does not compose with streaming. This "
+                "workload would stop recording answers with no error anywhere. Pick a "
+                "tool-capable model.",
+            )
         registry.overrides[body.alias] = {
             "provider": body.provider,
             "model": body.model.strip(),
