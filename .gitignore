@@ -29,6 +29,12 @@ htmlcov/
 
 # Node / Next / bun
 node_modules/
+
+# setuptools artefacts from `pip install -e .` / `pip install <pkg>` on the
+# shared packages. CI installs intake-core and llm-core into several suites, and
+# a developer reproducing that locally would otherwise see two untracked trees.
+build/
+*.egg-info/
 .next/
 out/
 bun.lockb
@@ -64,6 +70,13 @@ lighthouse-*.json
 # Timestamped .env backups written by setup-ui before each save.
 .env.bak.*
 litellm-config.yaml.bak.*
+llm-providers.json.bak.*
+
+# Which model provider this deployment chose. No secrets in it — keys live in
+# .env — but it is a per-deployment choice, so it is not committed. Absent means
+# the built-in defaults, which reproduce the configuration this project shipped
+# before providers were configurable. See llm-providers.example.json.
+llm-providers.json
 
 # Planning specs, engineering notes and architecture write-ups. Kept locally,
 # not shipped: they are working documents, not documentation for users. The

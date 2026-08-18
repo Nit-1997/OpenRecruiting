@@ -33,6 +33,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.providers import DEFAULT_REGISTRY, PROVIDERS
+
 
 LIVE = "live"
 PARTIAL = "partial"
@@ -78,7 +80,7 @@ _SPECS: tuple[_Spec, ...] = (
     _Spec(
         "core", "Core",
         ("SUPABASE_URL", "SUPABASE_SECRET_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-         "SUPABASE_JWT_SECRET", "ANTHROPIC_API_KEY", "LITELLM_MASTER_KEY"),
+         "SUPABASE_JWT_SECRET", "LITELLM_MASTER_KEY"),
         "Sign-in, requisitions and intake do not work.",
     ),
     _Spec(
@@ -175,8 +177,83 @@ def _email(values: dict[str, str]) -> Feature:
     return Feature("email", "Email", _state(missing, 3), missing, consequence)
 
 
-def evaluate(values: dict[str, str]) -> list[Feature]:
-    """Map `.env` values to what is and is not working. Pure."""
+def _models(values: dict[str, str], registry) -> Feature:
+    """Whether the CHOSEN provider can actually be reached.
+
+    This replaced a check that ANTHROPIC_API_KEY was non-empty, and the
+    difference is the whole point. That check reported Core: live for a user who
+    had pasted an OpenRouter key into the Anthropic field — the value was
+    non-empty, so it passed — while every call 401'd against api.anthropic.com.
+    litellm booted healthy too, because its healthcheck is pure liveness. Three
+    green surfaces over a stack that could not answer a single prompt.
+
+    Asking "is the default provider's OWN key set" cannot be satisfied by a key
+    that belongs to somebody else. It still cannot tell a valid key from an
+    invalid one — nothing derived from `.env` can — which is what the Test this
+    model button is for, and why this says "set" rather than "working".
+    """
+    consequence = (
+        "Every AI feature fails at request time: intake, screening, feedback "
+        "scoring and the debrief chat all return errors."
+    )
+    spec = PROVIDERS.get(registry.default)
+    if spec is None or registry.default not in registry.providers:
+        return Feature(
+            "models", "AI models", DORMANT, ["a model provider"],
+            "No model provider is configured. " + consequence,
+            doc="llm-providers.example.json",
+        )
+
+    def _creds(pid: str) -> list[str]:
+        """The variables this provider needs and does not have.
+
+        `base_var` counts as much as `key_var`: Ollama needs no key, so checking
+        only the key reported an Ollama default with no address as fully live.
+        """
+        s = PROVIDERS[pid]
+        return [n for n in (s.key_var, s.base_var) if n and not _set(values, n)]
+
+    missing = _creds(registry.default)
+    if missing:
+        return Feature(
+            "models", "AI models", PARTIAL, missing,
+            f"{spec.label} is selected but {' and '.join(missing)} is empty. "
+            + consequence,
+        )
+
+    # Providers named by an OVERRIDE serve real traffic too. Checking only the
+    # default reported live for a deployment whose voice-intake was pinned to a
+    # provider with an empty key — every call on that one workload 401s at
+    # request time, which is the same invisible failure in a smaller blast
+    # radius, and this panel is the surface whose whole job is to catch it.
+    pinned = {o["provider"] for o in registry.overrides.values()}
+    for pid in sorted(pinned - {registry.default}):
+        if pid not in PROVIDERS:
+            continue
+        gaps = _creds(pid)
+        if gaps:
+            aliases = sorted(
+                a for a, o in registry.overrides.items() if o["provider"] == pid
+            )
+            return Feature(
+                "models", "AI models", PARTIAL, gaps,
+                f"{', '.join(aliases)} {'is' if len(aliases) == 1 else 'are'} pinned "
+                f"to {PROVIDERS[pid].label}, whose {' and '.join(gaps)} is empty. "
+                f"Those workloads fail at request time; the rest run on {spec.label}.",
+            )
+
+    return Feature("models", "AI models", LIVE, [], consequence)
+
+
+def evaluate(values: dict[str, str], registry=None) -> list[Feature]:
+    """Map `.env` values to what is and is not working. Pure.
+
+    `registry` is passed rather than read, so this stays a pure function of its
+    arguments — the property that makes every branch unit-testable and keeps
+    this panel from being the thing that breaks the setup page.
+    """
+    if registry is None:
+        registry = DEFAULT_REGISTRY
     features: list[Feature] = []
     states: dict[str, str] = {}
 
@@ -203,6 +280,10 @@ def evaluate(values: dict[str, str]) -> list[Feature]:
             spec.id, spec.name, state, missing, spec.consequence,
             required=spec.required,
         ))
+
+    # Directly after Core: which provider serves the models is the first
+    # decision a first run makes, and the one whose failure is invisible.
+    features.insert(1, _models(values, registry))
 
     features.append(_email(values))
 

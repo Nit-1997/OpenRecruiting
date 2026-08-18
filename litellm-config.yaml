@@ -1,22 +1,29 @@
 # Alias -> provider map for the LiteLLM gateway.
 #
-# Applications only ever send an alias. To move a workload onto a different
-# provider, change litellm_params here and restart this service — no app rebuild.
+# GENERATED FILE — edit through the setup UI, not by hand. It is rendered from
+# setup-ui/app/workloads.py (what each alias is for and which tier it must stay
+# on) and llm-providers.json (which provider and model you chose). Hand edits
+# survive until the next save from that page and then vanish, which is worse than
+# not being allowed at all — so change the source, not the output.
+#
+# Applications only ever send an alias. That is what lets a workload move between
+# providers with no application rebuild, and it is why no service in this repo
+# holds a provider credential: this file names them, the gateway resolves them,
+# and the gateway is the only process that egresses.
 #
 # IMPORTANT: two entries sharing a model_name is NOT an override, it declares a
-# load-balancing group and requests will round-robin between them. Local variants
-# therefore use a distinct '-local' alias.
+# load-balancing group and requests round-robin between them. The generator
+# refuses to emit a duplicate for that reason.
 #
 # MODEL TIER IS PART OF THE CONTRACT. An alias must resolve to the same tier the
-# call site uses today, or the migration silently re-prices and re-times a
-# workload while claiming to be a no-op. Three workloads run on haiku today and
-# are marked below with the setting they mirror. Do not "simplify" them onto the
-# sonnet default.
+# call site uses today, or a save silently re-prices and re-times a workload while
+# claiming to be a no-op. Five aliases run the cheap tier and seventeen run the
+# standard one; workloads.py records which is which and why.
 
 model_list:
-  # Haiku, because Settings.INTAKE_JD_MODEL was claude-haiku-4-5-20251001 before
-  # it was flipped to this alias. The setting now holds the alias, so this entry
-  # is the only remaining record of the tier it has to preserve.
+  # Haiku tier, because Settings.INTAKE_JD_MODEL was claude-haiku-4-5-20251001
+  # before it was flipped to this alias. The setting now holds the alias, so
+  # this entry is the only remaining record of the tier it has to preserve.
   - model_name: intake-jd
     litellm_params:
       model: anthropic/claude-haiku-4-5-20251001
@@ -35,23 +42,25 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
-  # The backend's TEXT intake turn loop, phase 3's main streaming site. Its model
-  # id is hardcoded at backend/app/api/v2/routers/intake_text_messages.py
+  # The backend's TEXT intake turn loop, phase 3's main streaming site. Its
+  # model id is hardcoded at backend/app/api/v2/routers/intake_text_messages.py
   # (claude-sonnet-4-6), and that one variable feeds BOTH the streamed turn and
-  # the coverage tracker spawned beside it, so both move onto this alias together.
-  # Distinct from voice-intake on purpose: same job, different transport, and
-  # tying them together would mean a voice tuning change silently re-tiers text.
+  # the coverage tracker spawned beside it, so both move onto this alias
+  # together. Distinct from voice-intake on purpose: same job, different
+  # transport, and tying them together would mean a voice tuning change
+  # silently re-tiers text.
   - model_name: intake-text
     litellm_params:
       model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
-  # workers/intake-context-builder parse_jd. SONNET — settings.py reads
+  # workers/intake-context-builder parse_jd. STANDARD tier — settings.py reads
   # ANTHROPIC_MODEL_SONNET (claude-sonnet-4-6). It must NOT reuse `intake-jd`,
-  # which is HAIKU and belongs to the backend's JD extract: that swap would look
-  # like a tidy-up and would quietly re-tier a sonnet workload onto haiku, which
-  # is exactly what this file's header forbids. Sibling of context-synthesize.
+  # which is the cheap tier and belongs to the backend's JD extract: that swap
+  # would look like a tidy-up and would quietly re-tier a standard workload
+  # onto the cheap model, which is exactly what this file forbids. Sibling of
+  # context-synthesize.
   - model_name: context-parse-jd
     litellm_params:
       model: anthropic/claude-sonnet-5
@@ -94,18 +103,18 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
-  # Haiku today: Settings.CANDIDATE_DETECT_MODEL in backend/app/config.py, whose current
-  # value is claude-3-5-haiku-latest. Pinned to the same haiku tier as the other
-  # two rather than to a floating '-latest' tag, so the alias is reproducible.
+  # Cheap tier today: Settings.CANDIDATE_DETECT_MODEL in backend/app/config.py,
+  # whose value was claude-3-5-haiku-latest. Pinned to a tier rather than to a
+  # floating '-latest' tag, so the alias is reproducible.
   - model_name: candidate-detect
     litellm_params:
       model: anthropic/claude-haiku-4-5-20251001
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
-  # Haiku today: backend/app/services/intake/parse_intent_service.py:103, where
-  # the model id is hardcoded rather than read from settings. It had no alias at
-  # all until this entry; without one, phase 2 has nowhere to point it.
+  # Cheap tier today: backend/app/services/intake/parse_intent_service.py:103,
+  # where the model id is hardcoded rather than read from settings. It had no
+  # alias at all until this entry.
   - model_name: parse-role-intent
     litellm_params:
       model: anthropic/claude-haiku-4-5-20251001
@@ -118,20 +127,19 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
-  # ── The three realtime voice pipelines ───────────────────────────────────
-  # All three were one setting (voice-agent Settings.voice_llm_model, and before
-  # phase 7 voice_anthropic_model = claude-sonnet-4-5-20250929, never overridden
-  # in .env). Sonnet tier is preserved; the version carries the same deliberate
-  # phase-1 bump to sonnet-5 that every other alias here took. They are split so
-  # one voice workload can be repointed — at a local model, a cheaper tier —
-  # without dragging the other two with it. That independence is the deliverable
-  # of this migration; they resolve to the same model today, so the split changes
+  # ── The three realtime voice pipelines ────────────────────
+  # All three were one setting (voice-agent Settings.voice_llm_model, and
+  # before phase 7 voice_anthropic_model, never overridden in .env). The
+  # tier is preserved. They are split so one voice workload can be
+  # repointed — at a local model, a cheaper tier — without dragging the
+  # other two with it. That independence is the deliverable of the gateway
+  # migration; they resolve to the same model today, so the split changes
   # what is POSSIBLE, not what happens.
 
-  # v2 intake (main.py) and v1 intake. SENDS TOOLS (INTAKE_TOOLS). An alias
+  # v2 intake (main.py) and v1 intake. SENDS TOOLS (INTAKE_TOOLS). A model
   # without native function calling DISABLES intake rather than degrading it:
-  # streaming and emulated tools do not compose, so the emulated JSON arrives as
-  # plain text and is never parsed into a tool call.
+  # streaming and emulated tools do not compose, so the emulated JSON arrives
+  # as plain text and is never parsed into a tool call.
   - model_name: voice-intake
     litellm_params:
       model: anthropic/claude-sonnet-5
@@ -165,15 +173,17 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
-  # --- Per-call tier aliases for the two hand-rolled httpx clients ------------
-  # workers/feedback-agent and workers/intake-agent each choose between haiku and
-  # sonnet per call (`call_haiku` / `call_sonnet`, model switch at
-  # src/clients/anthropic.py:41-43). One alias per service cannot express that,
-  # so each gets a pair and the caller picks the alias where it used to pick a
-  # model id. HAIKU tiers mirror each service's config/settings.py defaults exactly.
-  # SONNET tiers deliberately do not: the operator specified claude-sonnet-5, so
-  # every sonnet alias here is a conscious upgrade from the claude-sonnet-4-6 the
-  # replaced code used. That is intended, not drift.
+  # ── Per-call tier aliases for the two hand-rolled httpx clients ────────────────────
+  # workers/feedback-agent and workers/intake-agent each choose between the
+  # cheap and standard tier per call (`call_haiku` / `call_sonnet`, model
+  # switch at src/clients/anthropic.py:41-43). One alias per service cannot
+  # express that, so each gets a pair and the caller picks the alias where
+  # it used to pick a model id. The cheap tiers mirror each service's
+  # config/settings.py defaults exactly. The standard tiers deliberately do
+  # not: the operator specified claude-sonnet-5, so every standard alias
+  # here is a conscious upgrade from the claude-sonnet-4-6 the replaced code
+  # used. That is intended, not drift.
+
   - model_name: feedback-haiku
     litellm_params:
       model: anthropic/claude-haiku-4-5-20251001
@@ -198,40 +208,14 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
-  # --- Smoke-test aliases: one per provider, used by the cross-provider suite ---
+  # --- Smoke aliases: one per configured provider, for the live suite ---
+
   - model_name: smoke-anthropic
     litellm_params:
       model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info: {supports_function_calling: true}
 
-  # The only openai-provider entry in this file, and the cross-provider smoke
-  # test — repointing a workload at another provider is what this whole gateway
-  # exists to make possible, so this alias is how that stays honest.
-  #
-  # temperature is DECLARED UNSUPPORTED here, and it is load-bearing. GPT-5
-  # reasoning models accept only the default (1): sending 0 returns
-  #   400 "Unsupported value: 'temperature' does not support 0 with this model."
-  # NINE call sites across this repo send temperature=0 (candidate_detection,
-  # end_state, coverage_tracker, both worker llm clients, feedback-agent's api
-  # server, parse_jd, synthesize), so without this every one of them 400s the
-  # moment its alias is pointed at an openai reasoning model.
-  #
-  # THREE things that DO NOT work, all tried against the running proxy — do not
-  # "simplify" this into any of them:
-  #   * `litellm_settings.drop_params: true` (already set globally). It drops
-  #     params a provider does not SUPPORT; openai supports temperature, it is
-  #     the VALUE that is rejected, so drop_params never considers it.
-  #   * `litellm_params: {temperature: 1}`. Those are DEFAULTS — an explicit
-  #     temperature=0 in the request overrides them and the 400 survives.
-  #   * `model_info: {supported_openai_params: [...]}`. Not honoured for dropping
-  #     on this path either; the 400 survives unchanged.
-  # `additional_drop_params` is the one that works: it removes the named params
-  # from the request for THIS deployment only, before it reaches openai.
-  #
-  # The determinism the call sites ask for with 0 is not lost here — it is
-  # unavailable on these models at all. Anthropic and ollama aliases still honour
-  # temperature=0 normally; nothing outside this entry changes.
   - model_name: smoke-openai
     litellm_params:
       model: openai/gpt-5.6-terra
@@ -250,6 +234,35 @@ model_list:
       model: ollama_chat/gemma4:latest
       api_base: os.environ/OLLAMA_API_BASE
     model_info: {supports_function_calling: false}
+
+  # --- Wildcard routes: how "test this model" reaches an unconfigured model ---
+  # Without these, probing a model you have not saved yet would mean writing it
+  # into this file and restarting the gateway — a 30-second round trip for a
+  # button. With them, any model of a CONFIGURED provider is reachable by its
+  # full id, so the setup UI can measure a candidate before you commit to it.
+  #
+  # This does NOT widen who holds a credential: the key still lives only in this
+  # container, and the caller supplies a model name, never a key. It does widen
+  # what a caller holding the gateway master key can spend money on, from the
+  # alias list to that provider's whole catalogue. Accepted because the master
+  # key is already shared by every application service, and because the
+  # alternative is a setup UI that cannot answer "will this model work?".
+
+  - model_name: anthropic/*
+    litellm_params:
+      model: anthropic/*
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: openai/*
+    litellm_params:
+      model: openai/*
+      api_key: os.environ/OPENAI_API_KEY
+      additional_drop_params: ["temperature"]
+
+  - model_name: ollama_chat/*
+    litellm_params:
+      model: ollama_chat/*
+      api_base: os.environ/OLLAMA_API_BASE
 
 litellm_settings:
   drop_params: true        # silently drop params a provider does not accept

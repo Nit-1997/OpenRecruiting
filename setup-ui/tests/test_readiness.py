@@ -14,7 +14,6 @@ CORE = {
     "SUPABASE_SECRET_KEY": "k",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "k",
     "SUPABASE_JWT_SECRET": "k",
-    "ANTHROPIC_API_KEY": "k",
     "LITELLM_MASTER_KEY": "k",
 }
 
@@ -120,7 +119,7 @@ def test_half_a_cloudflare_pair_is_partial_not_dormant():
 
 # ── required vs optional ────────────────────────────────────────────────────
 
-REQUIRED_IDS = {"core", "meetings", "voice", "bot_voice", "email", "callbacks"}
+REQUIRED_IDS = {"core", "models", "meetings", "voice", "bot_voice", "email", "callbacks"}
 OPTIONAL_IDS = {"graph", "mcp", "ats", "google_auth"}
 
 
@@ -131,6 +130,53 @@ def test_the_required_set_matches_the_spec():
     features = {f.id: f for f in evaluate({})}
     assert {i for i, f in features.items() if f.required} == REQUIRED_IDS
     assert {i for i, f in features.items() if not f.required} == OPTIONAL_IDS
+
+
+# ── the chosen provider, not a hardcoded one ────────────────────────────────
+# Core used to require ANTHROPIC_API_KEY outright. That reported Core: live for
+# a user who had pasted an OpenRouter key into the Anthropic box — non-empty, so
+# it passed — while every call 401'd against api.anthropic.com.
+
+
+def test_models_is_live_when_the_default_providers_own_key_is_set():
+    assert _by_id({**CORE, "ANTHROPIC_API_KEY": "k"})["models"].state == LIVE
+
+
+def test_models_is_not_live_when_the_default_providers_key_is_empty():
+    f = _by_id(CORE)["models"]
+    assert f.state == PARTIAL
+    assert f.missing == ["ANTHROPIC_API_KEY"]
+
+
+def test_a_key_belonging_to_another_provider_does_not_satisfy_the_default():
+    """The exact failure this replaced: a key IS set, just not the one the
+    selected provider will be handed."""
+    f = _by_id({**CORE, "OPENROUTER_API_KEY": "sk-or-v1-real"})["models"]
+    assert f.state != LIVE
+    assert "ANTHROPIC_API_KEY" in f.missing
+
+
+def test_core_no_longer_depends_on_one_hardcoded_provider():
+    """A user running entirely on OpenRouter must be able to reach Core: live
+    without ever setting an Anthropic key."""
+    assert _by_id(CORE)["core"].state == LIVE
+
+
+def test_models_follows_the_registry_rather_than_a_hardcoded_provider():
+    from app.providers import ProviderEntry, Registry
+    from app.readiness import evaluate as ev
+
+    registry = Registry(
+        default="openrouter",
+        providers={"openrouter": ProviderEntry(preferred="z-ai/glm-5.2")},
+    )
+    features = {f.id: f for f in ev({**CORE, "OPENROUTER_API_KEY": "sk-or-v1-real"}, registry)}
+    assert features["models"].state == LIVE
+
+    features = {f.id: f for f in ev({**CORE, "ANTHROPIC_API_KEY": "k"}, registry)}
+    assert features["models"].state == PARTIAL, (
+        "an Anthropic key must not make an OpenRouter deployment look ready"
+    )
 
 
 # ── email picks its required key from the provider ──────────────────────────
@@ -197,3 +243,59 @@ def test_live_features_never_report_missing_variables():
     for f in evaluate({**CORE, **everything}):
         if f.state == LIVE:
             assert f.missing == [], f.id
+
+
+# ── which provider credentials count ────────────────────────────────────────
+# _models used to look at registry.default's key_var and nothing else. Both
+# holes below reported "AI models: live" over a stack that 401s at request time,
+# which is the exact failure this whole panel was added to catch.
+
+def _registry(default, providers_map, overrides=None):
+    from app.providers import ProviderEntry, Registry
+
+    return Registry(
+        default=default,
+        providers={k: ProviderEntry(preferred=v) for k, v in providers_map.items()},
+        overrides=overrides or {},
+    )
+
+
+def _models_feature(values, registry):
+    return next(f for f in evaluate(values, registry) if f.id == "models")
+
+
+def test_an_ollama_default_with_no_base_url_is_not_live():
+    """Ollama needs no key, so checking only key_var reported an Ollama default
+    with no address as fully configured. It is reached AT an address; without one
+    every call fails."""
+    feature = _models_feature({}, _registry("ollama", {"ollama": "gemma4:latest"}))
+    assert feature.state == PARTIAL
+    assert feature.missing == ["OLLAMA_API_BASE"]
+
+
+def test_a_pinned_provider_with_an_empty_key_is_not_live():
+    """An override serves real traffic. A default with a good key plus a pin to a
+    keyless provider reported live while that one workload 401'd on every call."""
+    feature = _models_feature(
+        {"ANTHROPIC_API_KEY": "sk-ant-real"},
+        _registry(
+            "anthropic",
+            {"anthropic": "claude-sonnet-5", "openrouter": "z-ai/glm-5.2"},
+            overrides={"voice-intake": {"provider": "openrouter", "model": "z-ai/glm-5.2"}},
+        ),
+    )
+    assert feature.state == PARTIAL
+    assert feature.missing == ["OPENROUTER_API_KEY"]
+    assert "voice-intake" in feature.consequence
+
+
+def test_a_pinned_provider_whose_key_is_set_stays_live():
+    feature = _models_feature(
+        {"ANTHROPIC_API_KEY": "sk-ant-real", "OPENROUTER_API_KEY": "sk-or-real"},
+        _registry(
+            "anthropic",
+            {"anthropic": "claude-sonnet-5", "openrouter": "z-ai/glm-5.2"},
+            overrides={"voice-intake": {"provider": "openrouter", "model": "z-ai/glm-5.2"}},
+        ),
+    )
+    assert feature.state == LIVE

@@ -36,12 +36,24 @@ jobs:
 
   secrets:
     runs-on: ubuntu-latest
+    # gitleaks-action reads the PR's commit range through the API, and posts a
+    # comment when it finds something. Without pull-requests write that comment
+    # fails; without contents read it cannot diff.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # gitleaks scans history, not just the tip
       - uses: gitleaks/gitleaks-action@v2
         env:
+          # REQUIRED on pull_request events, and only on those — which is why
+          # this passed on every push and failed the moment a PR was opened:
+          #   "GITHUB_TOKEN is now required to scan pull requests"
+          # On push the action diffs locally; on a PR it asks the API for the
+          # commit range, so it needs a token to authenticate that call.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: .gitleaks.toml
 
   no-captured-interviews:

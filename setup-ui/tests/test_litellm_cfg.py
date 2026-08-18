@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from app.litellm_cfg import read_aliases, set_model
+from app.litellm_cfg import read_aliases
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -67,42 +67,7 @@ def test_the_comment_above_an_alias_becomes_its_description():
     assert "──" not in by_name["voice-intake"].description
 
 
-def test_changing_a_model_touches_exactly_one_line():
-    out = set_model(SAMPLE, "voice-intake", "ollama_chat/gemma4:latest")
-
-    changed = [(a, b) for a, b in zip(SAMPLE.splitlines(), out.splitlines()) if a != b]
-    assert changed == [
-        ("      model: anthropic/claude-sonnet-5", "      model: ollama_chat/gemma4:latest")
-    ]
-
-
-def test_every_comment_survives_a_change():
-    out = set_model(SAMPLE, "intake-jd", "openai/gpt-5.6-terra")
-
-    for line in SAMPLE.splitlines():
-        if line.strip().startswith("#"):
-            assert line in out, f"comment lost: {line}"
-
-
-def test_editing_one_alias_never_touches_a_neighbour():
-    """The model: line of the NEXT alias is the obvious thing a naive scan
-    would hit when an alias is missing its own."""
-    out = read_aliases(set_model(SAMPLE, "intake-jd", "openai/gpt-5.6-terra"))
-    by_name = {a.name: a for a in out}
-
-    assert by_name["intake-jd"].model == "openai/gpt-5.6-terra"
-    assert by_name["voice-intake"].model == "anthropic/claude-sonnet-5"
-    assert by_name["smoke-openai"].model == "openai/gpt-5.6-terra"  # unchanged, was already
-
-
-def test_an_unknown_alias_raises_rather_than_appending():
-    """A silently added alias would be served by the gateway and never
-    noticed."""
-    with pytest.raises(LookupError, match="No alias named"):
-        set_model(SAMPLE, "not-an-alias", "anthropic/claude-sonnet-5")
-
-
-def test_the_real_config_parses_and_round_trips_byte_identically():
+def test_the_real_generated_config_parses():
     """Against the actual file, not a fixture — it has 27 aliases and far more
     comment shapes than any sample."""
     path = REPO / "litellm-config.yaml"
@@ -114,6 +79,7 @@ def test_the_real_config_parses_and_round_trips_byte_identically():
     assert len(aliases) >= 25
     assert all(a.model for a in aliases)
 
-    # Setting a model to its current value must be a no-op, byte for byte.
-    target = aliases[0]
-    assert set_model(text, target.name, target.model) == text
+    # Every alias the generator emits must be readable back, or the "Models per
+    # task" list silently shows blanks for the ones it cannot parse.
+    names = {a.name for a in aliases}
+    assert "intake-jd" in names and "smoke-anthropic" in names

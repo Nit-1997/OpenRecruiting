@@ -5,8 +5,8 @@
  * Why this is not NEXT_PUBLIC_API_V2_URL. That is a browser value: in this stack
  * it is http://localhost:8004, which from inside the landing container resolves
  * to the container itself, so a server-side fetch to it fails outright. The
- * parent MazleAI repo used the one variable for both audiences and got away with
- * it because its value was https://api.mazle.ai — a public host reachable from
+ * upstream project this was forked from used one variable for both audiences and
+ * got away with it because its value was a public API hostname — reachable from
  * the browser AND from inside a container. This stack path-routes a single
  * tunnel hostname and keeps the apps on localhost, so the two audiences
  * genuinely need different values.

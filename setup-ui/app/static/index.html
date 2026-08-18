@@ -30,10 +30,19 @@
     .blurb { color:var(--muted); font-size:13.5px; margin:0 0 14px; }
     label { display:block; font-size:13px; font-weight:600; margin:12px 0 4px; }
     .help { font-weight:400; color:var(--muted); font-size:12.5px; margin-top:2px; }
-    input[type=text], input[type=password] {
+    input[type=text], input[type=password], select {
       width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:8px;
       background:var(--bg); color:var(--fg); font:13.5px ui-monospace,SFMono-Regular,Menlo,monospace;
     }
+    .prov { display:flex; justify-content:space-between; align-items:center; gap:10px;
+            border:1px solid var(--line); border-radius:8px; padding:9px 11px; margin-bottom:8px; }
+    .prov.is-default { border-color:var(--ok); }
+    .prov .meta { font-size:12.5px; color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .check { display:flex; gap:8px; align-items:baseline; font-size:13px; padding:3px 0; }
+    .check .mark { font-weight:700; width:1.1em; flex:none; }
+    .check.pass .mark { color:var(--ok); }
+    .check.fail .mark { color:var(--bad); }
+    .check .why { color:var(--muted); font-size:12.5px; }
     input:focus { outline:2px solid var(--accent); outline-offset:-1px; }
     button {
       background:var(--accent); color:var(--bg); border:0; border-radius:8px;
@@ -89,6 +98,51 @@
          last, collapsed. They used to sit above the fields, so the one section
          that actually gets you running was three cards and 27 model rows down. -->
     <div id="groups-start"></div>
+
+    <!-- The AI setup, in one place. Before this the only provider fields were two
+         hardcoded keys, and a user with a third provider's key had nowhere to put
+         it but somebody else's box — where it read as configured on every status
+         surface and 401'd on every call. Choosing a provider and choosing a model
+         are the same decision, so they are the same card. -->
+    <div class="card" id="providers-card">
+      <h2 id="providers-title">AI models <span class="pill" id="providers-pill">loading…</span></h2>
+      <p class="blurb" id="providers-blurb">Pick a provider, give it a key, and every workload follows it. The key is held only by the gateway — no application container ever sees one.</p>
+
+      <div class="msg err hidden" id="providers-error"></div>
+      <div class="msg good hidden" id="providers-result"></div>
+
+      <div id="providers-list"></div>
+
+      <div id="provider-form" style="border-top:1px solid var(--line);margin-top:16px;padding-top:4px">
+        <label for="provider-select" id="provider-select-label">Model Provider</label>
+        <select id="provider-select"></select>
+
+        <label for="provider-preferred" id="provider-preferred-label">Preferred Model ID</label>
+        <input type="text" id="provider-preferred" list="provider-models" autocomplete="off" />
+        <datalist id="provider-models"></datalist>
+        <p class="help" id="provider-preferred-help"></p>
+
+        <label for="provider-fast" id="provider-fast-label">Fast Model ID</label>
+        <input type="text" id="provider-fast" list="provider-models" autocomplete="off" />
+        <p class="help" id="provider-fast-help">Optional, and cheaper. Five workloads run a deliberately cheap model — leave this blank and they move onto the preferred one, which costs more for no benefit.</p>
+
+        <label for="provider-key" id="provider-key-label">API Key</label>
+        <input type="password" id="provider-key" autocomplete="new-password" />
+        <p class="help" id="provider-key-help"></p>
+
+        <label class="row" id="provider-default-row" style="font-weight:400;margin-top:12px">
+          <input type="checkbox" id="provider-make-default" style="width:auto" />
+          <span id="provider-make-default-text">Use this provider for every workload</span>
+        </label>
+
+        <div class="row" style="margin-top:14px">
+          <button id="provider-add">Add +</button>
+          <button class="ghost" id="provider-test">Test this model</button>
+        </div>
+
+        <div id="probe-result" class="hidden" style="margin-top:14px"></div>
+      </div>
+    </div>
 
     <div class="card" id="database-card">
       <h2 id="database-title">Database schema <span class="pill" id="database-pill">checking…</span></h2>
@@ -176,6 +230,10 @@
       TOKEN = token;
       show($("gate-section"), false);
       show($("app-section"), true);
+      // loadProviders first and awaited: the per-workload rows render a provider
+      // dropdown built from the configured list, so racing them gives every
+      // workload an empty menu on first paint.
+      await loadProviders();
       await Promise.all([loadConfig(), loadHealth(), loadDatabase(), loadReadiness(), loadModels()]);
       setInterval(loadHealth, 10000);
     } catch (err) { setMsg($("gate-error"), err.message); }
@@ -259,30 +317,218 @@
     } catch (err) { /* advisory; never block the form on it */ }
   }
 
+  // ── model providers ─────────────────────────────────────────────
+  let PROVIDERS = { available: [], configured: [], default: "" };
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  async function loadProviders() {
+    const pill = $("providers-pill"), list = $("providers-list");
+    try {
+      PROVIDERS = await api("/api/providers");
+      const dflt = PROVIDERS.configured.find((p) => p.is_default);
+      // A provider with no key is the failure this card exists to prevent, so it
+      // is called out on the pill rather than left to be discovered at runtime.
+      const keyless = PROVIDERS.configured.filter((p) => !p.key_set).map((p) => p.label);
+      if (dflt && dflt.key_set) { pill.className = "pill ok"; pill.textContent = `${dflt.label} · ${dflt.preferred}`; }
+      else if (dflt) { pill.className = "pill bad"; pill.textContent = `${dflt.label} — no key set`; }
+      else { pill.className = "pill bad"; pill.textContent = "none configured"; }
+
+      list.innerHTML = PROVIDERS.configured.map((p) => `
+        <div class="prov${p.is_default ? " is-default" : ""}" id="prov-row-${p.id}">
+          <div>
+            <strong id="prov-label-${p.id}">${esc(p.label)}</strong>
+            ${p.is_default ? '<span class="pill ok" id="prov-default-' + p.id + '">default</span>' : ""}
+            ${p.key_set ? "" : '<span class="pill bad" id="prov-nokey-' + p.id + '" title="Configured, but its key is empty. Every call will fail at request time.">no key</span>'}
+            <div class="meta" id="prov-meta-${p.id}">${esc(p.preferred)}${p.fast && p.fast !== p.preferred ? " · fast: " + esc(p.fast) : ""}</div>
+          </div>
+          <div class="row">
+            ${p.is_default ? "" : '<button class="ghost" id="prov-use-' + p.id + '" data-use="' + p.id + '">Make default</button>'}
+            <button class="ghost" id="prov-del-${p.id}" data-del="${p.id}">Remove</button>
+          </div>
+        </div>`).join("") || '<p class="help" id="prov-empty">No provider configured yet.</p>';
+
+      list.querySelectorAll("button[data-del]").forEach((b) =>
+        b.addEventListener("click", () => removeProvider(b.dataset.del)));
+      list.querySelectorAll("button[data-use]").forEach((b) =>
+        b.addEventListener("click", () => makeDefault(b.dataset.use)));
+
+      const sel = $("provider-select");
+      if (!sel.options.length) {
+        sel.innerHTML = PROVIDERS.available.map((p) =>
+          `<option value="${esc(p.id)}" id="prov-opt-${p.id}">${esc(p.label)}</option>`).join("");
+        onProviderChange();
+      }
+    } catch (err) {
+      pill.className = "pill bad"; pill.textContent = "error";
+      list.textContent = err.message;
+    }
+  }
+
+  function currentSpec() {
+    return PROVIDERS.available.find((p) => p.id === $("provider-select").value) || {};
+  }
+
+  async function onProviderChange() {
+    const spec = currentSpec();
+    const existing = PROVIDERS.configured.find((p) => p.id === spec.id);
+    $("provider-preferred").value = existing ? existing.preferred : (spec.default_preferred || "");
+    $("provider-fast").value = existing ? existing.fast : "";
+    $("provider-key").value = "";
+    $("provider-key-help").textContent = !spec.needs_key
+      ? "This provider is local and needs no key."
+      : (existing && existing.key_set
+          ? "A key is already saved. Leave blank to keep it, or paste a new one to replace it."
+          : `Written to ${spec.key_var} in .env. Only the gateway container reads it.`);
+    $("provider-key").disabled = !spec.needs_key;
+    show($("probe-result"), false);
+
+    const help = $("provider-preferred-help");
+    $("provider-models").innerHTML = "";
+    if (!spec.has_catalogue) { help.textContent = "Type the model id exactly as the provider names it."; return; }
+
+    help.textContent = "Loading the model list…";
+    try {
+      const d = await api(`/api/providers/${spec.id}/catalogue`);
+      if (d.error) { help.textContent = d.error; return; }
+      // Only tool-capable models are offered. A model that cannot call a tool
+      // does not degrade the workloads that stream AND send tools, it stops them
+      // recording answers — so it is not a choice worth putting one click away.
+      const usable = d.models.filter((m) => m.tools);
+      $("provider-models").innerHTML = usable.map((m) =>
+        `<option value="${esc(m.id)}" label="${esc(m.id)} — $${m.prompt_usd_per_m}/$${m.completion_usd_per_m} per M · ${Math.round(m.context_length / 1000)}k${m.open_weights ? " · open" : ""}${m.reasoning_by_default ? " · reasons" : ""}"></option>`).join("");
+      const open = usable.filter((m) => m.open_weights).length;
+      help.textContent = `${usable.length} models can call tools (${open} open-weight). Start typing to search. Prices are per million tokens, in/out.`;
+    } catch (err) { help.textContent = err.message; }
+  }
+
+  async function addProvider() {
+    const spec = currentSpec(), btn = $("provider-add");
+    setMsg($("providers-error"), ""); setMsg($("providers-result"), "");
+    const preferred = $("provider-preferred").value.trim();
+    if (!preferred) { setMsg($("providers-error"), "A preferred model is required."); return; }
+
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      const r = await api("/api/providers", { method: "POST", body: JSON.stringify({
+        provider: spec.id, preferred,
+        fast: $("provider-fast").value.trim(),
+        api_key: $("provider-key").value,
+        make_default: $("provider-make-default").checked,
+      })});
+      setMsg($("providers-result"),
+        `${spec.label} saved. Default provider: ${r.default}.\n` +
+        `gateway ${r.restarted ? "restarted" : "restart FAILED"}${r.detail ? " — " + r.detail : ""}`);
+      // A save can succeed and still have written a config missing per-model
+      // settings, or bound every workload to a model that cannot call a tool.
+      // Neither surfaces anywhere else, so neither is allowed to pass quietly.
+      if (r.degraded || r.warning) setMsg($("providers-error"), [r.degraded, r.warning].filter(Boolean).join("\n\n"));
+      $("provider-key").value = "";
+      $("provider-make-default").checked = false;
+      await Promise.all([loadProviders(), loadModels(), loadReadiness()]);
+    } catch (err) { setMsg($("providers-error"), err.message); }
+    finally { btn.disabled = false; btn.textContent = "Add +"; }
+  }
+
+  async function makeDefault(id) {
+    const p = PROVIDERS.configured.find((x) => x.id === id);
+    if (!p) return;
+    setMsg($("providers-error"), ""); setMsg($("providers-result"), "");
+    try {
+      const r = await api("/api/providers", { method: "POST", body: JSON.stringify({
+        provider: id, preferred: p.preferred, fast: p.fast, make_default: true })});
+      setMsg($("providers-result"), `Every workload now uses ${p.label}.`);
+      if (r.degraded || r.warning) setMsg($("providers-error"), [r.degraded, r.warning].filter(Boolean).join("\n\n"));
+      await Promise.all([loadProviders(), loadModels(), loadReadiness()]);
+    } catch (err) { setMsg($("providers-error"), err.message); }
+  }
+
+  async function removeProvider(id) {
+    if (!window.confirm(`Remove ${id}?\n\nAny workload pinned to it goes back to the default provider.`)) return;
+    setMsg($("providers-error"), ""); setMsg($("providers-result"), "");
+    try {
+      const r = await api(`/api/providers/${id}`, { method: "DELETE" });
+      setMsg($("providers-result"), `Removed ${r.removed}. Default provider: ${r.default}.` +
+        (r.dropped_overrides.length ? `\nAlso cleared pins on: ${r.dropped_overrides.join(", ")}` : ""));
+      if (r.degraded || r.warning) setMsg($("providers-error"), [r.degraded, r.warning].filter(Boolean).join("\n\n"));
+      await Promise.all([loadProviders(), loadModels(), loadReadiness()]);
+    } catch (err) { setMsg($("providers-error"), err.message); }
+  }
+
+  // Metadata says what a model claims; this says what it does.
+  async function testModel() {
+    const spec = currentSpec(), btn = $("provider-test"), out = $("probe-result");
+    const model = $("provider-preferred").value.trim();
+    setMsg($("providers-error"), "");
+    if (!model) { setMsg($("providers-error"), "Enter a model id to test."); return; }
+
+    btn.disabled = true; btn.textContent = "Testing…";
+    show(out, true);
+    out.innerHTML = `<p class="help" id="probe-running">Asking ${esc(model)} to return text, call a tool, stream, and pick between two tools. Four calls, usually under a cent.</p>`;
+    try {
+      const r = await api("/api/probe", { method: "POST", body: JSON.stringify({ provider: spec.id, model })});
+      out.innerHTML =
+        `<div class="row" id="probe-head" style="justify-content:space-between">
+           <strong id="probe-model">${esc(r.model)}</strong>
+           <span class="pill ${r.ok ? "ok" : "bad"}" id="probe-verdict">${r.ok ? "works" : "not usable"}</span>
+         </div>` +
+        r.checks.map((c, i) => `
+          <div class="check ${c.ok ? "pass" : "fail"}" id="probe-check-${i}">
+            <span class="mark" id="probe-mark-${i}">${c.ok ? "✓" : "✗"}</span>
+            <span id="probe-name-${i}">${esc(c.name)}<span class="why" id="probe-why-${i}"> — ${esc(c.detail)}</span></span>
+          </div>`).join("") +
+        `<p class="help" id="probe-cost">Cost: $${r.cost_usd.toFixed(6)}.${
+          r.applied.length
+            ? " Tested with the settings this model needs: " + esc(r.applied.join("; ")) + "."
+            : " No special settings needed."}</p>` +
+        (r.warning ? `<div class="msg err" id="probe-warning">${esc(r.warning)}</div>` : "");
+    } catch (err) {
+      out.innerHTML = `<div class="msg err" id="probe-error">${esc(err.message)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = "Test this model"; }
+  }
+
+  $("provider-select").addEventListener("change", onProviderChange);
+  $("provider-add").addEventListener("click", addProvider);
+  $("provider-test").addEventListener("click", testModel);
+
   // ── models per task ─────────────────────────────────────────────
   async function loadModels() {
     const pill = $("models-pill"), list = $("models-list");
     try {
       const d = await api("/api/models");
       if (d.error) { pill.className = "pill bad"; pill.textContent = "unavailable"; list.textContent = d.error; return; }
-      pill.className = "pill ok"; pill.textContent = `${d.aliases.length} workloads`;
+      const pinned = d.aliases.filter((a) => a.override).length;
+      pill.className = "pill ok";
+      pill.textContent = pinned ? `${d.aliases.length} workloads · ${pinned} pinned` : `${d.aliases.length} workloads`;
+
+      const options = PROVIDERS.configured.map((p) =>
+        `<option value="${esc(p.id)}">${esc(p.label)}</option>`).join("");
+
       list.innerHTML = d.aliases.map((a) => `
         <div id="model-row-${a.name}" style="border-top:1px solid var(--line);padding:11px 0">
           <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:6px">
             <div>
               <strong id="model-name-${a.name}" style="font-size:13.5px">${a.name}</strong>
-              ${a.supports_tools ? '<span class="pill" id="model-tools-' + a.name + '" title="Sends tools. A model without native function calling disables this workload rather than degrading it.">tools</span>' : ""}
-              ${a.drops_temperature ? '<span class="pill" id="model-dt-' + a.name + '" title="temperature is dropped for this deployment.">drops temp</span>' : ""}
+              <span class="pill" id="model-tier-${a.name}" title="${a.tier === "fast" ? "Deliberately on the cheap model. Moving it to the preferred one re-prices this workload." : "Uses the preferred model."}">${a.tier}</span>
+              ${a.streams_tools ? '<span class="pill warn" id="model-st-' + a.name + '" title="Streams AND sends tools. A model without native function calling does not degrade this workload, it stops it recording answers.">streams tools</span>' : ""}
+              ${a.supports_tools === false ? '<span class="pill bad" id="model-notools-' + a.name + '" title="This model does not call tools natively; they are emulated in the prompt.">no native tools</span>' : ""}
             </div>
-            <span class="pill" id="model-provider-${a.name}">${a.provider || "?"}</span>
+            <span class="pill${a.override ? "" : " ok"}" id="model-src-${a.name}">${a.tier === "local" ? "always Ollama" : a.override ? "pinned" : "follows default"}</span>
           </div>
-          ${a.description ? `<p class="help" id="model-desc-${a.name}" style="margin:4px 0 6px">${a.description}</p>` : ""}
+          ${a.description ? `<p class="help" id="model-desc-${a.name}" style="margin:4px 0 6px">${esc(a.description)}</p>` : ""}
           <div class="row">
-            <input type="text" id="model-input-${a.name}" value="${String(a.model).replace(/"/g, "&quot;")}" />
-            <button class="ghost" id="model-save-${a.name}" data-alias="${a.name}">Save</button>
+            <select id="model-prov-${a.name}" style="max-width:190px"${a.tier === "local" ? " disabled" : ""}>
+              <option value="">— follow default —</option>${options}
+            </select>
+            <input type="text" id="model-input-${a.name}" placeholder="${esc(a.model)}" value="${esc(a.override ? a.override.model : "")}"${a.tier === "local" ? " disabled" : ""} />
+            <button class="ghost" id="model-save-${a.name}" data-alias="${a.name}"${a.tier === "local" ? " disabled" : ""}>Save</button>
           </div>
+          ${a.tier === "local" ? `<p class="help" id="model-locked-${a.name}" style="margin:6px 0 0">Local A/B variant — always runs on Ollama, which is what it is for. Change Ollama's model under AI models to move it.</p>` : ""}
         </div>`).join("");
 
+      d.aliases.forEach((a) => {
+        if (a.override) $(`model-prov-${a.name}`).value = a.override.provider;
+      });
       list.querySelectorAll("button[data-alias]").forEach((btn) => {
         btn.addEventListener("click", () => saveModel(btn.dataset.alias));
       });
@@ -292,15 +538,21 @@
   }
 
   async function saveModel(alias) {
-    const input = $(`model-input-${alias}`), btn = $(`model-save-${alias}`);
+    const provider = $(`model-prov-${alias}`).value;
+    const model = $(`model-input-${alias}`).value.trim();
+    const btn = $(`model-save-${alias}`);
     setMsg($("app-error"), ""); setMsg($("app-result"), "");
-    if (!window.confirm(`Point "${alias}" at:\n\n  ${input.value}\n\nThe gateway restarts. Other services are unaffected.`)) return;
+    const what = provider
+      ? `Pin "${alias}" to ${provider} / ${model}.`
+      : `Clear the pin on "${alias}" so it follows the default provider again.`;
+    if (!window.confirm(`${what}\n\nThe gateway restarts. Other services are unaffected.`)) return;
     btn.disabled = true; btn.textContent = "Saving…";
     try {
-      const r = await api("/api/models", { method: "POST", body: JSON.stringify({ alias, model: input.value }) });
+      const r = await api("/api/models", { method: "POST", body: JSON.stringify({ alias, provider, model }) });
       setMsg($("app-result"),
-        `${r.alias} -> ${r.model}\ngateway ${r.restarted ? "restarted" : "restart FAILED"}${r.detail ? " — " + r.detail : ""}\nbackup: ${r.backup || "none"}`);
-      if (r.warning) setMsg($("app-error"), r.warning);
+        `${r.alias} ${r.override ? "-> " + r.override.provider + " / " + r.override.model : "follows the default provider"}\n` +
+        `gateway ${r.restarted ? "restarted" : "restart FAILED"}${r.detail ? " — " + r.detail : ""}`);
+      if (r.degraded) setMsg($("app-error"), r.degraded);
       await loadModels();
     } catch (err) { setMsg($("app-error"), err.message); }
     finally { btn.disabled = false; btn.textContent = "Save"; }
