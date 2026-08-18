@@ -26,6 +26,14 @@ release moves that block under a version heading and tags it.
   is dropped for OpenAI models that reject `temperature=0`.
 - `OPENROUTER_API_KEY` in `.env.example` and the setup UI.
 - `llm-providers.example.json` documenting the provider registry format.
+- **CI now runs the test suites** (`.github/workflows/tests.yml`) — 3442 Python
+  tests across ten packages plus landing's 32, where previously CI ran only the
+  three release gates and no tests at all. `recruiter-app` runs non-blocking
+  until three deterministic failures on `main` are fixed.
+- A PR template, this changelog, and a versioning policy in `CONTRIBUTING.md`.
+- `landing/package-lock.json`, so `npm ci` is reproducible. Generated on Linux:
+  a lockfile built on macOS omits the other platforms' optional native bindings
+  (npm/cli#4828) and breaks `npm ci` everywhere else.
 
 ### Changed
 

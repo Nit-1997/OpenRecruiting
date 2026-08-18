@@ -29,6 +29,12 @@ htmlcov/
 
 # Node / Next / bun
 node_modules/
+
+# setuptools artefacts from `pip install -e .` / `pip install <pkg>` on the
+# shared packages. CI installs intake-core and llm-core into several suites, and
+# a developer reproducing that locally would otherwise see two untracked trees.
+build/
+*.egg-info/
 .next/
 out/
 bun.lockb

@@ -1,0 +1,143 @@
+name: tests
+
+# Every suite in the repo. Split per package rather than run as one job because
+# they have genuinely different dependency sets — voice-agent needs intake-core,
+# the workers need llm-core, backend needs a baked image — and a single job would
+# install the union of all of them to run any of them.
+#
+# fail-fast is off on purpose: when two suites break, seeing both in one run is
+# the difference between one fix and two round trips.
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── the eight packages that install from a manifest and run pytest ──────────
+  python:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: setup-ui
+            dir: setup-ui
+            install: pip install -r requirements.txt
+          - name: llm-core
+            dir: llm-core
+            install: pip install -e .
+          - name: intake-core
+            dir: intake-core
+            install: pip install -e .
+          - name: cortex-mcp
+            dir: cortex-mcp
+            install: pip install -r requirements.txt
+          # voice-agent imports both shared packages; without intake-core its
+          # collection fails outright rather than reporting a test failure.
+          - name: voice-agent
+            dir: voice-agent
+            install: pip install -r requirements.txt "$GITHUB_WORKSPACE/llm-core" "$GITHUB_WORKSPACE/intake-core"
+          - name: feedback-agent
+            dir: workers/feedback-agent
+            install: pip install -r requirements.txt -r requirements-dev.txt "$GITHUB_WORKSPACE/llm-core"
+          # The only manifest this worker has lives under production/.
+          - name: intake-agent
+            dir: workers/intake-agent
+            install: pip install -r production/requirements.txt "$GITHUB_WORKSPACE/intake-core" "$GITHUB_WORKSPACE/llm-core"
+          - name: intake-context-builder
+            dir: workers/intake-context-builder
+            install: pip install -r requirements.txt "$GITHUB_WORKSPACE/intake-core" "$GITHUB_WORKSPACE/llm-core"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      # Not in every package's manifest — several are libraries whose test-only
+      # dependencies are deliberately not runtime dependencies.
+      - name: Install pytest
+        run: pip install pytest pytest-asyncio
+
+      - name: Install ${{ matrix.name }}
+        working-directory: ${{ matrix.dir }}
+        run: ${{ matrix.install }}
+
+      # llm-core's live_gateway suite spends real money and is deselected by its
+      # own pyproject addopts, not here — see llm-core/pyproject.toml.
+      - name: Run ${{ matrix.name }} suite
+        working-directory: ${{ matrix.dir }}
+        run: python -m pytest -q
+
+  # ── backend: needs its test image ──────────────────────────────────────────
+  # Not installable from a manifest alone. backend/Dockerfile.test bakes in
+  # litellm-config.yaml and every other service's source, because three of these
+  # tests assert repo-wide properties no per-service scan can check — that no
+  # application module holds a provider credential, that no service installs a
+  # provider SDK, and that the streaming aliases declare native tool support.
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run backend suite
+        run: make test
+
+  cortex-backend:
+    name: cortex-backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # tests/e2e and tests/test_health.py are excluded by this target, neither
+      # for infrastructure reasons — see cortex-backend/Dockerfile.test.
+      - name: Run cortex-backend suite
+        run: make test-cortex
+
+  # ── JavaScript ─────────────────────────────────────────────────────────────
+  landing:
+    name: landing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
+      - working-directory: landing
+        run: npm ci
+      - working-directory: landing
+        run: npm test
+      # The build is a test here: this app inlines NEXT_PUBLIC_ values at build
+      # time, so a config mistake fails the build rather than any unit test.
+      - working-directory: landing
+        run: npm run build
+
+  # NON-BLOCKING, and this should not be permanent. 1278 of its 1281 tests pass;
+  # three fail deterministically on main, unrelated to any recent change:
+  #
+  #   Composer home submit > browse_roles intent routes to /view/roles
+  #   Composer home submit > intake_call intent seeds intake and routes to /intake
+  #   AtsUpdateChip > dismiss calls the service and hides after refresh  (5s timeout)
+  #
+  # Left running-but-not-blocking rather than deleted or skipped: skipping them
+  # in the source would hide three real breaks, and blocking on them would make
+  # every unrelated PR red. Fix those three, then delete continue-on-error.
+  recruiter-app:
+    name: recruiter-app (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - working-directory: recruiter-app
+        run: bun install --frozen-lockfile
+      - working-directory: recruiter-app
+        run: bun test

@@ -17,17 +17,25 @@ project is meant to be run, not just read.
 
 ## What CI enforces
 
-`.github/workflows/gate.yml` runs on every push and PR. It is three release
-gates, and all three block a merge:
+Two workflows run on every push and PR.
+
+**`tests.yml`** runs every suite in the repo — eight Python packages in a
+matrix, `backend` and `cortex-backend` in their test images, and `landing`
+(tests plus build, because that app inlines `NEXT_PUBLIC_` values at build time,
+so a config mistake fails the build rather than a unit test). All block a merge.
+
+`recruiter-app` runs but is **non-blocking**: 1278 of its 1281 tests pass and
+three fail deterministically on `main`. They are neither skipped nor deleted —
+skipping would hide three real breaks, blocking would make every unrelated PR
+red. Fix them, then remove `continue-on-error` from that job.
+
+**`gate.yml`** is three release gates, and all three block a merge:
 
 | Gate | What fails it |
 |---|---|
 | `debrand` | Any reference to the pre-open-source product name, in file **contents or filenames**, outside `NOTICE`, `README.md` and `docs/superpowers/{specs,plans}/`. |
 | `secrets` | [gitleaks](https://github.com/gitleaks/gitleaks) over the **full history**, not just the tip. A secret in an earlier commit fails the run even after it is deleted. |
 | `no-captured-interviews` | Anything committed under `workers/feedback-agent/evals/{fixtures,runs}/`. These hold real transcripts and real people's names; they are git-ignored, but `git add --force` would slip past that. |
-
-**CI does not currently run the test suites.** Running them locally is on you
-until that changes — see the checklist in the PR template.
 
 ## Versioning
 
