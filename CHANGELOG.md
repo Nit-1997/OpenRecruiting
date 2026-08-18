@@ -67,6 +67,10 @@ release moves that block under a version heading and tags it.
   `classifyAssistantIntent` fail-opened to `out_of_scope` and never routed. The
   `AtsUpdateChip` dismiss test used `waitFor`, which does not resolve on Linux
   even once its callback succeeds.
+- The `format-scheduled` performance tests flaked on CI, asserting absolute
+  microsecond budgets on a shared, contended runner. They now enforce the tight
+  budget locally and a catastrophic-regression ceiling in CI — wide of both the
+  measured contention noise and the regression they exist to catch.
 - Saving a provider key on a fresh clone wrote a one-line `.env`, permanently
   dropping every documented default from `.env.example`.
 - The committed `litellm-config.yaml` carried routes generated from a
