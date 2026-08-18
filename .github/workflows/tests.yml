@@ -118,20 +118,13 @@ jobs:
       - working-directory: landing
         run: npm run build
 
-  # NON-BLOCKING, and this should not be permanent. 1278 of its 1281 tests pass;
-  # three fail deterministically on main, unrelated to any recent change:
-  #
-  #   Composer home submit > browse_roles intent routes to /view/roles
-  #   Composer home submit > intake_call intent seeds intake and routes to /intake
-  #   AtsUpdateChip > dismiss calls the service and hides after refresh  (5s timeout)
-  #
-  # Left running-but-not-blocking rather than deleted or skipped: skipping them
-  # in the source would hide three real breaks, and blocking on them would make
-  # every unrelated PR red. Fix those three, then delete continue-on-error.
+  # Blocking, as of the commit that fixed its last three failures. Both were
+  # Linux-only, which is why they survived: they pass on macOS and fail on every
+  # CI run. Neither was a product bug — see the comments in composer.test.tsx and
+  # ats-update-chip.test.tsx.
   recruiter-app:
-    name: recruiter-app (non-blocking)
+    name: recruiter-app
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

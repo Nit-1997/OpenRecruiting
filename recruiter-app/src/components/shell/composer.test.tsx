@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 let pathnameFixture = '/';
@@ -12,16 +12,37 @@ mock.module('next/navigation', () => ({
 import { useComposerStore, useSessionStore, useShellStore } from '@/stores';
 import { Composer } from './composer';
 
-const originalFetch = globalThis.fetch;
+// Stubbed at the composer's DIRECT collaborator, not two layers below it.
+//
+// This used to assign `globalThis.fetch` and let the real
+// classifyAssistantIntent -> v2Client.post -> fetch chain run. That silently
+// stopped working in a full-suite run: `mock.module` is process-wide and
+// last-writer-wins, and bun loads EVERY test file's top-level mocks before
+// running any test, so `@/lib/v2-client` — which seven files stub — resolved to
+// auth-store.test.ts's stub, whose `post` returns null. `res.intent` then threw
+// a TypeError, assistant.ts's fail-open catch turned it into 'out_of_scope',
+// and no route was pushed. Both routing tests failed with "not called" while
+// passing in isolation.
+//
+// Mocking the seam the composer actually calls removes that dependency: these
+// tests are about which ROUTE an intent produces, and `@/services/assistant` is
+// imported by composer.tsx alone, so this registration cannot be outbid or leak
+// into another file.
+//
+// KNOWN GAP, stated rather than papered over: classifyAssistantIntent's own HTTP
+// behaviour — including the fail-open — is now covered by nothing. It cannot be
+// tested robustly as it stands, because assistant.ts binds `v2Client` from the
+// module namespace that seven test files mutate, so any direct test of it loses
+// the same race this comment describes. Closing it needs either dependency
+// injection in assistant.ts or another preload snapshot in src/test-setup.ts.
+let intentFixture = 'out_of_scope';
+
+mock.module('@/services/assistant', () => ({
+  classifyAssistantIntent: async () => intentFixture,
+}));
 
 function mockIntent(intent: string) {
-  globalThis.fetch = mock(
-    async () =>
-      new Response(JSON.stringify({ intent }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-  ) as unknown as typeof fetch;
+  intentFixture = intent;
 }
 
 describe('Composer home submit', () => {
@@ -30,10 +51,8 @@ describe('Composer home submit', () => {
     useSessionStore.getState().reset();
     useComposerStore.getState().reset();
     pathnameFixture = '/';
+    intentFixture = 'out_of_scope';
     pushMock.mockClear();
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
   });
 
   test('browse_roles intent routes to /view/roles', async () => {

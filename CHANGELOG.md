@@ -28,8 +28,7 @@ release moves that block under a version heading and tags it.
 - `llm-providers.example.json` documenting the provider registry format.
 - **CI now runs the test suites** (`.github/workflows/tests.yml`) — 3442 Python
   tests across ten packages plus landing's 32, where previously CI ran only the
-  three release gates and no tests at all. `recruiter-app` runs non-blocking
-  until three deterministic failures on `main` are fixed.
+  three release gates and no tests at all.
 - A PR template, this changelog, and a versioning policy in `CONTRIBUTING.md`.
 - `landing/package-lock.json`, so `npm ci` is reproducible. Generated on Linux:
   a lockfile built on macOS omits the other platforms' optional native bindings
@@ -61,6 +60,13 @@ release moves that block under a version heading and tags it.
   nothing in the gateway. Now refused.
 - A malformed provider reply (HTTP 200 with no choices) crashed the probe with
   an unhandled 500 instead of reporting a failed check.
+- Three `recruiter-app` tests failed on Linux (so, on every CI run) while passing
+  on macOS. Neither was a product bug: the two Composer routing tests stubbed
+  `globalThis.fetch` and depended on `@/lib/v2-client` being genuine, but seven
+  test files mock it process-wide and `mock.module` is last-writer-wins, so
+  `classifyAssistantIntent` fail-opened to `out_of_scope` and never routed. The
+  `AtsUpdateChip` dismiss test used `waitFor`, which does not resolve on Linux
+  even once its callback succeeds.
 - Saving a provider key on a fresh clone wrote a one-line `.env`, permanently
   dropping every documented default from `.env.example`.
 - The committed `litellm-config.yaml` carried routes generated from a

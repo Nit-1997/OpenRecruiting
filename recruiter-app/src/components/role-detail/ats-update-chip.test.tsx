@@ -43,6 +43,30 @@ function renderChip(onApplied?: () => void) {
   );
 }
 
+// Poll a condition under `act` instead of `waitFor`.
+//
+// `waitFor` does not reliably resolve here on Linux — which is what CI runs, so
+// this test failed every run there while passing on macOS. Instrumented: its
+// callback SUCCEEDS (dismiss recorded, chip gone) on the second poll and the
+// promise still never settles, so the test burned its full 5s timeout. Only two
+// polls happened in those 5 seconds, against a 50ms interval — the retry path
+// stops being driven once the DOM stops mutating, and the success never
+// propagates out. The component is fine; the wait primitive is not.
+//
+// This drives React's own queue instead: each turn flushes effects and pending
+// promises inside `act`, so the dismiss -> refresh -> setSync chain settles.
+// Condition-based rather than a fixed sleep, so a slow CI runner cannot flake it
+// and the failure message names what never came true.
+async function actUntil(predicate: () => boolean, label: string): Promise<void> {
+  for (let i = 0; i < 100; i += 1) {
+    if (predicate()) return;
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+  }
+  throw new Error(`actUntil: timed out waiting for ${label}`);
+}
+
 describe('AtsUpdateChip', () => {
   beforeEach(() => {
     syncHandler = async () => DIRTY;
@@ -106,10 +130,12 @@ describe('AtsUpdateChip', () => {
     });
     fireEvent.click(document.getElementById('chip-toggle') as HTMLElement);
     fireEvent.click(document.getElementById('chip-dismiss') as HTMLElement);
-    await waitFor(() => {
-      expect(dismissCalls).toEqual(['req-1']);
-      expect(container.querySelector('#chip-toggle')).toBeFalsy();
-    });
+    await actUntil(
+      () => dismissCalls.length > 0 && !container.querySelector('#chip-toggle'),
+      'the dismiss call to land and the chip to disappear',
+    );
+    expect(dismissCalls).toEqual(['req-1']);
+    expect(container.querySelector('#chip-toggle')).toBeFalsy();
   });
 
   test('shows the removed pill when deleted in the ATS', async () => {

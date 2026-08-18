@@ -24,11 +24,6 @@ matrix, `backend` and `cortex-backend` in their test images, and `landing`
 (tests plus build, because that app inlines `NEXT_PUBLIC_` values at build time,
 so a config mistake fails the build rather than a unit test). All block a merge.
 
-`recruiter-app` runs but is **non-blocking**: 1278 of its 1281 tests pass and
-three fail deterministically on `main`. They are neither skipped nor deleted —
-skipping would hide three real breaks, blocking would make every unrelated PR
-red. Fix them, then remove `continue-on-error` from that job.
-
 **`gate.yml`** is three release gates, and all three block a merge:
 
 | Gate | What fails it |
