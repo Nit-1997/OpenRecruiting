@@ -62,8 +62,8 @@ export const DETAILED_SCORECARDS: Record<string, DetailedScorecard> = {
             verdict: 'supported',
             quotes: [
               '"took it from a scrappy open ended problem statement to all the way to the scale of 5,000 users, 10,000 users, and a 100,000 users in a span of six months" — candidate narrative on health-systems program',
-              '"very impressive given the [ambiguity] they had in terms of problem definition. Well as actually running through the scale up of this phase rollout plan" — Rishit, closing assessment',
-              '"a certain sense of running things independently at scale in the past" — Rishit, opening impression on lifecycle ownership',
+              '"very impressive given the [ambiguity] they had in terms of problem definition. Well as actually running through the scale up of this phase rollout plan" — Robin, closing assessment',
+              '"a certain sense of running things independently at scale in the past" — Robin, opening impression on lifecycle ownership',
             ],
           },
           {
@@ -71,7 +71,7 @@ export const DETAILED_SCORECARDS: Record<string, DetailedScorecard> = {
             verdict: 'supported',
             quotes: [
               '"5,000 users, 10,000 users, and a 100,000 users in a span of six months" — candidate described rollout as stepped user-growth milestones, not a single launch',
-              '"actually running through the scale up of this phase rollout plan" — Rishit explicitly flagged phased rollout as the strong signal, not just hitting scale',
+              '"actually running through the scale up of this phase rollout plan" — Robin explicitly flagged phased rollout as the strong signal, not just hitting scale',
             ],
           },
           {
@@ -96,7 +96,7 @@ export const DETAILED_SCORECARDS: Record<string, DetailedScorecard> = {
             heading: 'Criterion was intentionally skipped during the screen',
             verdict: 'not_supported',
             quotes: [
-              '"I wanna skip this." — Rishit, when asked about executive-communication signal',
+              '"I wanna skip this." — Robin, when asked about executive-communication signal',
               'No direct transcript evidence of senior-stakeholder influence, written memo quality, or exec-review behavior in this round.',
             ],
           },
@@ -121,7 +121,7 @@ export const DETAILED_SCORECARDS: Record<string, DetailedScorecard> = {
             heading: 'Oversaw APMs end-to-end on a multi-quarter program',
             verdict: 'supported',
             quotes: [
-              '"they actually worked with a product manager [and] associate product managers to get this to completion. So they oversaw the entire process" — Rishit, on mentorship capability',
+              '"they actually worked with a product manager [and] associate product managers to get this to completion. So they oversaw the entire process" — Robin, on mentorship capability',
               'Mentorship ran for the full six-month rollout, not a one-off coaching moment.',
             ],
           },
@@ -130,7 +130,7 @@ export const DETAILED_SCORECARDS: Record<string, DetailedScorecard> = {
               'Orchestrated analytics, design, and user research as a cross-functional leader',
             verdict: 'supported',
             quotes: [
-              '"independently manage[d] the analytics and design folks. And collaborated very closely with the user research department." — Rishit, cross-functional orchestration',
+              '"independently manage[d] the analytics and design folks. And collaborated very closely with the user research department." — Robin, cross-functional orchestration',
               'Signals a PM-multiplier profile rather than a lone-IC-PM pattern — matches the Staff PM mandate for this role.',
             ],
           },
@@ -138,7 +138,7 @@ export const DETAILED_SCORECARDS: Record<string, DetailedScorecard> = {
             heading: 'Mentorship evidence is scoped to the same program as the lifecycle story',
             verdict: 'contradicted',
             quotes: [
-              '"a bunch of mentorship in the project that I\'ve already mentioned" — Rishit explicitly anchored mentorship back to the health-systems program',
+              '"a bunch of mentorship in the project that I\'ve already mentioned" — Robin explicitly anchored mentorship back to the health-systems program',
               'Ask in the HM round for a second mentorship example from a different org context (e.g., PM who did not report into her, or a cross-company mentoring relationship).',
             ],
           },
@@ -148,21 +148,21 @@ export const DETAILED_SCORECARDS: Record<string, DetailedScorecard> = {
         id: 'overall_recommendation',
         title: 'Overall recommendation',
         description: "Interviewer's hire verdict and relative placement in the recent pipeline.",
-        body: 'Rishit lands on a strong hire, explicitly placing Amara in the top cohort of recent candidates. Given the strength on lifecycle ownership and mentorship plus no surfaced blockers, recommend advancing to the hiring-manager round with the executive-communication probe queued up as the priority gap-fill.',
+        body: 'Robin lands on a strong hire, explicitly placing Amara in the top cohort of recent candidates. Given the strength on lifecycle ownership and mentorship plus no surfaced blockers, recommend advancing to the hiring-manager round with the executive-communication probe queued up as the priority gap-fill.',
         bundles: [
           {
             heading: 'Unambiguous hire verdict, top-of-recent-pipeline placement',
             verdict: 'supported',
             quotes: [
-              '"I would lean on hiring this person. Definitely a strong hire." — Rishit, closing verdict',
-              '"will add value to the team. I think one of the better candidates we\'ve seen more recently." — Rishit, relative ranking',
+              '"I would lean on hiring this person. Definitely a strong hire." — Robin, closing verdict',
+              '"will add value to the team. I think one of the better candidates we\'ve seen more recently." — Robin, relative ranking',
             ],
           },
           {
             heading: 'No concerns raised at screen-close',
             verdict: 'supported',
             quotes: [
-              '"No. Nothing else." — Rishit, when asked for any residual concerns before wrapping',
+              '"No. Nothing else." — Robin, when asked for any residual concerns before wrapping',
               'No tenure, comp, timing, or narrative red flags surfaced in the 3-minute debrief.',
             ],
           },

@@ -14,8 +14,8 @@ interface RightRailProps {
   id: string;
 }
 
-// First + last initial (e.g. "Nitin Bhat" → "NB"), or just the first initial
-// when there is no last name (e.g. "Nitin" → "N"). Falls back to the email
+// First + last initial (e.g. "Taylor Marsh" → "NB"), or just the first initial
+// when there is no last name (e.g. "Taylor" → "N"). Falls back to the email
 // local-part when a display name has not loaded yet.
 function avatarInitials(name: string | null, email: string): string {
   const source = name?.trim() || email.split('@')[0] || email || '';

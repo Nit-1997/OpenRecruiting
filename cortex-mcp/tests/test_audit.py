@@ -46,14 +46,14 @@ def test_build_event_logs_only_param_keys_not_values():
         status="ok",
         start_monotonic=0.0,
         query="MATCH (c:Candidate {group_id: $org_id, name: $candidate_name}) RETURN c.uuid",
-        params={"org_id": ACME, "candidate_name": "Riya Sharma"},
+        params={"org_id": ACME, "candidate_name": "Carter Ellis"},
         row_count=1,
         truncated=False,
     )
     assert ev.query_param_keys == ["candidate_name", "org_id"]
     serialized = audit._serialize(ev, 8000, 500)
     # Verify the candidate name does NOT appear anywhere in the payload.
-    assert "Riya Sharma" not in str(serialized)
+    assert "Carter Ellis" not in str(serialized)
 
 
 def test_build_event_captures_outcome():

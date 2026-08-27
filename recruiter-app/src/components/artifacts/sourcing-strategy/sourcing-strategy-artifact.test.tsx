@@ -24,7 +24,7 @@ function mkData(
     version: 1,
     roleId: 'role-1',
     roleTitle: 'Staff Product Manager',
-    ownerName: 'Nitin',
+    ownerName: 'Taylor',
     createdAtLabel: 'Apr 19 · 10:30 AM',
     ...SOURCING_STRATEGY_DEFAULTS,
     userPreferences: 'Prefer YC-backed AI startups.',

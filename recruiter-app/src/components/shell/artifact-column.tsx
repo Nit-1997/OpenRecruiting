@@ -65,7 +65,7 @@ export function ArtifactColumn({ id }: ArtifactColumnProps) {
           pipeline: `${req.rounds.length} rounds`,
           status: 'draft',
           dept: 'Unassigned',
-          owner: 'Nitin',
+          owner: 'Taylor',
           created_at: new Date().toISOString(),
           ready_to_debrief: false,
           must_have: Array.from(new Set(req.rounds.flatMap((r) => r.skills))),

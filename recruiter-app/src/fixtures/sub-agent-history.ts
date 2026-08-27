@@ -62,7 +62,7 @@ export const SUB_AGENT_HISTORY: Record<SubAgentId, HistorySeed[]> = {
   debrief: [
     {
       role: 'user',
-      text: 'Run debrief for Atlas Staff PM — Priya onsite.',
+      text: 'Run debrief for Atlas Staff PM — Sloane onsite.',
       minutesAgo: 2100,
     },
     {

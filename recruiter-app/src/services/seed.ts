@@ -195,7 +195,7 @@ const CANDIDATE_ROUND_OVERRIDES: Record<
     summary:
       'Strong hire verdict. Clear independently-owned 0-to-1 scale-up (health systems, 100K users in six months) + PM mentorship signal. Exec-communication was skipped — probe in HM round before locking in.',
     interviewer_email: 'founder@example.com',
-    interviewer_name: 'Rishit Chaturvedi',
+    interviewer_name: 'Robin Vance',
   },
 };
 
@@ -479,7 +479,7 @@ export function buildSeed(): MockDb {
       {
         id: 'tm_1',
         user_id: 'user_1',
-        name: 'Nitin',
+        name: 'Taylor',
         email: 'founder@example.com',
         role: 'owner',
         avatar_initials: 'N',
@@ -499,7 +499,7 @@ export function buildSeed(): MockDb {
     profile: {
       id: 'prof_1',
       user_id: 'user_1',
-      name: 'Nitin',
+      name: 'Taylor',
       email: 'founder@example.com',
       avatar_initials: 'N',
       avatar_color: '#EEE8DD',
@@ -518,7 +518,7 @@ export function buildSeed(): MockDb {
         type: 'role:created',
         title: 'New role created',
         description: `${realReqs[0]?.role_title ?? 'Role'} was opened.`,
-        actor_name: 'Nitin',
+        actor_name: 'Taylor',
         requisition_id: realReqs[0]?.id ?? null,
         candidate_id: null,
         created_at: NOW,

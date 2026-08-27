@@ -210,7 +210,7 @@ describe('FE-F5: no silent fabrication on the v2 path', () => {
         role_location: '',
         department: 'Product',
         created_by: 'user_1',
-        created_by_name: 'Nitin',
+        created_by_name: 'Taylor',
       }),
     ));
 

@@ -15,9 +15,9 @@ FULL_GET = {
         "status": "REJECTED",
         "candidate": {
             "id": "261d85fd",
-            "firstName": "Nitin",
-            "lastName": "Bhat",
-            "emails": [{"type": "NOT_SPECIFIED", "email": "ntnbhat9@gmail.com"}],
+            "firstName": "Alex",
+            "lastName": "Rivera",
+            "emails": [{"type": "NOT_SPECIFIED", "email": "alex.rivera@example.com"}],
             "location": "Sunnyvale, California, United States",
         },
         "jobId": "68DF417FCE",

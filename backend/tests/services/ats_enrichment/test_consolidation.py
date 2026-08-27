@@ -12,7 +12,7 @@ from app.services.ats_enrichment.profile_models import ResumeProfile
 def _app(**over):
     cand = AtsCandidate(
         id="c1",
-        first_name="Nitin",
+        first_name="Taylor",
         location=over.pop("location", "Sunnyvale, CA"),
         links=over.pop("links", ["https://linkedin.com/in/x"]),
     )

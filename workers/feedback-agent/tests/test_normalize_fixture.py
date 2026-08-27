@@ -43,7 +43,7 @@ def raw_dir_scorecard(tmp_path: Path) -> Path:
         "segments": [
             {"participant": {"id": 100, "name": "Lena", "extra_data": {"teams": "..."}},
              "words": [{"text": "Hi"}]},
-            {"participant": {"id": 200, "name": "Priya", "extra_data": {"teams": "..."}},
+            {"participant": {"id": 200, "name": "Sloane", "extra_data": {"teams": "..."}},
              "words": [{"text": "Hello"}]},
         ],
         "raw_transcript_url": "https://signed.s3.aws.com/secret",
@@ -192,7 +192,7 @@ def test_normalize_redacts_candidate_name_in_words(tmp_path: Path):
         "segments": [
             {"participant": {"id": 100, "name": "Lena"},
              "words": [{"text": "Hi"}, {"text": "Lena,"}, {"text": "how"}]},
-            {"participant": {"id": 200, "name": "Priya"},
+            {"participant": {"id": 200, "name": "Sloane"},
              "words": [{"text": "Yes."}, {"text": "Lena"}, {"text": "is"}, {"text": "great."}]},
         ],
         "raw_transcript_url": None,

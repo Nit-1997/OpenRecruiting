@@ -289,7 +289,7 @@ export async function create(input: RequisitionCreateInput): Promise<Requisition
     role_location: input.role_location ?? '',
     department: input.department ?? 'Product',
     created_by: input.created_by ?? OWNER_ID,
-    created_by_name: input.created_by_name ?? 'Nitin',
+    created_by_name: input.created_by_name ?? 'Taylor',
     experience_min_years: input.experience_min_years ?? 0,
     experience_max_years: input.experience_max_years ?? null,
     status: 'intake_pending',

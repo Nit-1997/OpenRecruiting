@@ -12,7 +12,7 @@ const DEMO_ROLE: RoleFixture = {
   pipeline: '4 candidates awaiting decision',
   status: 'live',
   dept: 'Product',
-  owner: 'Nitin',
+  owner: 'Taylor',
   created_at: '2026-03-22T14:30:00Z',
   ready_to_debrief: true,
   must_have: ['Product strategy'],

@@ -18,7 +18,7 @@ async function fixtures() {
     role_location: '',
     department: 'Product',
     created_by: 'user_1',
-    created_by_name: 'Nitin',
+    created_by_name: 'Taylor',
   });
   const first = req.rounds[0];
   if (!first) throw new Error('expected rounds');

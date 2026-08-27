@@ -26,7 +26,7 @@ def test_empty_result_ok():
 
 def test_scalar_columns_ok():
     rows = [
-        {"name": "Riya Sharma", "status": "active"},
+        {"name": "Carter Ellis", "status": "active"},
         {"name": "Akanksha Singh", "status": None},
     ]
     check_result(rows, ACME)
@@ -41,14 +41,14 @@ def test_correct_group_id_ok():
 
 
 def test_node_dict_with_correct_group_id_ok():
-    rows = [{"c": {"name": "Sonal", "group_id": ACME, "status": "active"}}]
+    rows = [{"c": {"name": "Nguyen", "group_id": ACME, "status": "active"}}]
     check_result(rows, ACME)
 
 
 def test_nested_list_of_nodes_ok():
     rows = [
         {
-            "name": "Sonal",
+            "name": "Nguyen",
             "traits": [
                 {"name": "structured thinking", "group_id": ACME},
                 {"name": "outcome-focused", "group_id": ACME},
@@ -105,7 +105,7 @@ def test_relationship_property_wrong_group_id_blocked():
 def test_nested_list_with_wrong_group_id_blocked():
     rows = [
         {
-            "name": "Sonal",
+            "name": "Nguyen",
             "traits": [
                 {"name": "ok-trait", "group_id": ACME},
                 {"name": "leaked-trait", "group_id": NORTHWIND},
@@ -182,7 +182,7 @@ def test_unrelated_uuid_in_value_does_not_trip():
     is itself scope-related."""
     rows = [
         {"candidate_id": "11111111-2222-3333-4444-555555555555",
-         "name": "Sonal",
+         "name": "Nguyen",
          "group_id": ACME},
     ]
     check_result(rows, ACME)

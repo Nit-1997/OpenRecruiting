@@ -26,38 +26,38 @@ interface AtsStubCandidate {
 
 const ASHBY_STUBS: AtsStubCandidate[] = [
   {
-    name: 'Priya Sharma',
-    email: 'priya.sharma@figma.com',
+    name: 'Sloane Ellis',
+    email: 'priya.sharma@example.com',
     previousCompany: 'Figma',
     stage: 'Applied · 2d ago',
   },
   {
     name: 'Miguel Alvarado',
-    email: 'miguel.alvarado@linear.app',
+    email: 'miguel.alvarado@example.com',
     previousCompany: 'Linear',
     stage: 'Applied · 4d ago',
   },
   {
     name: 'Esther Lin',
-    email: 'esther.lin@notion.so',
+    email: 'esther.lin@example.com',
     previousCompany: 'Notion',
     stage: 'Applied · 1w ago',
   },
   {
     name: 'Arnav Patel',
-    email: 'arnav.patel@vercel.com',
+    email: 'arnav.patel@example.com',
     previousCompany: 'Vercel',
     stage: 'Applied · 1w ago',
   },
   {
     name: 'Zoë Kowalski',
-    email: 'zoe.kowalski@retool.com',
+    email: 'zoe.kowalski@example.com',
     previousCompany: 'Retool',
     stage: 'Applied · 2w ago',
   },
   {
     name: 'Demetri Roux',
-    email: 'demetri.roux@mercury.com',
+    email: 'demetri.roux@example.com',
     previousCompany: 'Mercury',
     stage: 'Applied · 2w ago',
   },
@@ -66,13 +66,13 @@ const ASHBY_STUBS: AtsStubCandidate[] = [
 const GREENHOUSE_STUBS: AtsStubCandidate[] = [
   {
     name: 'Yara Okafor',
-    email: 'yara.okafor@lattice.com',
+    email: 'yara.okafor@example.com',
     previousCompany: 'Lattice',
     stage: 'Applied · 3d ago',
   },
   {
     name: 'Kenji Watanabe',
-    email: 'kenji.watanabe@airbase.com',
+    email: 'kenji.watanabe@example.com',
     previousCompany: 'Airbase',
     stage: 'Applied · 5d ago',
   },
@@ -90,13 +90,13 @@ const GREENHOUSE_STUBS: AtsStubCandidate[] = [
   },
   {
     name: 'Amira Ben Saïd',
-    email: 'amira.bensaid@coda.io',
+    email: 'amira.bensaid@example.com',
     previousCompany: 'Coda',
     stage: 'Applied · 2w ago',
   },
   {
     name: 'Ravi Balasubramanian',
-    email: 'ravi.b@notion.so',
+    email: 'ravi.b@example.com',
     previousCompany: 'Notion',
     stage: 'Applied · 3w ago',
   },

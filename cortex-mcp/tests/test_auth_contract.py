@@ -85,7 +85,7 @@ async def test_token_minted_by_backend_validates_in_cortex_mcp(patched_jwks):
         audience="cortex-mcp",
         org_id="8f5311b7-7427-47c0-97d1-e1e6c4c23847",
         org_name="Acme",
-        user_name="Nitin Bhat",
+        user_name="Taylor Marsh",
         role="admin",
         scope="cortex:read",
         ttl_seconds=600,
@@ -94,7 +94,7 @@ async def test_token_minted_by_backend_validates_in_cortex_mcp(patched_jwks):
     assert auth.user_id == "8c1a3c8f-2f3e-4d2b-9d4a-0f8e1b2c3d4e"
     assert auth.org_id == "8f5311b7-7427-47c0-97d1-e1e6c4c23847"
     assert auth.org_name == "Acme"
-    assert auth.user_name == "Nitin Bhat"
+    assert auth.user_name == "Taylor Marsh"
     assert auth.role == "admin"
     assert "cortex:read" in auth.scopes
 

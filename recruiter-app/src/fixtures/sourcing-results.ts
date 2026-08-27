@@ -38,7 +38,7 @@ export const SOURCING_CANDIDATES: SourcingCandidate[] = [
   },
   {
     id: 's2',
-    name: 'Priya Desai',
+    name: 'Sloane Desai',
     title: 'Staff Software Engineer',
     company: 'Stripe',
     location: 'San Francisco',
@@ -342,7 +342,7 @@ export const SOURCING_CANDIDATES: SourcingCandidate[] = [
   },
   {
     id: 's21',
-    name: 'Riya Iyer',
+    name: 'Carter Iyer',
     title: 'ML Engineer',
     company: 'Scale AI',
     location: 'San Francisco',
@@ -351,7 +351,7 @@ export const SOURCING_CANDIDATES: SourcingCandidate[] = [
     skills: ['Python', 'PyTorch', 'LLM', 'Ray'],
     source: 'linkedin',
     matchScore: 89,
-    avatar: 'RI',
+    avatar: 'CI',
     color: '#EFD8E0',
     headline: 'Data labeling infra + RLHF pipelines for Scale.',
     schoolAt: 'IIT Madras',

@@ -50,7 +50,7 @@ async def download_resume_bytes(
 
 def _filename_from_url(url: str) -> str | None:
     """The Workable attachment carries a null name; the presigned URL path does
-    end in the real filename (…/NitinBhat_Resume2025.pdf?X-Amz-…) — strip the
+    end in the real filename (…/TaylorMarsh_Resume2025.pdf?X-Amz-…) — strip the
     query so parse_file can detect the .pdf/.docx extension."""
     path = urlparse(url).path
     name = path.rsplit("/", 1)[-1]

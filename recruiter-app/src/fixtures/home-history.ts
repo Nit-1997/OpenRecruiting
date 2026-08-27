@@ -7,7 +7,7 @@ export interface HistorySeed {
 export const HOME_HISTORY: HistorySeed[] = [
   {
     role: 'agent',
-    text: 'Good morning, Nitin. Atlas interviews lead the day — want the rundown?',
+    text: 'Good morning, Taylor. Atlas interviews lead the day — want the rundown?',
     minutesAgo: 1700,
   },
   { role: 'user', text: 'Yeah, run the morning brief.', minutesAgo: 1695 },
@@ -19,11 +19,11 @@ export const HOME_HISTORY: HistorySeed[] = [
   { role: 'user', text: 'Status on Atlas Staff PM?', minutesAgo: 1620 },
   {
     role: 'agent',
-    text: '2 onsites this week. Priya and Dan confirmed.',
+    text: '2 onsites this week. Sloane and Dan confirmed.',
     minutesAgo: 1615,
   },
-  { role: 'user', text: 'Push Priya to Thursday same slot.', minutesAgo: 1540 },
-  { role: 'agent', text: 'Done — Priya locked for Thu 10am PT.', minutesAgo: 1538 },
+  { role: 'user', text: 'Push Sloane to Thursday same slot.', minutesAgo: 1540 },
+  { role: 'agent', text: 'Done — Sloane locked for Thu 10am PT.', minutesAgo: 1538 },
   {
     role: 'user',
     text: 'Draft outreach for the staff backend role.',
@@ -59,7 +59,7 @@ export const HOME_HISTORY: HistorySeed[] = [
   },
   {
     role: 'agent',
-    text: '4 candidates: Priya (onsite Thu), Dan (onsite Fri), Mei (debrief pending), Alex (scorecards back).',
+    text: '4 candidates: Sloane (onsite Thu), Dan (onsite Fri), Mei (debrief pending), Alex (scorecards back).',
     minutesAgo: 85,
   },
 ];

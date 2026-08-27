@@ -184,7 +184,7 @@ export const SOURCING_STRATEGY_CANDIDATES: SourcingStrategyCandidate[] = [
     ],
     tags: ['activation lead', 'PLG', 'ex-Figma'],
     score: 92,
-    email: 'amara.valeri@lattice.com',
+    email: 'amara.valeri@example.com',
     rank: 1,
   },
   {
@@ -207,7 +207,7 @@ export const SOURCING_STRATEGY_CANDIDATES: SourcingStrategyCandidate[] = [
     ],
     tags: ['onboarding redesign', 'PLG', 'ex-Vercel'],
     score: 88,
-    email: 'dario.okonkwo@retool.com',
+    email: 'dario.okonkwo@example.com',
     rank: 2,
   },
   {
@@ -230,7 +230,7 @@ export const SOURCING_STRATEGY_CANDIDATES: SourcingStrategyCandidate[] = [
     ],
     tags: ['funnel lift 2.1x', 'PLG', 'ex-Notion'],
     score: 85,
-    email: 'nia.pettersen@linear.app',
+    email: 'nia.pettersen@example.com',
     rank: 3,
   },
   {
@@ -253,7 +253,7 @@ export const SOURCING_STRATEGY_CANDIDATES: SourcingStrategyCandidate[] = [
     ],
     tags: ['self-serve motion', 'PLG', 'ex-Segment'],
     score: 82,
-    email: 'kiran.raasch@airbase.com',
+    email: 'kiran.raasch@example.com',
     rank: 4,
   },
   {
@@ -276,7 +276,7 @@ export const SOURCING_STRATEGY_CANDIDATES: SourcingStrategyCandidate[] = [
     ],
     tags: ['referral · jenna', 'PLG', 'ex-Coda'],
     score: 80,
-    email: 'marisol.hendrix@mercury.com',
+    email: 'marisol.hendrix@example.com',
     rank: 5,
   },
 ];

@@ -18,7 +18,7 @@ async function fixtures() {
     role_location: '',
     department: 'Product',
     created_by: 'user_1',
-    created_by_name: 'Nitin',
+    created_by_name: 'Taylor',
   });
   const cand = await createCandidate(req.id, { name: 'Ada', email: 'ada@ex.com' });
   return { req, cand };

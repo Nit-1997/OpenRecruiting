@@ -310,7 +310,7 @@ export async function setStatus(
     type: 'candidate:status_changed',
     title: `Candidate moved to ${status}`,
     description: `${next.name} → ${status}.`,
-    actor_name: 'Nitin',
+    actor_name: 'Taylor',
     requisition_id: reqId,
     candidate_id: candidateId,
     created_at: nowIso(),

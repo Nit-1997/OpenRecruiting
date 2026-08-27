@@ -46,7 +46,7 @@ async function mockV2Backend(page: Page): Promise<{ schedule: CapturedSchedule |
     created_at: '2026-04-01T00:00:00Z',
     updated_at: '2026-04-01T00:00:00Z',
     created_by: 'user_1',
-    created_by_name: 'Nitin',
+    created_by_name: 'Taylor',
     organization_id: 'org_1',
     rounds: [
       {

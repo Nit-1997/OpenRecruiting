@@ -24,7 +24,7 @@ describe('activity service', () => {
       role_location: '',
       department: 'Product',
       created_by: 'user_1',
-      created_by_name: 'Nitin',
+      created_by_name: 'Taylor',
     });
     const after = await activity.list();
     expect(after.length).toBe(before.length + 1);

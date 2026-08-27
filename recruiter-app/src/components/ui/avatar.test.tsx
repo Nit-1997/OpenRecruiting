@@ -4,8 +4,8 @@ import { Avatar } from './avatar';
 
 describe('Avatar', () => {
   test('renders initials from single-word name', () => {
-    render(<Avatar id="a" name="Nitin" />);
-    expect(screen.getByText('NI')).toBeTruthy();
+    render(<Avatar id="a" name="Taylor" />);
+    expect(screen.getByText('TA')).toBeTruthy();
   });
 
   test('renders initials from multi-word name', () => {

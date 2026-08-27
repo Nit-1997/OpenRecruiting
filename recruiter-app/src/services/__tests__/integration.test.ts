@@ -29,7 +29,7 @@ describe('end-to-end: role → candidate → schedule → feedback', () => {
       role_location: 'Remote',
       department: 'Product',
       created_by: 'user_1',
-      created_by_name: 'Nitin',
+      created_by_name: 'Taylor',
       round_template: 'staff_pm_4',
     });
     const updated = await requisitions.setStatus(req.id, 'planned');

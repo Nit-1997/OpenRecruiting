@@ -83,7 +83,7 @@ describe('PacketDrawer — loaded packet', () => {
         onClose={() => {}}
       />,
     );
-    expect(container.querySelector('#pd-title')?.textContent).toBe('Priya Natarajan');
+    expect(container.querySelector('#pd-title')?.textContent).toBe('Sloane Natarajan');
     const sub = document.querySelector('#pd aside p.text-text-muted')?.textContent ?? '';
     expect(sub).toContain('Staff PM · Sunnyvale');
     expect(sub).toContain('4 rounds');
@@ -204,7 +204,7 @@ describe('PacketDrawer — replay tab with an available recording', () => {
     transcript_excerpt: 'Thanks for joining…',
     transcript_segments: [
       { start_seconds: 0, end_seconds: 18, speaker: 'Interviewer', text: 'Walk me through it.' },
-      { start_seconds: 18, end_seconds: 40, speaker: 'Priya Natarajan', text: 'I led the launch.' },
+      { start_seconds: 18, end_seconds: 40, speaker: 'Sloane Natarajan', text: 'I led the launch.' },
       { start_seconds: 40, end_seconds: 65, speaker: 'Interviewer', text: 'How did you measure?' },
     ],
     duration_seconds: 120,

@@ -1,9 +1,9 @@
 """Regression: candidate no-show where the interviewer (host) shares the
-candidate's name 'Nitin Bhat'. Must end + complete the round + NOT fire the
+candidate's name 'Taylor Marsh'. Must end + complete the round + NOT fire the
 Lambda (no junk packet), so 'Request feedback' becomes available.
 
 This is the exact f5bac7e2 production scenario: the sole speaker is the host
-"Nitin Bhat", whose name equals the candidate's name, and the candidate never
+"Taylor Marsh", whose name equals the candidate's name, and the candidate never
 joined. The name-collision must NOT mask the no-show, and the no-show must NOT
 fire the feedback Lambda — the round just completes so the recruiter can
 request feedback manually.
@@ -18,7 +18,7 @@ from app.services.recall_webhook.end_state import EndStateVerdict
 
 
 SEGMENTS = [{
-    "participant": {"id": 100, "name": "Nitin Bhat", "is_host": True},
+    "participant": {"id": 100, "name": "Taylor Marsh", "is_host": True},
     "words": [{"text": w, "start_timestamp": {"relative": 12.0}} for w in
               ("strong no candidate did not join no scalability reasoning no trade off "
                "analysis no design communication it is a strong no from my end".split())],
@@ -90,10 +90,10 @@ async def test_f5bac7e2_no_show_completes_without_lambda(monkeypatch, fake_supab
             "feedback_started_at": "2026-06-03T01:30:49Z",
             "joined_at": "2026-06-03T01:30:41Z",
             "scheduled_at": "2026-06-03T01:30:41Z",
-            "candidate_name": "Nitin Bhat",
+            "candidate_name": "Taylor Marsh",
             "detected_candidate_participant_id": None,
             "tracked_participants": [
-                {"id": 100, "name": "Nitin Bhat", "is_host": True, "left_at": "t"},
+                {"id": 100, "name": "Taylor Marsh", "is_host": True, "left_at": "t"},
             ],
         },
         transcript={"feedback_transcript": None, "segments": SEGMENTS},
