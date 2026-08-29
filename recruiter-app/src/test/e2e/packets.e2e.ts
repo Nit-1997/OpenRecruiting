@@ -49,7 +49,7 @@ test.describe('P4 packets sub-agent', () => {
     const artifact = page.locator('#packets-canvas-stage-packet-view-packet');
     await expect(artifact).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('#packets-canvas-stage-packet-view-packet-headline')).toContainText(
-      'Priya',
+      'Sloane',
     );
     // Rounds-list eventually renders — wait for the first round card.
     await expect(page.locator('#packets-canvas-stage-packet-view-packet-round-rs')).toBeVisible({

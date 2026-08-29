@@ -93,7 +93,7 @@ VALUES
   'completed',
   now() - interval '3 days', now() - interval '3 days',
   now() - interval '3 days' + interval '47 minutes',
-  'interviewer@example.com', 'Priya Raman',
+  'interviewer@example.com', 'Sloane Rowan',
   'yes', 'advance',
   'Strong practical grasp of relational modelling; walked through indexing '
   'trade-offs without prompting. Coding exercise completed with time to spare. '
@@ -105,7 +105,7 @@ VALUES
   '00000000-0000-0000-0000-0000000000e1',
   '00000000-0000-0000-0000-0000000000d2',
   'scheduled', now() + interval '2 days', NULL, NULL,
-  'interviewer@example.com', 'Priya Raman',
+  'interviewer@example.com', 'Sloane Rowan',
   NULL, NULL, NULL, 'pending', 'none', 'standard'),
  -- Second candidate, not yet scheduled.
  ('00000000-0000-0000-0000-0000000000f3',
@@ -125,18 +125,18 @@ VALUES (
  '0000000a-0000-0000-0000-0000000000f1',
  '00000000-0000-0000-0000-0000000000f1',
  'seed',
- 'Priya: Thanks for making the time. Want to start by walking me through a '
+ 'Sloane: Thanks for making the time. Want to start by walking me through a '
  'schema you have designed recently? '
  'Dana: Sure. Most recently a multi-tenant billing store. The interesting part '
  'was the tenant isolation — we went with row-level security rather than a '
  'schema per tenant, because the tenant count was going to grow faster than we '
  'wanted to run migrations. '
- 'Priya: What did that cost you? '
+ 'Sloane: What did that cost you? '
  'Dana: Query planning, mostly. Every policy predicate lands in the plan, so we '
  'had to be deliberate about indexes that matched the policy shape.',
- '[{"speaker": "Priya Raman", "text": "Thanks for making the time. Want to start by walking me through a schema you have designed recently?"},
+ '[{"speaker": "Sloane Rowan", "text": "Thanks for making the time. Want to start by walking me through a schema you have designed recently?"},
    {"speaker": "Dana Okafor", "text": "Sure. Most recently a multi-tenant billing store. The interesting part was the tenant isolation - we went with row-level security rather than a schema per tenant, because the tenant count was going to grow faster than we wanted to run migrations."},
-   {"speaker": "Priya Raman", "text": "What did that cost you?"},
+   {"speaker": "Sloane Rowan", "text": "What did that cost you?"},
    {"speaker": "Dana Okafor", "text": "Query planning, mostly. Every policy predicate lands in the plan, so we had to be deliberate about indexes that matched the policy shape."}]'::jsonb,
  96, 2820, 'en', now() - interval '3 days')
 ON CONFLICT (id) DO NOTHING;

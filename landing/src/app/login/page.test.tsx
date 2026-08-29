@@ -100,7 +100,7 @@ describe("Login page redirect logic", () => {
       data: {
         user: {
           id: "user-1",
-          email: "test@gmail.com",
+          email: "test@example.com",
           app_metadata: { provider: "google" },
           user_metadata: { full_name: "Test User" },
         },

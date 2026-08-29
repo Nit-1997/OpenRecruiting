@@ -38,7 +38,7 @@ def _make_packet_payload(candidate_id=CANDIDATE_ID):
     return {
         "candidate": {
             "id": candidate_id,
-            "name": "Aanya Sharma",
+            "name": "Aanya Ellis",
             "email": "aanya@example.com",
             "status": "active",
             "final_verdict": None,
@@ -105,7 +105,7 @@ def test_get_candidate_packet_returns_full_payload(recruiter_client, respx_mock)
     body = resp.json()
 
     assert body["candidate"]["id"] == CANDIDATE_ID
-    assert body["candidate"]["name"] == "Aanya Sharma"
+    assert body["candidate"]["name"] == "Aanya Ellis"
     assert isinstance(body["rounds"], list)
     assert len(body["rounds"]) == 1
 

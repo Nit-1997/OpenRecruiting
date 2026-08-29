@@ -32,7 +32,7 @@ describe('FeedbackPacketArtifact', () => {
 
     expect(container.querySelector('#fp')).not.toBeNull();
     expect(container.querySelector('#fp-headline')?.textContent).toContain(PACKET.candidateName);
-    // strong verdict label (Priya is a strong-hire fixture).
+    // strong verdict label (Sloane is a strong-hire fixture).
     expect(container.querySelector('#fp-verdict-label')?.textContent).toBe('Strong hire');
     expect(container.querySelector('#fp-summary-prose')?.textContent).toContain(
       PACKET.overall.summary.slice(0, 12),

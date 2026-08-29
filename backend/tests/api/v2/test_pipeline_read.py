@@ -37,7 +37,7 @@ def _make_pipeline_payload(candidates=None):
         "candidates": candidates or [
             {
                 "id": CANDIDATE_ID,
-                "name": "Aanya Sharma",
+                "name": "Aanya Ellis",
                 "email": "aanya@example.com",
                 "status": "active",
                 "final_verdict": None,
@@ -84,13 +84,13 @@ def test_get_role_pipeline_returns_enriched_candidates(recruiter_client, respx_m
 
     # Pass-through fields from the RPC.
     assert cand["id"] == CANDIDATE_ID
-    assert cand["name"] == "Aanya Sharma"
+    assert cand["name"] == "Aanya Ellis"
     assert cand["status"] == "active"
     assert len(cand["candidate_rounds"]) == 1
 
     # Enrichment per pipeline_service._enrich_candidate.
-    # "Aanya Sharma" → first letter of first + last name.
-    assert cand["avatar_initials"] == "AS"
+    # "Aanya Ellis" → first letter of first + last name.
+    assert cand["avatar_initials"] == "AE"
     # avatar_color must be one of the palette colors.
     assert cand["avatar_color"].startswith("#")
     assert len(cand["avatar_color"]) == 7

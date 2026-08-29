@@ -35,7 +35,7 @@ def test_includes_requisition_and_pipeline_fields():
                 "stage": {"id": "assessment", "name": "Assessment"}},
     }
     p = to_cortex_payload(
-        candidate_id="c1", candidate_name="Rishit", status="active", profile=profile,
+        candidate_id="c1", candidate_name="Robin", status="active", profile=profile,
         requisition_id="req-1", requisition_title="Senior Software Engineer",
         requisition_status="intake_pending",
     )

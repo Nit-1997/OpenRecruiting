@@ -35,7 +35,7 @@ export async function mirrorIntakeToDashboard(
       role_location: req.roleLocation || 'Remote',
       department: 'Product',
       created_by: 'user_1',
-      created_by_name: 'Nitin',
+      created_by_name: 'Taylor',
       experience_min_years: req.experienceMinYears ?? 3,
       experience_max_years: req.experienceMaxYears ?? null,
       job_description: req.intakeSummary ?? '',

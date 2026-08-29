@@ -79,14 +79,14 @@ def _packet(**overrides: Any) -> dict:
         "confidence": "high",
         "verdict": "hire",
         "headline_recommendation": (
-            "Priya Nair is the strongest fit and is ready for an offer."
+            "Sloane Nair is the strongest fit and is ready for an offer."
         ),
         "panel_members": [],
         "candidates": [
             {
                 "candidate_id": CAND_A,
-                "name": "Priya Nair",
-                "initials": "PN",
+                "name": "Sloane Nair",
+                "initials": "SN",
                 "color": "#123456",
                 "rank": 1,
                 "verdict": "hire",
@@ -123,7 +123,7 @@ def _packet(**overrides: Any) -> dict:
         "decision_matrix": [],
         "risks": [
             "Marcus has not completed the strategy round.",
-            "Limited evidence on Priya's data fluency.",
+            "Limited evidence on Sloane's data fluency.",
         ],
         "next_steps": [],
     }
@@ -243,13 +243,13 @@ async def test_summary_leads_with_recommendation_and_includes_signal(mock_settin
     assert isinstance(summary, str) and summary.strip()
     # Recommended winner named, ranking shows the runner-up, confidence stated,
     # at least one risk surfaced.
-    assert "Priya Nair" in summary
+    assert "Sloane Nair" in summary
     assert "Marcus Webb" in summary
     assert "high" in summary.lower()  # confidence
     assert "strategy round" in summary  # a risk
     # Leads with the answer: the recommended candidate appears before the
     # runner-up in the text.
-    assert summary.index("Priya Nair") < summary.index("Marcus Webb")
+    assert summary.index("Sloane Nair") < summary.index("Marcus Webb")
 
 
 @patch("src.tools.run_debrief.get_settings")

@@ -70,7 +70,7 @@ topics_json = st.text_area(
 
 candidate_name = st.text_input(
     "Candidate Name (optional - will auto-detect if empty)",
-    placeholder="e.g., Ankit Dalal",
+    placeholder="e.g., Alex Rivera",
     key="complete_candidate_name",
 )
 

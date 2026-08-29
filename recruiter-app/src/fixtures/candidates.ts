@@ -38,12 +38,12 @@ export interface CandidateFixture {
 const PM_SFO_CANDIDATES: CandidateFixture[] = [
   {
     id: 'c1',
-    name: 'Priya Natarajan',
+    name: 'Sloane Natarajan',
     role: 'Staff PM',
     stage: 'Panel complete',
     rounds: 4,
     scoresIn: 4,
-    avatar: 'PN',
+    avatar: 'SN',
     color: '#EADFD4',
     flag: 'Strong · 3.6/4',
     status: 'ready',

@@ -16,7 +16,7 @@ const ACTION: ProposedAction = {
   input: {
     candidate_ids: ['c1'],
     summary: 'Add a System design round',
-    rationale: 'The panel never probed architecture depth for Priya.',
+    rationale: 'The panel never probed architecture depth for Sloane.',
     name: 'System design',
   },
 };

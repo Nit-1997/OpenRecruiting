@@ -90,7 +90,7 @@ const PANELISTS_IOS = [
 ];
 
 const PANELISTS_DES = [
-  { name: 'Priya Aggarwal', role: 'Recruiter', initials: 'PA', color: '#EADFD4' },
+  { name: 'Sloane Aggarwal', role: 'Recruiter', initials: 'SA', color: '#EADFD4' },
   { name: 'Joon Lee', role: 'Hiring manager', initials: 'JL', color: '#D8EFE3' },
   { name: 'Ilya Volkov', role: 'Craft', initials: 'IV', color: '#E9DFF5' },
   { name: 'Sam Bennett', role: 'Values', initials: 'SB', color: '#F6E4DA' },
@@ -113,12 +113,12 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
       confidence: 'high',
       source_stats: { scorecards: 17, transcripts: 4 },
       headline_recommendation:
-        'Advance Priya Natarajan to offer; run a parallel track to offer Marcus Chen for the platform bet. Pass on Rivka (keep warm at Senior). Complete David Kim’s final loop before deciding.',
+        'Advance Sloane Natarajan to offer; run a parallel track to offer Marcus Chen for the platform bet. Pass on Rivka (keep warm at Senior). Complete David Kim’s final loop before deciding.',
       candidates: [
         {
           candidate_id: 'c1',
-          name: 'Priya Natarajan',
-          initials: 'PN',
+          name: 'Sloane Natarajan',
+          initials: 'SN',
           color: '#EADFD4',
           rank: 1,
           verdict: 'strong_hire',
@@ -165,7 +165,7 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
             'Fluent in SQL + reads dashboards independently',
           ],
           top_concerns: [
-            'Vision and storytelling are lighter than Priya',
+            'Vision and storytelling are lighter than Sloane',
             'Values round flagged bluntness — worth calibration',
           ],
           recommendation: 'Parallel offer for platform track',
@@ -247,13 +247,13 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
           dimension: 'Product sense',
           scores: { c1: 4, c2: 3, c3: 3, c4: 3 },
           winner_ids: ['c1'],
-          note: 'Priya reframed the prompt in 90s — rare Staff signal.',
+          note: 'Sloane reframed the prompt in 90s — rare Staff signal.',
         },
         {
           dimension: 'Strategy & vision',
           scores: { c1: 4, c2: 3, c3: 3, c4: 3 },
           winner_ids: ['c1'],
-          note: 'Priya connected the bet to a 3-year narrative; Marcus kept it to next quarter.',
+          note: 'Sloane connected the bet to a 3-year narrative; Marcus kept it to next quarter.',
         },
         {
           dimension: 'Execution & scoping',
@@ -265,35 +265,35 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
           dimension: 'Technical depth',
           scores: { c1: 3, c2: 4, c3: 2, c4: 2 },
           winner_ids: ['c2'],
-          note: 'Marcus whiteboarded a migration plan unprompted — Priya and Rivka reached for PM frames.',
+          note: 'Marcus whiteboarded a migration plan unprompted — Sloane and Rivka reached for PM frames.',
         },
         {
           dimension: 'Communication',
           scores: { c1: 4, c2: 3, c3: 4, c4: 3 },
           winner_ids: ['c1', 'c3'],
-          note: 'Rivka is magnetic; Priya is direct and specific. Marcus is clipped.',
+          note: 'Rivka is magnetic; Sloane is direct and specific. Marcus is clipped.',
         },
         {
           dimension: 'Culture & values',
           scores: { c1: 4, c2: 3, c3: 3, c4: 2 },
           winner_ids: ['c1'],
-          note: 'Priya named a specific repair story; David Kim has not been probed.',
+          note: 'Sloane named a specific repair story; David Kim has not been probed.',
         },
       ],
       risks: [
-        'Priya’s total comp target is ~$380k; band tops at $360k — finance review needed before verbal.',
+        'Sloane’s total comp target is ~$380k; band tops at $360k — finance review needed before verbal.',
         'Marcus read "blunt" in values; add a pre-offer calibration chat with David.',
         'Rivka is a repeat referrer source — pass must be white-glove or we lose the pipeline.',
         'David Kim still has one round outstanding — do not force a decision this week.',
       ],
       next_steps: [
         {
-          label: 'Finance review on Priya’s comp band',
+          label: 'Finance review on Sloane’s comp band',
           owner: 'David Woo',
           due: '2026-04-18',
         },
         {
-          label: 'Loop Priya with Rhea (VP Product) for 30-min alignment',
+          label: 'Loop Sloane with Rhea (VP Product) for 30-min alignment',
           owner: 'Jess Lin',
           due: '2026-04-17',
         },
@@ -328,12 +328,12 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
       confidence: 'medium',
       source_stats: { scorecards: 9, transcripts: 3 },
       headline_recommendation:
-        'Priya and Marcus are both panel-bar; wait on culture + values before a final call. Rivka is trending toward a pass.',
+        'Sloane and Marcus are both panel-bar; wait on culture + values before a final call. Rivka is trending toward a pass.',
       candidates: [
         {
           candidate_id: 'c1',
-          name: 'Priya Natarajan',
-          initials: 'PN',
+          name: 'Sloane Natarajan',
+          initials: 'SN',
           color: '#EADFD4',
           rank: 1,
           verdict: 'hire',
@@ -404,7 +404,7 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
           dimension: 'Product sense',
           scores: { c1: 4, c2: 3, c3: 3 },
           winner_ids: ['c1'],
-          note: 'Priya is consistently ahead on reframing.',
+          note: 'Sloane is consistently ahead on reframing.',
         },
         {
           dimension: 'Execution',
@@ -416,16 +416,16 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
           dimension: 'Communication',
           scores: { c1: 4, c2: 3, c3: 4 },
           winner_ids: ['c1', 'c3'],
-          note: 'Rivka matches Priya on charisma; Priya wins on clarity.',
+          note: 'Rivka matches Sloane on charisma; Sloane wins on clarity.',
         },
       ],
       risks: [
         'Panel disagreement on Rivka is widening by round — don’t force a decision yet.',
-        'Compensation not yet surfaced with Priya.',
+        'Compensation not yet surfaced with Sloane.',
       ],
       next_steps: [
         { label: 'Send values round prompts to panel', owner: 'Jess Lin', due: '2026-04-12' },
-        { label: 'Ask recruiter to probe Priya on comp', owner: 'Jess Lin', due: '2026-04-13' },
+        { label: 'Ask recruiter to probe Sloane on comp', owner: 'Jess Lin', due: '2026-04-13' },
       ],
     },
   ],
@@ -598,7 +598,7 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
           ],
           recommendation: 'Advance — align on timezone + product tradeoffs first.',
           panel_votes: [
-            { panelist: 'Priya Aggarwal', panelist_role: 'Recruiter', vote: 'strong_yes' },
+            { panelist: 'Sloane Aggarwal', panelist_role: 'Recruiter', vote: 'strong_yes' },
             { panelist: 'Joon Lee', panelist_role: 'Hiring manager', vote: 'yes' },
             { panelist: 'Ilya Volkov', panelist_role: 'Craft', vote: 'strong_yes' },
             { panelist: 'Sam Bennett', panelist_role: 'Values', vote: 'yes' },
@@ -644,7 +644,7 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
       next_steps: [
         {
           label: 'Reference call with previous design lead',
-          owner: 'Priya Aggarwal',
+          owner: 'Sloane Aggarwal',
           due: '2026-04-13',
         },
         {

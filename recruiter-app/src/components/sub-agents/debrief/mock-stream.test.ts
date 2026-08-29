@@ -30,13 +30,13 @@ describe('debriefMockStream', () => {
   });
 
   test('analyzing references the candidate names', async () => {
-    const ctx = JSON.stringify({ candidateNames: ['Priya', 'Marcus', 'Rivka'] });
+    const ctx = JSON.stringify({ candidateNames: ['Sloane', 'Marcus', 'Rivka'] });
     const events = await collect(debriefMockStream('analyzing', ctx, { speed: 0 }));
     const tokens = events
       .filter((e): e is { type: 'prose_token'; token: string } => e.type === 'prose_token')
       .map((e) => e.token)
       .join('');
-    expect(tokens).toContain('Priya');
+    expect(tokens).toContain('Sloane');
     expect(tokens).toContain('Marcus');
     expect(tokens).toContain('Rivka');
   });
@@ -44,7 +44,7 @@ describe('debriefMockStream', () => {
   test('result emits artifact patch + complete + chip row', async () => {
     const ctx = JSON.stringify({
       roleTitle: 'Staff PM · Sunnyvale',
-      candidateNames: ['Priya'],
+      candidateNames: ['Sloane'],
     });
     const events = await collect(debriefMockStream('result', ctx, { speed: 0 }));
     const patch = events.find((e) => e.type === 'artifact_patch') as unknown as {

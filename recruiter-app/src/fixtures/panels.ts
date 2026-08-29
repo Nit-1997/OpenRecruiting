@@ -110,8 +110,8 @@ export const PANELS: Record<string, Panel> = {
       {
         id: 'ps-s1',
         candidateId: 'c1',
-        candidateName: 'Priya Natarajan',
-        candidateAvatar: 'PN',
+        candidateName: 'Sloane Natarajan',
+        candidateAvatar: 'SN',
         candidateColor: '#EADFD4',
         when: 'Today · 2:30 PM',
         duration: 45,

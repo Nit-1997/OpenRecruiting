@@ -12,7 +12,7 @@ You are analyzing an interview transcript to map chunks to scorecard topics.
 - **Total Chunks:** {total_chunks}
 
 If `{candidate_name}` or any `{interviewer_names}` looks like a real
-human name (e.g., "John Smith", "Priya Patel"), upstream redaction has
+human name (e.g., "John Smith", "Sloane Patel"), upstream redaction has
 failed. Do not echo such names into the "reasoning" field. Refer to
 participants as "the candidate" and "the interviewer" instead.
 

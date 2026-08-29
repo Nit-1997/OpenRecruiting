@@ -45,7 +45,7 @@ with col2:
 
 candidate_name = st.text_input(
     "Candidate Name (optional - will auto-detect if empty)",
-    placeholder="e.g., Ankit Dalal",
+    placeholder="e.g., Alex Rivera",
     key="candidate_name",
     help="Leave empty to auto-detect from transcript using AI",
 )

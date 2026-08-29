@@ -291,7 +291,7 @@ export function FeedbackCandidatePicker({
           className="max-w-[420px] text-[12.5px] text-text-muted leading-[1.5]"
         >
           Pick a candidate and I will pull their full panel feedback rollup. Or type a name like{' '}
-          <b className="font-medium text-text-primary">&quot;packet for Priya&quot;</b> in the
+          <b className="font-medium text-text-primary">&quot;packet for Sloane&quot;</b> in the
           composer.
         </div>
         <div id={`${id}-actions`} className="flex items-center gap-2">

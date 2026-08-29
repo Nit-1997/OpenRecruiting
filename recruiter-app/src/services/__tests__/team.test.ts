@@ -66,7 +66,7 @@ describe('team service', () => {
         {
           id: 'm1',
           user_id: 'user_1',
-          name: 'Nitin',
+          name: 'Taylor',
           email: 'founder@example.com',
           role: 'owner',
           avatar_initials: 'N',
@@ -95,7 +95,7 @@ describe('team service', () => {
       email: 'priya@ex.com',
       role: 'recruiter',
       invited_by_id: 'user_1',
-      invited_by_name: 'Nitin',
+      invited_by_name: 'Taylor',
       created_at: '2026-01-01T00:00:00Z',
       expires_at: '2026-01-08T00:00:00Z',
       status: 'pending',

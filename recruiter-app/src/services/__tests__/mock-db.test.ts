@@ -10,7 +10,7 @@ describe('mock-db', () => {
     expect(db.requisitions).toEqual([]);
     expect(db.candidates).toEqual([]);
     expect(db.billing.interview_total).toBe(25);
-    expect(db.profile.name).toBe('Nitin');
+    expect(db.profile.name).toBe('Taylor');
   });
 
   test('resetDb replaces the working state', () => {

@@ -178,7 +178,7 @@ function emptyDb(): MockDb {
     profile: {
       id: 'prof_1',
       user_id: 'user_1',
-      name: 'Nitin',
+      name: 'Taylor',
       email: 'founder@example.com',
       avatar_initials: 'N',
       avatar_color: '#EEE8DD',

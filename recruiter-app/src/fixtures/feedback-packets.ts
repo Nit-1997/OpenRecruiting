@@ -56,8 +56,8 @@ export const FEEDBACK_PACKETS: Record<string, Record<string, FeedbackPacket>> = 
   'pm-sfo': {
     c1: {
       candidateId: 'c1',
-      candidateName: 'Priya Natarajan',
-      candidateAvatar: 'PN',
+      candidateName: 'Sloane Natarajan',
+      candidateAvatar: 'SN',
       candidateColor: '#EADFD4',
       candidateStage: 'Panel complete',
       roleId: 'pm-sfo',
@@ -66,7 +66,7 @@ export const FEEDBACK_PACKETS: Record<string, Record<string, FeedbackPacket>> = 
       scoreScale: 4,
       overall: {
         summary:
-          'Priya is a product-led Staff PM with sharp prioritization, a clear framework for vague problems, and a warm but direct communication style. Strongest on strategy, lightest on 0-to-1 infra.',
+          'Sloane is a product-led Staff PM with sharp prioritization, a clear framework for vague problems, and a warm but direct communication style. Strongest on strategy, lightest on 0-to-1 infra.',
         strengths: [
           'Product sense — breaks ambiguous problems into first-principles frameworks quickly.',
           'Communication — direct, specific, pushes back on the panel without heat.',
@@ -78,7 +78,7 @@ export const FEEDBACK_PACKETS: Record<string, Record<string, FeedbackPacket>> = 
           'Start date — 4-week notice means earliest start is May 19.',
         ],
         nextSteps: [
-          'Loop Priya with Rhea (VP Product) for an informal 30-min alignment.',
+          'Loop Sloane with Rhea (VP Product) for an informal 30-min alignment.',
           'Finance review on comp band before Friday.',
           'Target verbal offer by Friday EOD.',
         ],
@@ -132,7 +132,7 @@ export const FEEDBACK_PACKETS: Record<string, Record<string, FeedbackPacket>> = 
             'Best product sense interview Sana has seen this half. Reframed the stated question in a way that revealed a cleaner product cut.',
           quotes: [
             {
-              text: 'Priya reframed the prompt in 90 seconds and saved us 40 minutes of bad path.',
+              text: 'Sloane reframed the prompt in 90 seconds and saved us 40 minutes of bad path.',
               type: 'strength',
               attribution: 'Sana Reyes',
             },
@@ -199,7 +199,7 @@ export const FEEDBACK_PACKETS: Record<string, Record<string, FeedbackPacket>> = 
           'Ownership — the strongest “mine to fix” signal on the panel this half.',
         ],
         watchouts: [
-          'Vision and storytelling — lighter than Priya; will need an EM or designer strong on narrative.',
+          'Vision and storytelling — lighter than Sloane; will need an EM or designer strong on narrative.',
           'External polish — more reps with execs before a big keynote moment.',
         ],
         nextSteps: [
@@ -700,7 +700,7 @@ export const FEEDBACK_PACKETS: Record<string, Record<string, FeedbackPacket>> = 
         {
           id: 'rs',
           title: 'Recruiter screen',
-          interviewer: 'Priya Aggarwal',
+          interviewer: 'Sloane Aggarwal',
           date: '2026-04-03',
           score: 4,
           notes: 'Strong portfolio walk-through; articulate on craft and rationale.',
@@ -708,7 +708,7 @@ export const FEEDBACK_PACKETS: Record<string, Record<string, FeedbackPacket>> = 
             {
               text: 'She narrated each decision, not each screen. That is Staff-shape.',
               type: 'strength',
-              attribution: 'Priya Aggarwal',
+              attribution: 'Sloane Aggarwal',
             },
           ],
         },
@@ -759,7 +759,7 @@ export const FEEDBACK_PACKETS: Record<string, Record<string, FeedbackPacket>> = 
         },
       ],
       panelistsPanel: [
-        { name: 'Priya Aggarwal', role: 'Recruiter', score: 4 },
+        { name: 'Sloane Aggarwal', role: 'Recruiter', score: 4 },
         { name: 'Joon Lee', role: 'Hiring manager', score: 3 },
         { name: 'Ilya Volkov', role: 'Craft', score: 4 },
         { name: 'Sam Bennett', role: 'Values', score: 3 },

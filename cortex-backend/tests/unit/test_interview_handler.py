@@ -25,7 +25,7 @@ def metadata():
     return EpisodicMetadata(
         candidate_round_id="cr-001",
         candidate_id="cand-001",
-        candidate_name="Ankit",
+        candidate_name="Pierce",
         round_id="round-001",
         round_name="Product Interview",
         round_category="product",
@@ -34,7 +34,7 @@ def metadata():
         organization_id="org-001",
         interviewer_email="nachi@example.com",
         interviewer_ref="nachi@example.com",
-        interviewer_name="Priya Ramanujan",
+        interviewer_name="Sloane Rowanujan",
     )
 
 
@@ -92,7 +92,7 @@ def test_build_triplets_creates_interviewer_demonstrates(handler, metadata, conc
 
     demonstrates = [t for t in triplets if t.relation == "DEMONSTRATES"]
     assert len(demonstrates) == 1
-    assert demonstrates[0].source_name == "Priya Ramanujan"
+    assert demonstrates[0].source_name == "Sloane Rowanujan"
     assert demonstrates[0].source_id == "nachi@example.com"
 
 

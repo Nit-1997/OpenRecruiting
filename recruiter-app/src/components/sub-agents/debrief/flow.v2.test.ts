@@ -30,12 +30,12 @@ const DEMO_ROLE = {
 const POOL = [
   {
     id: 'c1',
-    name: 'Priya Natarajan',
+    name: 'Sloane Natarajan',
     role: '',
     stage: 'Ready to debrief',
     rounds: 4,
     scoresIn: 4,
-    avatar: 'PN',
+    avatar: 'SN',
     color: '#EADFD4',
     flag: '4/4 rounds',
     status: 'ready' as const,
@@ -68,13 +68,13 @@ const READY_PACKET = {
   status: 'fresh',
   confidence: 'high',
   verdict: 'strong_hire',
-  headline_recommendation: 'Advance Priya.',
+  headline_recommendation: 'Advance Sloane.',
   panel_members: [],
   candidates: [
     {
       candidate_id: 'c1',
-      name: 'Priya Natarajan',
-      initials: 'PN',
+      name: 'Sloane Natarajan',
+      initials: 'SN',
       color: '#EADFD4',
       rank: 1,
       verdict: 'strong_hire',

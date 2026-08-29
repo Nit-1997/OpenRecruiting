@@ -181,7 +181,7 @@ export async function requestFeedback(
     type: 'feedback:requested',
     title: 'Feedback requested',
     description: `Sent to ${input.interviewer_email} via ${input.channel}.`,
-    actor_name: 'Nitin',
+    actor_name: 'Taylor',
     requisition_id: reqId,
     candidate_id: candidateId,
     created_at: nowIso(),

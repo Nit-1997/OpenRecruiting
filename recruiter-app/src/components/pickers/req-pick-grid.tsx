@@ -25,7 +25,7 @@ export function ReqPickGrid({
   id,
   onPick,
   pageSize = 6,
-  ownedBy = 'Nitin',
+  ownedBy = 'Taylor',
   roles,
 }: ReqPickGridProps) {
   const source = roles ?? REQS;

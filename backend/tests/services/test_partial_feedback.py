@@ -142,13 +142,13 @@ def test_relative_word_ts_shapes():
 # ------------- host-signal / participant-id interviewer detection -------------
 
 def test_host_feedback_counts_even_when_name_equals_candidate():
-    # interviewer (host) shares the candidate's name "Nitin Bhat", candidate no-show
+    # interviewer (host) shares the candidate's name "Taylor Marsh", candidate no-show
     long_text = (
         "strong no the candidate did not join no scalability reasoning no trade off "
         "analysis no design communication no system understanding it is a strong no "
         "from my end overall here"
     )
-    segments = [_seg(100, "Nitin Bhat", True, long_text)]
+    segments = [_seg(100, "Taylor Marsh", True, long_text)]
     ready, source, turns, chars = is_meaningful_partial_feedback(
         feedback_transcript=None,
         fallback_segments=segments,

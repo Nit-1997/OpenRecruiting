@@ -30,7 +30,7 @@ def _app(with_resume=True):
     return AtsApplication(
         id="app1",
         status="REJECTED",
-        candidate=AtsCandidate(id="app1", first_name="Nitin", location="Sunnyvale, CA"),
+        candidate=AtsCandidate(id="app1", first_name="Taylor", location="Sunnyvale, CA"),
         applied_at="2026-06-12T20:33:28Z",
         current_stage=AtsStageRef(id="interview", name="Interview"),
         rejection=AtsRejection(reason="Doesn't have required experience", rejected_at="t"),
@@ -48,7 +48,7 @@ async def _fetch(_i, _a, _c):
 
 
 async def _download(_url, _mb):
-    return (b"Nitin Bhat\nSenior Engineer\nPython", "text/plain")
+    return (b"Taylor Marsh\nSenior Engineer\nPython", "text/plain")
 
 
 async def _extract(_text, _model):
@@ -77,7 +77,7 @@ async def test_full_path_persists_profile_and_pushes(respx_mock):
 
     out = await process_candidate(
         get_supabase_admin_client(),
-        {"id": "cand1", "requisition_id": "req1", "name": "Nitin", "status": "rejected", "profile": None},
+        {"id": "cand1", "requisition_id": "req1", "name": "Taylor", "status": "rejected", "profile": None},
         fetch_application=_fetch,
         download_resume=_download,
         extract_profile=_extract,
@@ -207,7 +207,7 @@ async def test_process_candidate_uses_registry_bundle_for_ashby(respx_mock, monk
 
     out = await proc.process_candidate(
         get_supabase_admin_client(),
-        {"id": "cand1", "requisition_id": "req1", "name": "Nitin", "status": "active", "profile": None},
+        {"id": "cand1", "requisition_id": "req1", "name": "Taylor", "status": "active", "profile": None},
         download_resume=_download,
         extract_profile=_extract,
         upload_resume_fn=_upload,
@@ -269,7 +269,7 @@ async def test_process_candidate_pushes_scorecards_when_supported(respx_mock, mo
 
     out = await proc.process_candidate(
         get_supabase_admin_client(),
-        {"id": "cand1", "requisition_id": "req1", "name": "Nitin", "status": "active", "profile": None},
+        {"id": "cand1", "requisition_id": "req1", "name": "Taylor", "status": "active", "profile": None},
         download_resume=_download,
         extract_profile=_extract,
         upload_resume_fn=_upload,

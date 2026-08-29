@@ -21,9 +21,9 @@ EXAMPLE_TOPICS = """[
   }
 ]"""
 
-EXAMPLE_FEEDBACK = """[66:50] Priya: Alright, so that was the interview with Ankit. Let me share my feedback.
+EXAMPLE_FEEDBACK = """[66:50] Sloane: Alright, so that was the interview with Pierce. Let me share my feedback.
 
-Overall, I think Ankit has solid product management experience, particularly in the conversational AI space. He's been doing this for about five years now, which is good.
+Overall, I think Pierce has solid product management experience, particularly in the conversational AI space. He's been doing this for about five years now, which is good.
 
 On the positive side, he demonstrated good outcome focus. He mentioned specific metrics like the $1M ARR at Sarti and the 4-5x increase in API consumption at Gupshup. That's the kind of quantified thinking we need.
 

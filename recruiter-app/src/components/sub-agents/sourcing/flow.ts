@@ -262,7 +262,7 @@ function baseStrategyData(
     version: 1,
     roleId,
     roleTitle,
-    ownerName: 'Nitin',
+    ownerName: 'Taylor',
     createdAtLabel: formatTimestamp(),
     ...SOURCING_STRATEGY_DEFAULTS,
     userPreferences,
@@ -753,7 +753,7 @@ async function ensureRoleForStrategy(): Promise<{
       role_location: 'Remote',
       department: 'Product',
       created_by: 'user_1',
-      created_by_name: 'Nitin',
+      created_by_name: 'Taylor',
       round_template: 'staff_pm_4',
     });
     updateSelections({ roleId: created.id, roleTitle: created.role_title });

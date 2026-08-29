@@ -120,7 +120,7 @@ export const BRAIN_STORIES: BrainStory[] = [
     elaboration:
       'Ben has scored 6 of the last 8 Product Sense rounds. His average is 2.7 versus the panel mean of 4.0. Recalibration suggested before the next Product Sense round on Thursday.',
     evidence: [
-      'Priya N. · Ben 2.5 · panel 3.8',
+      'Sloane N. · Ben 2.5 · panel 3.8',
       'Marcus C. · Ben 2.8 · panel 4.1',
       'Yuki T. · Ben 3.0 · panel 4.0',
     ],

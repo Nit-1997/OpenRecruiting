@@ -178,7 +178,7 @@ function DebriefDemo({ animate }: { animate: boolean }) {
 const CALIBRATION_ROWS = [
   { name: "Sarah Parker", score: 92, drift: false },
   { name: "Dev Patel", score: 88, drift: false },
-  { name: "Priya Nair", score: 85, drift: false },
+  { name: "Sloane Nair", score: 85, drift: false },
   { name: "Mike Ross", score: 71, drift: true },
 ];
 

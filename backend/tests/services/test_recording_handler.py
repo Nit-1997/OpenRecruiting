@@ -270,13 +270,13 @@ async def test_decide_no_show_completes_round_and_skips_lambda(monkeypatch):
             "feedback_status": "completed",
             "joined_at": "2026-06-02T00:00:00Z",
             "scheduled_at": "2026-06-02T00:00:00Z",
-            "candidate_name": "Nitin Bhat",
+            "candidate_name": "Taylor Marsh",
             "detected_candidate_participant_id": None,
-            "tracked_participants": [{"id": 1, "name": "Nitin Bhat", "is_host": True}],
+            "tracked_participants": [{"id": 1, "name": "Taylor Marsh", "is_host": True}],
         },
         transcript_data={
             "feedback_transcript": None,
-            "segments": [{"participant": {"name": "Nitin Bhat", "is_host": True}, "text": "no-show"}],
+            "segments": [{"participant": {"name": "Taylor Marsh", "is_host": True}, "text": "no-show"}],
         },
     )
     triggered = {"lambda": False}

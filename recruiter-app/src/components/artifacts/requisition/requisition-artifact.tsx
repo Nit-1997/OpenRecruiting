@@ -82,7 +82,7 @@ export function RequisitionArtifact({ id, artifactId }: RequisitionArtifactProps
       pipeline: `${req.rounds.length} rounds`,
       status: roleStatus,
       dept: 'Unassigned',
-      owner: 'Nitin',
+      owner: 'Taylor',
       created_at: new Date().toISOString(),
       ready_to_debrief: false,
       must_have: Array.from(new Set(req.rounds.flatMap((r) => r.skills))),
