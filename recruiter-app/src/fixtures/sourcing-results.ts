@@ -47,7 +47,7 @@ export const SOURCING_CANDIDATES: SourcingCandidate[] = [
     skills: ['Python', 'Go', 'PostgreSQL', 'Kubernetes', 'AWS'],
     source: 'linkedin',
     matchScore: 96,
-    avatar: 'PD',
+    avatar: 'SD',
     color: '#F7DDE4',
     headline: 'Self-healing agent framework for on-call response at Stripe.',
     schoolAt: 'IIT Bombay',

@@ -86,7 +86,7 @@ def _packet(**overrides: Any) -> dict:
             {
                 "candidate_id": CAND_A,
                 "name": "Sloane Nair",
-                "initials": "PN",
+                "initials": "SN",
                 "color": "#123456",
                 "rank": 1,
                 "verdict": "hire",

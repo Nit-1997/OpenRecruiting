@@ -90,7 +90,7 @@ def test_get_role_pipeline_returns_enriched_candidates(recruiter_client, respx_m
 
     # Enrichment per pipeline_service._enrich_candidate.
     # "Aanya Ellis" → first letter of first + last name.
-    assert cand["avatar_initials"] == "AS"
+    assert cand["avatar_initials"] == "AE"
     # avatar_color must be one of the palette colors.
     assert cand["avatar_color"].startswith("#")
     assert len(cand["avatar_color"]) == 7

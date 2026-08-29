@@ -90,7 +90,7 @@ const PANELISTS_IOS = [
 ];
 
 const PANELISTS_DES = [
-  { name: 'Sloane Aggarwal', role: 'Recruiter', initials: 'PA', color: '#EADFD4' },
+  { name: 'Sloane Aggarwal', role: 'Recruiter', initials: 'SA', color: '#EADFD4' },
   { name: 'Joon Lee', role: 'Hiring manager', initials: 'JL', color: '#D8EFE3' },
   { name: 'Ilya Volkov', role: 'Craft', initials: 'IV', color: '#E9DFF5' },
   { name: 'Sam Bennett', role: 'Values', initials: 'SB', color: '#F6E4DA' },
@@ -118,7 +118,7 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
         {
           candidate_id: 'c1',
           name: 'Sloane Natarajan',
-          initials: 'PN',
+          initials: 'SN',
           color: '#EADFD4',
           rank: 1,
           verdict: 'strong_hire',
@@ -333,7 +333,7 @@ export const DEBRIEF_PACKETS: Record<string, DebriefPacket[]> = {
         {
           candidate_id: 'c1',
           name: 'Sloane Natarajan',
-          initials: 'PN',
+          initials: 'SN',
           color: '#EADFD4',
           rank: 1,
           verdict: 'hire',

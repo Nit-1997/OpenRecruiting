@@ -35,7 +35,7 @@ const POOL = [
     stage: 'Ready to debrief',
     rounds: 4,
     scoresIn: 4,
-    avatar: 'PN',
+    avatar: 'SN',
     color: '#EADFD4',
     flag: '4/4 rounds',
     status: 'ready' as const,
@@ -74,7 +74,7 @@ const READY_PACKET = {
     {
       candidate_id: 'c1',
       name: 'Sloane Natarajan',
-      initials: 'PN',
+      initials: 'SN',
       color: '#EADFD4',
       rank: 1,
       verdict: 'strong_hire',

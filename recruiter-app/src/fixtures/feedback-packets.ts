@@ -57,7 +57,7 @@ export const FEEDBACK_PACKETS: Record<string, Record<string, FeedbackPacket>> = 
     c1: {
       candidateId: 'c1',
       candidateName: 'Sloane Natarajan',
-      candidateAvatar: 'PN',
+      candidateAvatar: 'SN',
       candidateColor: '#EADFD4',
       candidateStage: 'Panel complete',
       roleId: 'pm-sfo',

@@ -113,7 +113,7 @@ export const ROLE_OVERVIEWS: Record<string, RoleOverview> = {
         id: 'u1',
         roundId: 'ps',
         candidate: 'Sloane Natarajan',
-        candidateAvatar: 'PN',
+        candidateAvatar: 'SN',
         candidateColor: '#EADFD4',
         interviewer: 'Sana Reyes',
         when: 'Today · 2:30 PM',
